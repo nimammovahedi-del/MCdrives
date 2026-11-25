@@ -1,0 +1,7 @@
+{
+  "name": "Irvine Spectrum and surroundings",
+  "slug": "irvine-core",
+  "bbox": [33.6330, -117.7640, 33.6680, -117.7220],
+  "lidar": true,
+  "max_chunk_km2": 16
+}

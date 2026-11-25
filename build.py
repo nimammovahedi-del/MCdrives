@@ -7,13 +7,13 @@
 
 Each step is skipped when its output already exists, so a failed or interrupted run
 resumes where it stopped. Use --force to redo everything, or --from STEP to redo from
-bake | convert | roads | pack.
+bake | convert | roads | site.
 """
 import argparse, json, math, os, shutil, subprocess, sys, time, urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-STEPS = ["bake", "convert", "roads", "pack"]
+STEPS = ["bake", "convert", "roads", "site"]
 ARNIS_WINDOWS_URL = "https://github.com/louis-e/arnis/releases/latest/download/arnis-windows.exe"
 
 
@@ -111,26 +111,25 @@ def build_chunk(area, chunk, args, work):
     data = site / "data"
     if step("convert", lambda: (data / "meta.json").exists()):
         shutil.rmtree(site, ignore_errors=True); data.mkdir(parents=True)
-        run([sys.executable, ROOT / "tools" / "mca2web.py", world_dir(), data], log)
+        run([sys.executable, ROOT / "tools" / "mca2web.py", world_dir(), data] + (["--b64"] if args.b64 else []), log)
         times["convert"] = time.time() - times["convert"]
 
     if step("roads", lambda: (site / "roads.json").exists()):
         run([sys.executable, ROOT / "tools" / "roadgraph.py", bstr, osm, site / "roads.json"], log)
         times["roads"] = time.time() - times["roads"]
 
-    if step("pack", lambda: (data / "world.json").exists()):
-        run([sys.executable, ROOT / "tools" / "pack.py", data], log)
+    if step("site", lambda: (site / "index.html").exists()):
         meta = json.loads((data / "meta.json").read_text())
         meta.update(name=area["name"] + ("" if chunk["id"] == "all" else f" ({chunk['id']})"), bbox=bbox)
         (data / "meta.json").write_text(json.dumps(meta))
         shutil.copy(ROOT / "web" / "index.html", site / "index.html")
         shutil.copytree(ROOT / "web" / "vendor", site / "vendor", dirs_exist_ok=True)
-        times["pack"] = time.time() - times["pack"]
+        times["site"] = time.time() - times["site"]
 
     meta = json.loads((data / "meta.json").read_text())
     size = sum(f.stat().st_size for f in site.rglob("*") if f.is_file())
     return {"id": chunk["id"], "row": chunk["row"], "col": chunk["col"], "bbox": bbox, "km2": round(h * w, 3),
-            "blocks": [meta["width"], meta["depth"], meta["height"]], "quads": sum(t[2] for t in meta["tiles"]),
+            "blocks": [meta["width"], meta["depth"], meta["height"]], "quads": meta["quads"], "packs": len(meta["packs"]),
             "site_mb": round(size / 1e6, 2), "seconds": {k: round(v, 1) for k, v in times.items() if v < 1e6}}
 
 
@@ -141,6 +140,7 @@ def main():
     ap.add_argument("--world", help="reuse an existing Arnis world folder instead of baking (single-chunk areas)")
     ap.add_argument("--osm", help="OSM JSON saved by that bake (--save-json-file)")
     ap.add_argument("--out", default=str(ROOT / "build"), help="output root (default: build/)")
+    ap.add_argument("--b64", action="store_true", help="write packs as base64 JSON, for hosts that refuse .bin files")
     ap.add_argument("--plan", action="store_true", help="print the chunk plan and exit")
     ap.add_argument("--only", help="build just these chunk ids, comma-separated")
     ap.add_argument("--force", action="store_true", help="redo every step")

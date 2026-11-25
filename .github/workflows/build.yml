@@ -5,13 +5,13 @@ on:
     inputs:
       area:
         description: Area config under areas/ (without .json)
-        default: spectrum
+        default: irvine-core
       only:
         description: Chunk ids to build, comma-separated (blank = all)
         default: ""
   push:
     branches: [main]
-    paths: ["areas/spectrum.json", "tools/**", "web/**", "build.py", ".github/workflows/build.yml"]
+    paths: ["areas/irvine-core.json", "tools/**", "web/**", "build.py", ".github/workflows/build.yml"]
 
 permissions:
   contents: write
@@ -24,7 +24,7 @@ concurrency:
 
 env:
   ARNIS_REF: ebefb3f034ed289daa919f7bade9d52673d3b004
-  AREA: ${{ inputs.area || 'spectrum' }}
+  AREA: ${{ inputs.area || 'irvine-core' }}
 
 jobs:
   build:

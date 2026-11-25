@@ -42,8 +42,9 @@ const meta = await (await fetch('data/meta.json')).json();
 if (meta.name) { document.getElementById('areaname').textContent = meta.name + ', in blocks'; document.title = 'Blockville: ' + meta.name; }
 const G = await (await fetch('roads.json')).json();
 
-// Binary data ships as base64 inside JSON so the artifact host can serve it.
+// Binary data is plain .bin, or base64 inside JSON for hosts that only serve text types.
 async function loadBin(name) {
+  if (meta.ext === 'bin') return (await fetch(`data/${name}.bin`)).arrayBuffer();
   const { base64 } = await (await fetch(`data/${name}.json`)).json();
   const bin = atob(base64), out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
@@ -99,6 +100,7 @@ let quadCount = 0;
 // Tile layout: u32 quad count, then 8-byte greedy quads (x u8, z u8, y u16, w u8, h u8, dir u8, mat u8),
 // then 12-byte boxes for partial blocks (x u8, z u8, y u16, mat u8, x0 y0 z0 x1 y1 z1 in 1/16 block, pad).
 function buildTile(buf, tx, tz) {
+  const made = [];
   const v = new DataView(buf); const nq = v.getUint32(0, true); const nb = (buf.byteLength - 4 - nq * 8) / 12;
   let ns = 0, nt = 0;
   for (let k = 0; k < nq; k++) mats[v.getUint8(4 + k * 8 + 7)].clear ? nt++ : ns++;
@@ -147,16 +149,46 @@ function buildTile(buf, tx, tz) {
     g.setAttribute('uv', new THREE.BufferAttribute(b.u, 2));
     g.setIndex(new THREE.BufferAttribute(b.i, 1));
     g.computeBoundingSphere();
-    const mesh = new THREE.Mesh(g, mat); if (mat === clearMat) mesh.renderOrder = 1; scene.add(mesh);
+    const mesh = new THREE.Mesh(g, mat); if (mat === clearMat) mesh.renderOrder = 1; mesh.userData.q = b.q; scene.add(mesh); made.push(mesh);
   }
+  return made;
 }
-const t0 = performance.now();
-const world = await loadBin('world');
-await Promise.all(meta.tiles.map(async ([tx, tz, n, off, len]) => buildTile(await gunzip(world.slice(off, off + len)), tx, tz)));
-const loadMs = Math.round(performance.now() - t0);
-$('load').remove();
-$('stats').textContent = `(${(quadCount / 1e6).toFixed(2)}M faces, ${(loadMs / 1000).toFixed(1)} s)`;
-window.__stats = { quadCount, loadMs };
+// ---------- streaming: packs of tiles load around the point of interest and unload behind it
+const packs = meta.packs.map(p => ({ ...p, state: 0, meshes: [] }));
+let loading = 0, streamR = 1100, everLoaded = false;
+async function loadPack(p) {
+  p.state = 1; loading++;
+  try {
+    const buf = await loadBin(p.id);
+    for (const [tx, tz, n, off, len] of p.tiles) {
+      const tile = await gunzip(buf.slice(off, off + len));
+      if (p.state !== 1) return;
+      p.meshes.push(...buildTile(tile, tx, tz));
+    }
+    p.state = 2;
+    if (!everLoaded) { everLoaded = true; $('load').remove(); }
+  } catch (e) { console.error('pack', p.id, e); p.state = 0; }
+  finally { loading--; }
+}
+function dropPack(p) {
+  for (const m of p.meshes) { scene.remove(m); m.geometry.dispose(); quadCount -= m.userData.q; }
+  p.meshes = []; p.state = 0;
+}
+let lastStats = 0;
+function stream(pos) {
+  let best = null, bd = Infinity;
+  for (const p of packs) {
+    const dx = Math.max(p.x - pos.x, 0, pos.x - p.x - meta.pack), dz = Math.max(p.z - pos.z, 0, pos.z - p.z - meta.pack), d = Math.hypot(dx, dz);
+    if (p.state === 2 && d > streamR + 500) dropPack(p);
+    else if (p.state === 0 && d < streamR && d < bd) { best = p; bd = d; }
+  }
+  if (best && loading < 3) loadPack(best);
+  const now = performance.now();
+  if (now - lastStats > 500) { lastStats = now; $('stats').textContent = `(${(quadCount / 1e6).toFixed(2)}M faces loaded${loading ? ', streaming…' : ''})`; }
+}
+window.__stats = () => ({ quadCount, loaded: packs.filter(p => p.state === 2).length, packs: packs.length });
+window.__idle = () => loading === 0 && everLoaded && !packs.some(p => p.state === 0 && Math.hypot(Math.max(p.x - focus.x, 0, focus.x - p.x - meta.pack), Math.max(p.z - focus.z, 0, focus.z - p.z - meta.pack)) < streamR);
+const focus = new THREE.Vector3();
 
 // ---------- road graph and routing
 const SPEED = [29, 24, 20, 17, 14, 12, 11, 7]; // m/s by road class
@@ -275,7 +307,7 @@ function setMode(m) {
   mode = m; orbit.enabled = m === 'orbit'; snap = true;
   for (const [id, mm] of [['mNav', 'nav'], ['mOrbit', 'orbit'], ['mWalk', 'walk']]) $(id).classList.toggle('on', mm === m);
   $('banner').style.display = m === 'nav' ? 'flex' : 'none'; $('trip').style.display = m === 'nav' ? 'block' : 'none';
-  scene.fog.near = m === 'orbit' ? 1200 : 300; scene.fog.far = m === 'orbit' ? 3200 : 1100;
+  scene.fog.near = m === 'orbit' ? 900 : 300; scene.fog.far = m === 'orbit' ? 2000 : 1100; streamR = m === 'orbit' ? 1800 : 1100;
   camera.fov = m === 'walk' ? 70 : 45; camera.updateProjectionMatrix();
   $('help').textContent = m === 'nav' ? 'The car follows the blue route. Pick a destination or try a random trip.' : m === 'orbit' ? 'Drag to rotate, scroll to zoom.' : 'Drag to look, WASD to walk, Shift to run.';
   if (m === 'orbit') { orbit.target.copy(car.position); camera.position.set(car.position.x - 250, car.position.y + 380, car.position.z + 420); orbit.update(); }
@@ -328,6 +360,7 @@ function frame() {
     walkPos.y = groundY(walkPos.x, walkPos.z) + 1.7;
     camera.position.copy(walkPos); camera.rotation.set(pitch, yaw, 0, 'YXZ');
   } else if (mode === 'orbit') orbit.update();
+  focus.copy(mode === 'walk' ? walkPos : mode === 'orbit' ? orbit.target : car.position); stream(focus);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }

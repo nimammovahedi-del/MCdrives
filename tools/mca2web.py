@@ -2,13 +2,20 @@
 
 Reads every region file, maps Minecraft block names to our own original palette, keeps only
 blocks with at least one face open to air, and writes one binary file per 64x64-block tile:
-per block: x (u8), z (u8), y (u16), material (u8), face mask (u8) = 6 bytes, gzip-compressed.
+Tiles are grouped into one "pack" file per 512x512-block region so the viewer can stream them.
+
+Memory stays flat however large the world is: regions are decoded one at a time into a temp
+cache, then each region is meshed with a margin borrowed from its eight neighbours.
+
+    mca2web.py WORLD_DIR OUT_DIR [--b64]     (--b64 wraps packs as base64 JSON for hosts that refuse .bin)
 """
 import sys, os, re, zlib, gzip, json, struct, glob, io, math, time
 import numpy as np
 import nbtlib
 
 WORLD, OUT = sys.argv[1], sys.argv[2]
+B64 = '--b64' in sys.argv[3:]
+PACK, MARGIN = 512, 64
 TILE = 64
 os.makedirs(OUT, exist_ok=True)
 
@@ -162,19 +169,26 @@ def unpack(longs, bits, n=4096):
     return vals.reshape(-1)[:n].astype(np.int32)
 
 t0 = time.time()
+import tempfile, shutil, base64
+from functools import lru_cache
+from scipy import ndimage
+TMP = tempfile.mkdtemp(prefix="mca2web_")
 regions = sorted(glob.glob(os.path.join(WORLD, "region", "r.*.mca")))
-chunks = []  # (cx, cz, ymin_section, {sy: 4096 array of mat ids})
+REG = {}  # (rx, rz) -> y of the lowest stored layer
 gminy, gmaxy = 10**9, -10**9
+nchunks = 0
 for rp in regions:
+    rx, rz = map(int, os.path.basename(rp).split(".")[1:3])
+    secs = []; present = np.zeros((32, 32), dtype=bool)
     for ch in read_region(rp):
         root = ch.get("") if "" in ch else ch
-        cx, cz = int(root["xPos"]), int(root["zPos"])
-        secs = {}
+        cx, cz = int(root["xPos"]) - rx * 32, int(root["zPos"]) - rz * 32
+        present[cz, cx] = True; nchunks += 1
         for s in root.get("sections", []):
             bs = s.get("block_states")
             if bs is None: continue
             pal = bs["palette"]
-            cl = [classify(p) for p in pal]
+            cl = [classify(q) for q in pal]
             ids = np.array([c[0] for c in cl], dtype=np.uint8); shp = np.array([c[1] for c in cl], dtype=np.uint16)
             if not ids.any(): continue
             if "data" in bs:
@@ -184,59 +198,37 @@ for rp in regions:
             else:
                 vox = np.full(4096, ids[0], dtype=np.uint8); sh = np.full(4096, shp[0], dtype=np.uint16)
             if not vox.any(): continue
-            sy = int(s["Y"]); secs[sy] = (vox.reshape(16, 16, 16), sh.reshape(16, 16, 16))  # [y, z, x]
-            gminy = min(gminy, sy * 16); gmaxy = max(gmaxy, sy * 16 + 15)
-        if secs: chunks.append((cx, cz, secs))
-t_read = time.time() - t0
-minx = min(c[0] for c in chunks) * 16; maxx = max(c[0] for c in chunks) * 16 + 16
-minz = min(c[1] for c in chunks) * 16; maxz = max(c[1] for c in chunks) * 16 + 16
+            secs.append((cx, cz, int(s["Y"]), vox.reshape(16, 16, 16), sh.reshape(16, 16, 16)))  # [y, z, x]
+    if not secs: continue
+    y0 = min(s[2] for s in secs) * 16; y1 = max(s[2] for s in secs) * 16 + 16
+    g = np.zeros((y1 - y0, PACK, PACK), dtype=np.uint8); dm = np.zeros_like(g); ds = np.zeros(g.shape, dtype=np.uint16)
+    for cx, cz, sy, v, sh in secs:
+        sl = (slice(sy * 16 - y0, sy * 16 - y0 + 16), slice(cz * 16, cz * 16 + 16), slice(cx * 16, cx * 16 + 16))
+        g[sl] = np.where(sh == 0, v, 0); dm[sl] = np.where(sh != 0, v, 0); ds[sl] = sh
+    np.savez_compressed(os.path.join(TMP, f"{rx}_{rz}.npz"), g=g, dm=dm, ds=ds, present=present)
+    REG[(rx, rz)] = y0; gminy = min(gminy, y0); gmaxy = max(gmaxy, y1 - 1)
+    del g, dm, ds, secs
 H = gmaxy - gminy + 1
-print(f"read {len(chunks)} chunks from {len(regions)} regions in {t_read:.1f}s; x {minx}..{maxx} z {minz}..{maxz} y {gminy}..{gmaxy}")
-
-W, D = maxx - minx, maxz - minz
-grid = np.zeros((H, D, W), dtype=np.uint8)     # full cubes only
-dmat = np.zeros((H, D, W), dtype=np.uint8)     # partial blocks: material
-dshape = np.zeros((H, D, W), dtype=np.uint16)  # partial blocks: shape id
-for cx, cz, secs in chunks:
-    x0, z0 = cx * 16 - minx, cz * 16 - minz
-    for sy, (v, sh) in secs.items():
-        y0 = sy * 16 - gminy
-        grid[y0:y0+16, z0:z0+16, x0:x0+16] = np.where(sh == 0, v, 0)
-        dmat[y0:y0+16, z0:z0+16, x0:x0+16] = np.where(sh != 0, v, 0)
-        dshape[y0:y0+16, z0:z0+16, x0:x0+16] = sh
-del chunks
+rx0 = min(k[0] for k in REG); rz0 = min(k[1] for k in REG)
+NX = max(k[0] for k in REG) - rx0 + 1; NZ = max(k[1] for k in REG) - rz0 + 1
+minx, minz, W, D = rx0 * PACK, rz0 * PACK, NX * PACK, NZ * PACK
+print(f"read {nchunks} chunks from {len(REG)} regions in {time.time()-t0:.1f}s; x {minx}..{minx+W} z {minz}..{minz+D} y {gminy}..{gmaxy}")
 
 kinds = np.array([0 if k == "air" else 1 if k == "solid" else 2 if k == "water" else 3 if k == "glass" else 4 for _, _, k in MATS], dtype=np.uint8)
 # A face is drawn when the neighbour is air, or a see-through block of a different material.
 see = np.zeros(256, dtype=bool); see[0] = True
 for i, (_, _, k) in enumerate(MATS):
     if k in ("water", "glass", "leaves"): see[i] = True
-# Only draw faces that touch air connected to the open sky: hides sealed interiors, the hollow
-# under the terrain shell and the world's cut edges.
-from scipy import ndimage
-solid_full = (grid != 0) & ~see[grid]
-passable = np.zeros((H + 1, D, W), dtype=bool); passable[:H] = ~solid_full; passable[H] = True
-lab, _ = ndimage.label(passable)
-sky = lab[H, 0, 0]
-reach = np.zeros((H + 2, D + 2, W + 2), dtype=bool)
-reach[1:H+1, 1:D+1, 1:W+1] = lab[:H] == sky
-reach[H + 1, :, :] = True
-del lab, passable, solid_full
-pad = np.pad(grid, 1, constant_values=0)
-c = pad[1:-1, 1:-1, 1:-1]
-mask = np.zeros(grid.shape, dtype=np.uint8)
-dirs = [((1, 0, 0), 0), ((-1, 0, 0), 1), ((0, 1, 0), 2), ((0, -1, 0), 3), ((0, 0, 1), 4), ((0, 0, -1), 5)]  # +y -y +z -z +x -x as (dy,dz,dx)
-for (dy, dz, dx), bit in dirs:
-    sl = (slice(1+dy, H+1+dy), slice(1+dz, D+1+dz), slice(1+dx, W+1+dx))
-    nb = pad[sl]
-    open_ = see[nb] & (nb != c) & reach[sl]
-    mask |= (open_.astype(np.uint8) << bit)
-mask[c == 0] = 0
-del pad
-dmat[~reach[1:H+1, 1:D+1, 1:W+1]] = 0
 
-faces = sum(int(np.count_nonzero(mask & (1 << b))) for b in range(6))
-print(f"{np.count_nonzero(mask):,} visible blocks out of {np.count_nonzero(grid):,} total; {faces:,} block faces")
+@lru_cache(maxsize=12)
+def load(rx, rz):
+    """One region padded to the global height: (cubes, partial material, partial shape, in-world columns)."""
+    if (rx, rz) not in REG: return None
+    z = np.load(os.path.join(TMP, f"{rx}_{rz}.npz"))
+    o = REG[(rx, rz)] - gminy; n = z["g"].shape[0]
+    g = np.zeros((H, PACK, PACK), dtype=np.uint8); dm = np.zeros_like(g); ds = np.zeros(g.shape, dtype=np.uint16)
+    g[o:o+n] = z["g"]; dm[o:o+n] = z["dm"]; ds[o:o+n] = z["ds"]
+    return g, dm, ds, np.repeat(np.repeat(z["present"], 16, axis=0), 16, axis=1)
 
 from numba import njit
 @njit(cache=True)
@@ -264,50 +256,98 @@ def greedy(plane, out, n):
             n += 1
     return n
 
+
 QT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("w", "u1"), ("h", "u1"), ("d", "u1"), ("m", "u1")])
 BT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("m", "u1"), ("x0", "u1"), ("y0", "u1"), ("z0", "u1"), ("x1", "u1"), ("y1", "u1"), ("z1", "u1"), ("pad", "u1")])
-index = []; total = 0; nquads = 0; nboxes = 0
-for b in range(0, D, TILE):
-    for a in range(0, W, TILE):
-        g = grid[:, b:b+TILE, a:a+TILE]; mk = mask[:, b:b+TILE, a:a+TILE]
-        dm = dmat[:, b:b+TILE, a:a+TILE]
-        if not mk.any() and not dm.any(): continue
-        quads = []
-        for bit in range(6):
-            f = np.where(mk & (1 << bit), g, 0).astype(np.uint8)
-            if not f.any(): continue
-            buf = np.zeros((f.size // 2 + 16, 5), dtype=np.int32)
-            if bit < 2:      # +-y: slices over y, plane [z, x]
-                for y in np.flatnonzero(f.any(axis=(1, 2))):
-                    n = greedy(np.ascontiguousarray(f[y]), buf, 0)
-                    for u, v, w, h, m in buf[:n]: quads.append((u, v, y, w, h, bit, m))
-            elif bit < 4:    # +-z: slices over z, plane [y, x]
-                for z in np.flatnonzero(f.any(axis=(0, 2))):
-                    n = greedy(np.ascontiguousarray(f[:, z, :]), buf, 0)
-                    for u, v, w, h, m in buf[:n]: quads.append((u, z, v, w, h, bit, m))
-            else:            # +-x: slices over x, plane [y, z]
-                for x in np.flatnonzero(f.any(axis=(0, 1))):
-                    n = greedy(np.ascontiguousarray(f[:, :, x]), buf, 0)
-                    for u, v, w, h, m in buf[:n]: quads.append((x, u, v, w, h, bit, m))
-        rec = np.array(quads, dtype=QT)
-        dy, dz, dx = np.nonzero(dm)
-        bl = []
-        for y, z, x in zip(dy.tolist(), dz.tolist(), dx.tolist()):
-            m = int(dm[y, z, x])
-            for bx in SHAPES[int(dshape[y, b + z, a + x])]: bl.append((x, z, y, m) + bx + (0,))
-        brec = np.array(bl, dtype=BT) if bl else np.zeros(0, dtype=BT)
-        nboxes += len(brec)
-        blob = gzip.compress(struct.pack("<I", len(rec)) + rec.tobytes() + brec.tobytes(), 6)
-        tx, tz = a // TILE, b // TILE
-        open(os.path.join(OUT, f"t_{tx}_{tz}.bin"), "wb").write(blob)
-        total += len(blob); nquads += len(rec); index.append([tx, tz, len(rec)])
+M, S = MARGIN, PACK + 2 * MARGIN
+dirs = [((1, 0, 0), 0), ((-1, 0, 0), 1), ((0, 1, 0), 2), ((0, -1, 0), 3), ((0, 0, 1), 4), ((0, 0, -1), 5)]  # +y -y +z -z +x -x as (dy,dz,dx)
+packs = []; total = 0; nquads = 0; nboxes = 0; faces = 0
+heights = np.full((D, W), -1, dtype=np.int16)
+for (rx, rz) in sorted(REG):
+    # Window = this region plus a margin from its neighbours, so faces and sky reach are right at the seams.
+    wg = np.zeros((H, S, S), dtype=np.uint8); inworld = np.zeros((S, S), dtype=bool)
+    for dz in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            r = load(rx + dx, rz + dz)
+            if r is None: continue
+            # destination range in the window, source range in the neighbour, per axis
+            def rng(d): return (slice(0, M), slice(PACK - M, PACK)) if d < 0 else (slice(M, M + PACK), slice(0, PACK)) if d == 0 else (slice(M + PACK, S), slice(0, M))
+            (wz, sz), (wx, sx) = rng(dz), rng(dx)
+            wg[:, wz, wx] = r[0][:, sz, sx]; inworld[wz, wx] = r[3][sz, sx]
+    _, dmat, dshape, _ = load(rx, rz)
+    dmat = dmat.copy()
+    # Only draw faces that touch air connected to the open sky: hides sealed interiors, the hollow
+    # under the terrain shell and the world's cut edges (columns outside the world are not passable).
+    passable = np.zeros((H + 1, S, S), dtype=bool); passable[:H] = ((wg == 0) | see[wg]) & inworld[None]; passable[H] = True
+    lab, _ = ndimage.label(passable)
+    reach = np.zeros((H + 2, S + 2, S + 2), dtype=bool)
+    reach[1:H+1, 1:S+1, 1:S+1] = lab[:H] == lab[H, 0, 0]
+    reach[H + 1] = True
+    del lab, passable
+    pad = np.pad(wg, 1, constant_values=0)
+    c = pad[1:-1, 1:-1, 1:-1]
+    wmask = np.zeros(wg.shape, dtype=np.uint8)
+    for (dy, dz, dx), bit in dirs:
+        sl = (slice(1+dy, H+1+dy), slice(1+dz, S+1+dz), slice(1+dx, S+1+dx))
+        nb = pad[sl]
+        wmask |= ((see[nb] & (nb != c) & reach[sl]).astype(np.uint8) << bit)
+    wmask[c == 0] = 0
+    del pad
+    grid = wg[:, M:M+PACK, M:M+PACK]; mask = wmask[:, M:M+PACK, M:M+PACK]
+    dmat[~reach[1:H+1, 1+M:1+M+PACK, 1+M:1+M+PACK]] = 0
+    faces += sum(int(np.count_nonzero(mask & (1 << b))) for b in range(6))
+    ox, oz = (rx - rx0) * PACK, (rz - rz0) * PACK
+    heights[oz:oz+PACK, ox:ox+PACK] = np.where((grid != 0) & (kinds[grid] != 2), np.arange(H)[:, None, None], -1).max(axis=0)
+    blob_all = bytearray(); tiles = []
+    for b in range(0, PACK, TILE):
+        for a in range(0, PACK, TILE):
+            g = grid[:, b:b+TILE, a:a+TILE]; mk = mask[:, b:b+TILE, a:a+TILE]
+            dm = dmat[:, b:b+TILE, a:a+TILE]
+            if not mk.any() and not dm.any(): continue
+            quads = []
+            for bit in range(6):
+                f = np.where(mk & (1 << bit), g, 0).astype(np.uint8)
+                if not f.any(): continue
+                buf = np.zeros((f.size // 2 + 16, 5), dtype=np.int32)
+                if bit < 2:      # +-y: slices over y, plane [z, x]
+                    for y in np.flatnonzero(f.any(axis=(1, 2))):
+                        n = greedy(np.ascontiguousarray(f[y]), buf, 0)
+                        for u, v, w, h, m in buf[:n]: quads.append((u, v, y, w, h, bit, m))
+                elif bit < 4:    # +-z: slices over z, plane [y, x]
+                    for z in np.flatnonzero(f.any(axis=(0, 2))):
+                        n = greedy(np.ascontiguousarray(f[:, z, :]), buf, 0)
+                        for u, v, w, h, m in buf[:n]: quads.append((u, z, v, w, h, bit, m))
+                else:            # +-x: slices over x, plane [y, z]
+                    for x in np.flatnonzero(f.any(axis=(0, 1))):
+                        n = greedy(np.ascontiguousarray(f[:, :, x]), buf, 0)
+                        for u, v, w, h, m in buf[:n]: quads.append((x, u, v, w, h, bit, m))
+            rec = np.array(quads, dtype=QT)
+            dy, dz, dx = np.nonzero(dm)
+            bl = []
+            for y, z, x in zip(dy.tolist(), dz.tolist(), dx.tolist()):
+                m = int(dm[y, z, x])
+                for bx in SHAPES[int(dshape[y, b + z, a + x])]: bl.append((x, z, y, m) + bx + (0,))
+            brec = np.array(bl, dtype=BT) if bl else np.zeros(0, dtype=BT)
+            nboxes += len(brec); nquads += len(rec)
+            blob = gzip.compress(struct.pack("<I", len(rec)) + rec.tobytes() + brec.tobytes(), 6)
+            tiles.append([(ox + a) // TILE, (oz + b) // TILE, len(rec), len(blob_all), len(blob)])
+            blob_all += blob
+    if not tiles: continue
+    pid = f"p_{rx - rx0}_{rz - rz0}"
+    if B64: json.dump({"base64": base64.b64encode(bytes(blob_all)).decode()}, open(os.path.join(OUT, pid + ".json"), "w"))
+    else: open(os.path.join(OUT, pid + ".bin"), "wb").write(blob_all)
+    packs.append({"id": pid, "x": ox, "z": oz, "quads": sum(t[2] for t in tiles), "tiles": tiles}); total += len(blob_all)
+    print(f"  {pid}: {packs[-1]['quads']:,} quads, {len(blob_all)/1e6:.1f} MB", flush=True)
+shutil.rmtree(TMP, ignore_errors=True)
 print(f"greedy meshing: {nquads:,} quads (from {faces:,} block faces); {nboxes:,} detail boxes for partial blocks")
 
 # Ground height per column, so the viewer can sit a car on the surface
-solid_top = np.where((grid != 0) & (kinds[grid] != 2), np.arange(H)[:, None, None], -1).max(axis=0)
-open(os.path.join(OUT, "height.bin"), "wb").write(gzip.compress(solid_top.astype("<i2").tobytes(), 6))
-meta = {"tile": TILE, "width": int(W), "depth": int(D), "height": int(H), "minx": int(minx), "minz": int(minz), "miny": int(gminy),
-        "tiles": index, "materials": [{"name": n, "rgb": f"#{c:06x}", "kind": k} for n, c, k in MATS]}
+hz = gzip.compress(heights.astype("<i2").tobytes(), 6)
+if B64: json.dump({"base64": base64.b64encode(hz).decode()}, open(os.path.join(OUT, "height.json"), "w"))
+else: open(os.path.join(OUT, "height.bin"), "wb").write(hz)
+meta = {"tile": TILE, "pack": PACK, "ext": "json" if B64 else "bin", "width": int(W), "depth": int(D), "height": int(H),
+        "minx": int(minx), "minz": int(minz), "miny": int(gminy), "quads": int(nquads), "bytes": int(total), "packs": packs,
+        "materials": [{"name": n, "rgb": f"#{c:06x}", "kind": k} for n, c, k in MATS]}
 json.dump(meta, open(os.path.join(OUT, "meta.json"), "w"))
-print(f"wrote {len(index)} tiles, {total/1e6:.1f} MB compressed, in {time.time()-t0:.1f}s total")
+print(f"wrote {len(packs)} packs, {total/1e6:.1f} MB compressed, in {time.time()-t0:.1f}s total")
 print("block names with no colour rule (drawn mid-grey):", ", ".join(sorted(unknown))[:1500])
