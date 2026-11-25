@@ -237,6 +237,17 @@ for (const [i, d] of dests.entries()) $('dest').add(new Option(d.name, i));
 let trip = null, dist = 0, curNode = dests.find(d => d.name === 'Entertainment Way')?.node ?? 0, paused = false, speed = 0, snap = true;
 const ribbon = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
 ribbon.frustumCulled = false; scene.add(ribbon);
+// faint copy drawn through everything, so the route stays readable under trees and behind buildings
+const ghost = new THREE.Mesh(ribbon.geometry, new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
+ghost.frustumCulled = false; ghost.renderOrder = 3; scene.add(ghost);
+// a marker over the next manoeuvre: a yellow arrow pointing into the road to take
+const turnMark = new THREE.Group();
+{
+  const m = new THREE.MeshBasicMaterial({ color: 0xf1c232, depthTest: false, transparent: true, opacity: 0.95 });
+  const shaft = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.6, 9), m); shaft.position.z = -1.5;
+  const head = new THREE.Mesh(new THREE.ConeGeometry(4, 6, 4), m); head.rotation.x = -Math.PI / 2; head.position.z = -9;
+  turnMark.add(shaft, head); turnMark.traverse(o => o.renderOrder = 4); turnMark.visible = false; scene.add(turnMark);
+}
 const pin = new THREE.Mesh(new THREE.ConeGeometry(4, 14, 4), new THREE.MeshLambertMaterial({ color: 0xe53935 })); pin.rotation.x = Math.PI; scene.add(pin); pin.visible = false;
 function along(d) {
   d = Math.max(0, Math.min(trip.L, d));
@@ -274,7 +285,7 @@ function startTrip(toNode) {
     if (n) I.push(n * 2 - 2, n * 2 - 1, n * 2, n * 2 - 1, n * 2 + 1, n * 2); n++;
   }
   ribbon.geometry.dispose(); ribbon.geometry = new THREE.BufferGeometry();
-  ribbon.geometry.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); ribbon.geometry.setIndex(I);
+  ribbon.geometry.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); ribbon.geometry.setIndex(I); ghost.geometry = ribbon.geometry;
   const end = pts[pts.length - 1]; pin.position.set(end.x, groundY(end.x, end.z) + 9, end.z); pin.visible = true;
   snap = true; return true;
 }
@@ -288,21 +299,51 @@ $('dest').onchange = e => startTrip(dests[+e.target.value].node);
 $('random').onclick = randomTrip;
 $('pause').onclick = () => { paused = !paused; $('pause').textContent = paused ? 'Resume' : 'Pause'; };
 
-// ---------- street name labels (billboards)
-function label(text) {
-  const c = document.createElement('canvas'), g = c.getContext('2d'); g.font = '600 44px system-ui, sans-serif';
-  c.width = Math.ceil(g.measureText(text).width) + 36; c.height = 64;
-  g.font = '600 44px system-ui, sans-serif'; g.fillStyle = '#1b5e3a'; g.beginPath(); g.roundRect(0, 0, c.width, c.height, 10); g.fill();
-  g.fillStyle = '#fff'; g.textBaseline = 'middle'; g.fillText(text, 18, 34);
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, sizeAttenuation: true }));
-  s.scale.set(c.width / 64 * 7, 7, 1); s.renderOrder = 5; return s;
+// ---------- street name labels: small, fixed size on screen, beside the road, never over the route
+function label(text, hot) {
+  const c = document.createElement('canvas'), g = c.getContext('2d'); g.font = '600 40px system-ui, sans-serif';
+  c.width = Math.ceil(g.measureText(text).width) + 32; c.height = 56;
+  g.font = '600 40px system-ui, sans-serif'; g.fillStyle = hot ? '#f1c232' : 'rgba(255,255,255,.92)'; g.beginPath(); g.roundRect(0, 0, c.width, c.height, 10); g.fill();
+  g.fillStyle = hot ? '#1d1d1d' : '#1b5e3a'; g.textBaseline = 'middle'; g.fillText(text, 16, 30);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, sizeAttenuation: false }));
+  s.userData.aspect = c.width / c.height; s.renderOrder = 5; s.visible = false; return s;
 }
-const placed = [];
-for (const [a, b, nm, cl] of G.edges) {
-  const name = G.names[nm]; if (!name || name === 'ramp' || cl > 6) continue;
-  const mid = N[a].clone().lerp(N[b], 0.5);
-  if (N[a].distanceTo(N[b]) < 25 || placed.some(p => p.nm === nm && p.mid.distanceTo(mid) < 260) || placed.some(p => p.mid.distanceTo(mid) < 45)) continue;
-  placed.push({ nm, mid }); const s = label(name); s.position.set(mid.x, groundY(mid.x, mid.z) + 9, mid.z); scene.add(s);
+const labels = [], LABEL_H = 0.032; // sprite height as a fraction of the view height
+{
+  const placed = [];
+  for (const [a, b, nm, cl] of G.edges) {
+    const name = G.names[nm]; if (!name || name === 'ramp' || cl > 6) continue;
+    const mid = N[a].clone().lerp(N[b], 0.5), len = N[a].distanceTo(N[b]);
+    if (len < 25 || placed.some(p => p.nm === nm && p.mid.distanceTo(mid) < 180) || placed.some(p => p.mid.distanceTo(mid) < 40)) continue;
+    placed.push({ nm, mid });
+    // sit on the kerb side of the road, not on its centre line
+    const side = new THREE.Vector3(-(N[b].z - N[a].z) / len, 0, (N[b].x - N[a].x) / len).multiplyScalar(cl <= 3 ? 14 : 9);
+    const pos = mid.clone().add(side); pos.y = groundY(pos.x, pos.z) + 5;
+    const plain = label(name, false), hot = label(name, true);
+    for (const sp of [plain, hot]) { sp.position.copy(pos); scene.add(sp); }
+    labels.push({ nm, pos, plain, hot });
+  }
+}
+const _v = new THREE.Vector3();
+function updateLabels(focus, curNm, nextNm) {
+  const W = innerWidth, Hh = innerHeight, shown = [];
+  // screen areas that must stay clear: the control panel, the turn banner, the trip bar, and the car itself
+  const keep = [[0, 0, 350, 200], [W / 2 - 190, 0, W / 2 + 190, 95], [W / 2 - 150, Hh - 80, W / 2 + 150, Hh], [W / 2 - 70, Hh * 0.55, W / 2 + 70, Hh * 0.9]];
+  const range = mode === 'orbit' ? 900 : 380;
+  const cands = labels.map(l => ({ l, d: l.pos.distanceTo(focus) })).filter(c => c.d < range)
+    .sort((a, b) => (b.l.nm === nextNm) - (a.l.nm === nextNm) || a.d - b.d);
+  for (const l of labels) { l.plain.visible = l.hot.visible = false; }
+  for (const { l } of cands) {
+    if (shown.length >= (mode === 'orbit' ? 14 : 7)) break;
+    if (mode === 'nav' && l.nm === curNm && l.nm !== nextNm) continue; // the road you are on is named in the trip bar
+    _v.copy(l.pos).project(camera); if (_v.z > 1 || Math.abs(_v.x) > 0.96 || Math.abs(_v.y) > 0.96) continue;
+    const hot = l.nm === nextNm && mode === 'nav', sp = hot ? l.hot : l.plain, k = hot ? 1.25 : 1;
+    const hpx = LABEL_H * k * Hh, wpx = hpx * sp.userData.aspect, cx = (_v.x + 1) / 2 * W, cy = (1 - _v.y) / 2 * Hh;
+    const r = [cx - wpx / 2 - 6, cy - hpx / 2 - 4, cx + wpx / 2 + 6, cy + hpx / 2 + 4];
+    if (r[0] < 4 || r[2] > W - 4) continue; // never clipped by the screen edge
+    if ([...keep, ...shown].some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1])) continue;
+    shown.push(r); sp.scale.set(LABEL_H * k * sp.userData.aspect, LABEL_H * k, 1); sp.visible = true;
+  }
 }
 
 // ---------- car: an original block car
@@ -310,6 +351,7 @@ const car = new THREE.Group();
 const box = (w, h, d, c, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: c, map: tex })); m.position.set(x, y, z); car.add(m); };
 box(2.2, 1, 4.4, 0xe53935, 0, 0.9, 0); box(2, 0.8, 2.2, 0xe8f1f5, 0, 1.8, -0.2);
 for (const [x, z] of [[-1.1, 1.4], [1.1, 1.4], [-1.1, -1.4], [1.1, -1.4]]) box(0.4, 0.8, 0.8, 0x1d1d1d, x, 0.4, z);
+car.traverse(o => { if (o.material) { o.material.transparent = true; o.renderOrder = 6; } }); // drawn after the see-through route copy
 scene.add(car);
 
 // ---------- modes
@@ -357,8 +399,9 @@ function frame() {
     if (dist >= trip.L - 0.5 && speed < 0.2) curNode = trip.toNode;
     if (mode === 'nav') {
       // tilted heading-up camera; drops and tightens near a manoeuvre
-      const near = next.kind !== 'straight' && toNext < 140;
-      camH += ((near ? 30 : 42) - camH) * (1 - Math.exp(-dt * 1.5)); camBack += ((near ? 34 : 52) - camBack) * (1 - Math.exp(-dt * 1.5));
+      // approaching a manoeuvre the camera lifts and looks down, so the junction is seen over trees and buildings
+      const near = next.kind !== 'straight' && next.kind !== 'arrive' && toNext < 180;
+      camH += ((near ? 62 : 42) - camH) * (1 - Math.exp(-dt * 1.5)); camBack += ((near ? 44 : 52) - camBack) * (1 - Math.exp(-dt * 1.5));
       const f = new THREE.Vector3(-Math.sin(heading), 0, -Math.cos(heading));
       const camPos = p.clone().addScaledVector(f, -camBack).setY(p.y + camH);
       if (snap) { camera.position.copy(camPos); snap = false; } else camera.position.lerp(camPos, 1 - Math.exp(-dt * 5));
@@ -367,7 +410,8 @@ function frame() {
       $('bdist').textContent = toNext > 950 ? (toNext / 1000).toFixed(1) + ' km' : Math.round(toNext / 10) * 10 + ' m';
       $('bname').textContent = `${TEXT[next.kind]} ${next.name}`;
       const left = trip.L - dist, mins = Math.max(1, Math.round(left / 13 / 60));
-      $('trip').textContent = dist >= trip.L - 0.5 ? 'You have arrived' : `${Math.round(speed * 3.6)} km/h · ${left > 950 ? (left / 1000).toFixed(1) + ' km' : Math.round(left) + ' m'} · ${mins} min`;
+      const onName = G.names[trip.edges[Math.min(here.k - 1, trip.edges.length - 1)].nm];
+      $('trip').textContent = dist >= trip.L - 0.5 ? 'You have arrived' : `${onName && onName !== 'ramp' ? onName + ' · ' : ''}${Math.round(speed * 3.6)} km/h · ${left > 950 ? (left / 1000).toFixed(1) + ' km' : Math.round(left) + ' m'} · ${mins} min`;
     }
   }
   if (mode === 'walk') {
@@ -379,6 +423,22 @@ function frame() {
     camera.position.copy(walkPos); camera.rotation.set(pitch, yaw, 0, 'YXZ');
   } else if (mode === 'orbit') orbit.update();
   focus.copy(mode === 'walk' ? walkPos : mode === 'orbit' ? orbit.target : car.position); stream(focus);
+  {
+    let curNm = -1, nextNm = -1; turnMark.visible = false;
+    if (trip) {
+      const h = along(dist), nx = trip.steps.find(s => s.at > dist + 0.5);
+      curNm = trip.edges[Math.min(h.k - 1, trip.edges.length - 1)].nm;
+      if (nx) {
+        nextNm = G.names.indexOf(nx.name);
+        if (mode === 'nav' && nx.kind !== 'arrive' && nx.at - dist < 400) {
+          const a = along(nx.at + 6), c = along(nx.at + 16);
+          turnMark.position.set(a.p.x, yAt(nx.at + 6) + 7 + Math.sin(performance.now() / 300) * 0.8, a.p.z);
+          turnMark.rotation.y = Math.atan2(-(c.p.x - a.p.x), -(c.p.z - a.p.z)); turnMark.visible = true;
+        }
+      }
+    }
+    updateLabels(focus, curNm, nextNm);
+  }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
