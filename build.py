@@ -154,8 +154,8 @@ def join_roads(parts, area_size, seam_tol, log=print):
         ids = g.get("osm") or [None] * len(g["nodes"])
         for (x, z), oid in zip(g["nodes"], ids):
             nodes.append([x + dx, z + dz]); owner.append(ci); osm.append(oid)
-        for a, b, nm, cl, ow, ln, dk in g["edges"]:
-            edges.append((base + a, base + b, remap[nm], cl, ow, ln, dk))
+        for a, b, nm, *rest in g["edges"]:   # rest: class, oneway, lanes, deck[, private]
+            edges.append((base + a, base + b, remap[nm], *rest))
 
     par = list(range(len(nodes)))
 
@@ -210,10 +210,10 @@ def join_roads(parts, area_size, seam_tol, log=print):
     keep = {r for r, p in pos.items() if 4 < p[0] < asx - 4 and 4 < p[1] < asz - 4 and built(p)}
     link = defaultdict(set)
     kept_edges = set()
-    for a, b, nm, cl, ow, ln, dk in edges:
+    for a, b, *rest in edges:
         ra, rb = find(a), find(b)
         if ra == rb or ra not in keep or rb not in keep: continue
-        kept_edges.add((ra, rb, nm, cl, ow, ln, dk))
+        kept_edges.add((ra, rb, *rest))
         link[ra].add(rb); link[rb].add(ra)
     seen = set(); best = []
     for s in link:
@@ -228,8 +228,7 @@ def join_roads(parts, area_size, seam_tol, log=print):
     order = sorted(big, key=lambda r: pos[r])
     ids = {r: i for i, r in enumerate(order)}
     out_nodes = [[round(pos[r][0], 1), round(pos[r][1], 1)] for r in order]
-    out_edges = sorted({(ids[a], ids[b], nm, cl, ow, ln, dk) for a, b, nm, cl, ow, ln, dk in kept_edges
-                        if a in big and b in big})
+    out_edges = sorted({(ids[a], ids[b], *rest) for a, b, *rest in kept_edges if a in big and b in big})
     log(f"  roads: {len(nodes)} chunk nodes -> {len(group)} after merging -> {len(out_nodes)} in the "
         f"largest component, {len(out_edges)} edges, {len(names)} names")
     def node_map(ci):
@@ -248,12 +247,19 @@ def join_places(info, node_map, roads, area_size, log=print):
         pp = i["dir"] / "places.json"
         if not pp.exists(): log(f"  places: chunk {i['id']} has no places.json, treating as empty"); continue
         m = node_map(ci)
-        for name, kind, x, z, nd, al in json.loads(pp.read_text()):
+        for name, kind, x, z, nd, al, *at in json.loads(pp.read_text()):
             x, z = round(x + i["dx"], 1), round(z + i["dz"], 1)
-            if 0 <= x <= asx and 0 <= z <= asz: items.append([name, kind, x, z, None if nd is None else m(nd), al])
+            # at: the arrival point (places.py), shifted like the place; older chunks have none
+            at = [[round(at[0][0] + i["dx"], 1), round(at[0][1] + i["dz"], 1)]] if at and at[0] else []
+            if 0 <= x <= asx and 0 <= z <= asz: items.append([name, kind, x, z, None if nd is None else m(nd), al, *at])
     n0 = len(items)
     snap = places.Snapper(roads)
+    import arrival
+    A = arrival.Graph(roads)
     for it in items:
+        if len(it) > 6:   # the node at the arrival point's edge in the joined graph (the arrival point is on a road)
+            r = A.snap(it[6][0], it[6][1], None); e = roads["edges"][r["edge"]]
+            it[4] = r["node"] if r["node"] is not None else (e[0] if r["t"] < 0.5 else e[1])
         if it[4] is None: it[4] = snap(it[2], it[3])
     rows = places.dedupe(items, key=lambda it: (it[4] is not None, len(it[5])))
     rows.sort(key=lambda r: (r[0].lower(), r[2], r[3]))
@@ -516,15 +522,18 @@ def build_chunk(area, chunk, args, work, overhang=0):
         run([sys.executable, ROOT / "tools" / "mca2web.py", world_dir(), data] + (["--b64"] if args.b64 else []), log)
         times["convert"] = time.time() - times["convert"]
 
-    if step("roads", lambda: (site / "roads.json").exists() and (site / "places.json").exists()):
-        cmd = [sys.executable, ROOT / "tools" / "roadgraph.py", bstr, osm, site / "roads.json", "--places", site / "places.json"]
-        if overhang: cmd += ["--overhang", overhang]   # reach past the bbox so the join can sew seams
-        run(cmd, log)
-        times["roads"] = time.time() - times["roads"]
-    # street addresses for search, in the same frame as roads.json; optional, so a network hiccup never fails a build
+    # street addresses for search, in the same frame as roads.json; optional, so a network hiccup never fails a build.
+    # Fetched before the roads step, which reads them to learn a place's street from its house number.
     if not (data / "addresses.json").exists() or (STEPS.index("roads") >= redo):
         try: run([sys.executable, ROOT / "tools" / "addresses.py", bstr, data / "addresses.json"], log)
         except BaseException as e: print(f"[{chunk['id']}] addresses skipped: {e}")
+    if step("roads", lambda: (site / "roads.json").exists() and (site / "places.json").exists()):
+        cmd = [sys.executable, ROOT / "tools" / "roadgraph.py", bstr, osm, site / "roads.json", "--places", site / "places.json"]
+        if (data / "addresses.json").exists(): cmd += ["--addresses", data / "addresses.json"]
+        if area.get("private_roads"): cmd.append("--keep-private")   # gated streets, used only to start or end a trip
+        if overhang: cmd += ["--overhang", overhang]   # reach past the bbox so the join can sew seams
+        run(cmd, log)
+        times["roads"] = time.time() - times["roads"]
 
     if step("site", lambda: (site / "index.html").exists()):
         meta = json.loads((data / "meta.json").read_text())
