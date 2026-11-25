@@ -67,7 +67,8 @@ const groundY = (x, z, deck = false) => {
   return heights[(deck && twoLayers ? LAYER : 0) + iz * meta.width + ix] + 1;
 };
 // median of five nearby columns, so a lamp post or kerb under the sample point does not move the car
-const smoothY = (x, z, deck = false) => [[0,0],[2,0],[-2,0],[0,2],[0,-2]].map(([dx, dz]) => groundY(x + dx, z + dz, deck)).sort((a, b) => a - b)[2];
+// (columns with no drivable surface, or only the world floor, are ignored; NaN when all five are empty)
+const smoothY = (x, z, deck = false) => { const v = [[0,0],[2,0],[-2,0],[0,2],[0,-2]].map(([dx, dz]) => groundY(x + dx, z + dz, deck)).filter(y => y > 2).sort((a, b) => a - b); return v.length ? v[v.length >> 1] : NaN; };
 
 // ---------- scene
 // Device load: phones get a 1.5 pixel-ratio cap and no MSAA (the blocky look needs neither), and frames are capped
@@ -96,19 +97,65 @@ const tex = (() => {
   const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestMipmapLinearFilter;
   t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
 })();
-const solidMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: tex });
-const clearMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: tex, transparent: true, opacity: 0.62, depthWrite: false });
 const mats = meta.materials.map(m => ({ c: new THREE.Color(m.rgb), clear: m.kind === 'water' || m.kind === 'glass' }));
-
-// Faces: index -> [normal, 4 corners]   0 +y, 1 -y, 2 +z, 3 -z, 4 +x, 5 -x
-const FACES = [
-  [[0,1,0], [[0,1,1],[1,1,1],[1,1,0],[0,1,0]]],
-  [[0,-1,0],[[0,0,0],[1,0,0],[1,0,1],[0,0,1]]],
-  [[0,0,1], [[0,0,1],[1,0,1],[1,1,1],[0,1,1]]],
-  [[0,0,-1],[[1,0,0],[0,0,0],[0,1,0],[1,1,0]]],
-  [[1,0,0], [[1,0,1],[1,0,0],[1,1,0],[1,1,1]]],
-  [[-1,0,0],[[0,0,0],[0,0,1],[0,1,1],[0,1,0]]],
-];
+// Block faces are drawn by vertex pulling: each tile mesh is one non-indexed draw of 6 vertices per face,
+// and the vertex shader reads that face's 16-byte record from an RGBA32UI data texture (one texel per face):
+//   u16 x, y, z   tile-local face-plane min corner, in 1/16 block
+//   u16 su, sv    face size along its two tangent axes (the uv extent), in 1/16 block
+//   u16 dir       0 +y, 1 -y, 2 +z, 3 -z, 4 +x, 5 -x
+//   u16 mat, tint palette index; tint hash 0..999
+// The shader rebuilds corner, normal, uv and colour; lighting, map, fog and colour space stay three.js's
+// own MeshLambertMaterial code (patched in onBeforeCompile).
+const palette = (() => {
+  const a = new Float32Array(mats.length * 4);
+  mats.forEach((m, i) => { a[i * 4] = m.c.r; a[i * 4 + 1] = m.c.g; a[i * 4 + 2] = m.c.b; a[i * 4 + 3] = 1; });
+  const t = new THREE.DataTexture(a, mats.length, 1, THREE.RGBAFormat, THREE.FloatType);
+  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t;
+})();
+const faceVS = `
+uniform highp usampler2D faceData;
+uniform sampler2D blockPalette;
+const int FACE_TRI[6] = int[6](0, 1, 2, 0, 2, 3);   // two triangles per face, same winding as before
+const vec3 FACE_N[6] = vec3[6](vec3(0,1,0), vec3(0,-1,0), vec3(0,0,1), vec3(0,0,-1), vec3(1,0,0), vec3(-1,0,0));
+const vec3 FACE_C[24] = vec3[24](
+  vec3(0,1,1), vec3(1,1,1), vec3(1,1,0), vec3(0,1,0),
+  vec3(0,0,0), vec3(1,0,0), vec3(1,0,1), vec3(0,0,1),
+  vec3(0,0,1), vec3(1,0,1), vec3(1,1,1), vec3(0,1,1),
+  vec3(1,0,0), vec3(0,0,0), vec3(0,1,0), vec3(1,1,0),
+  vec3(1,0,1), vec3(1,0,0), vec3(1,1,0), vec3(1,1,1),
+  vec3(0,0,0), vec3(0,0,1), vec3(0,1,1), vec3(0,1,0));
+`;
+const faceMain = `
+  int qId = gl_VertexID / 6, qV = gl_VertexID - qId * 6;
+  int qCorner = FACE_TRI[qV];
+  int qW = textureSize(faceData, 0).x;
+  uvec4 qT = texelFetch(faceData, ivec2(qId % qW, qId / qW), 0);
+  int qDir = int(qT.z >> 16u);
+  float qSu = float(qT.y >> 16u), qSv = float(qT.z & 0xFFFFu);
+  vec3 qScale = qDir < 2 ? vec3(qSu, 0.0, qSv) : qDir < 4 ? vec3(qSu, qSv, 0.0) : vec3(0.0, qSv, qSu);
+  vec3 qPos = (vec3(float(qT.x & 0xFFFFu), float(qT.x >> 16u), float(qT.y & 0xFFFFu)) + FACE_C[qDir * 4 + qCorner] * qScale) * 0.0625;
+  vec2 qUv = vec2((qCorner == 1 || qCorner == 2) ? qSu : 0.0, qCorner >= 2 ? qSv : 0.0) * 0.0625;
+  vec3 qCol = texelFetch(blockPalette, ivec2(int(qT.w & 0xFFFFu), 0), 0).rgb * (0.96 + float(qT.w >> 16u) / 1000.0 * 0.08);
+  vMapUv = (mapTransform * vec3(qUv, 1)).xy;
+`;
+// One material per tile mesh (they share one compiled program) so each can carry its own data texture.
+// glass and water share one emissive colour, so the night sky can light windows without touching every tile
+const glassGlow = new THREE.Color(0);
+const faceMaterial = (data, clear) => {
+  const m = new THREE.MeshLambertMaterial(clear ? { vertexColors: true, map: tex, transparent: true, opacity: 0.62, depthWrite: false } : { vertexColors: true, map: tex });
+  if (clear) m.emissive = glassGlow;
+  m.onBeforeCompile = sh => {
+    sh.uniforms.faceData = { value: data }; sh.uniforms.blockPalette = { value: palette };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\n' + faceVS)
+      .replace('#include <uv_vertex>', faceMain)
+      .replace('#include <color_vertex>', 'vColor = qCol;')
+      .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = FACE_N[qDir];')
+      .replace('#include <begin_vertex>', 'vec3 transformed = qPos;');
+  };
+  m.customProgramCacheKey = () => 'blockface';
+  return m;
+};
 let quadCount = 0;
 // Tile layout: u32 quad count, then 8-byte greedy quads (x u8, z u8, y u16, w u8, h u8, dir u8, mat u8),
 // then 12-byte boxes for partial blocks (x u8, z u8, y u16, mat u8, x0 y0 z0 x1 y1 z1 in 1/16 block, pad).
@@ -119,50 +166,54 @@ function buildTile(buf, tx, tz) {
   for (let k = 0; k < nq; k++) mats[v.getUint8(4 + k * 8 + 7)].clear ? nt++ : ns++;
   const boff = 4 + nq * 8;
   for (let k = 0; k < nb; k++) { const o = boff + k * 12; const f = v.getUint8(o + 6) === 0 ? 5 : 6; if (mats[v.getUint8(o + 4)].clear) nt += f; else ns += f; }
-  const mk = c => ({ p: new Float32Array(c * 12), nr: new Int8Array(c * 12), c: new Float32Array(c * 12), u: new Float32Array(c * 8), i: new Uint32Array(c * 6), q: 0 });
+  const mk = c => { const w = Math.max(1, Math.ceil(Math.sqrt(c))), h = Math.max(1, Math.ceil(c / w)), u = new Uint32Array(w * h * 4);
+    return { u, a: new Uint16Array(u.buffer), w, h, q: 0, lo: [Infinity, Infinity, Infinity], hi: [-Infinity, -Infinity, -Infinity] }; };
   const S = mk(ns), T = mk(nt);
   const ox = tx * meta.tile, oz = tz * meta.tile;
-  const put = (b, d, x, y, z, sx, sy, sz, m, uw, vh) => {
-    const [nrm, cs] = FACES[d];
-    const hsh = ((Math.floor(x) * 73856093) ^ (Math.floor(y) * 19349663) ^ (Math.floor(z) * 83492791)) >>> 0, tint = 0.96 + (hsh % 1000) / 1000 * 0.08;
-    const q = b.q++, vb = q * 4;
-    for (let c = 0; c < 4; c++) {
-      const i3 = (vb + c) * 3;
-      b.p[i3] = x + cs[c][0] * sx; b.p[i3 + 1] = y + cs[c][1] * sy; b.p[i3 + 2] = z + cs[c][2] * sz;
-      b.nr[i3] = nrm[0] * 127; b.nr[i3 + 1] = nrm[1] * 127; b.nr[i3 + 2] = nrm[2] * 127;
-      b.c[i3] = m.c.r * tint; b.c[i3 + 1] = m.c.g * tint; b.c[i3 + 2] = m.c.b * tint;
-      b.u[(vb + c) * 2] = (c === 1 || c === 2) ? uw : 0; b.u[(vb + c) * 2 + 1] = (c >= 2) ? vh : 0;
-    }
-    b.i.set([vb, vb + 1, vb + 2, vb, vb + 2, vb + 3], q * 6); quadCount++;
+  // One face of the axis-aligned box at tile-local (x, y, z) with extents (ex, ey, ez), all in 1/16 block.
+  // (wx, wy, wz) is the block the face belongs to, in world blocks, for the per-face tint hash.
+  const put = (b, d, x, y, z, ex, ey, ez, mi, wx, wy, wz) => {
+    if (d === 0) y += ey; else if (d === 2) z += ez; else if (d === 4) x += ex;
+    const su = d < 4 ? ex : ez, sv = d < 2 ? ez : ey;
+    const hsh = ((wx * 73856093) ^ (wy * 19349663) ^ (wz * 83492791)) >>> 0;
+    const i = b.q++ * 8, a = b.a;
+    a[i] = x; a[i + 1] = y; a[i + 2] = z; a[i + 3] = su; a[i + 4] = sv; a[i + 5] = d; a[i + 6] = mi; a[i + 7] = hsh % 1000;
+    const X1 = x + (d < 4 ? su : 0), Y1 = y + (d < 2 ? 0 : sv), Z1 = z + (d < 2 ? sv : d < 4 ? 0 : su);
+    if (x < b.lo[0]) b.lo[0] = x; if (y < b.lo[1]) b.lo[1] = y; if (z < b.lo[2]) b.lo[2] = z;
+    if (X1 > b.hi[0]) b.hi[0] = X1; if (Y1 > b.hi[1]) b.hi[1] = Y1; if (Z1 > b.hi[2]) b.hi[2] = Z1;
+    quadCount++;
   };
   for (let k = 0; k < nq; k++) {
     const o = 4 + k * 8;
-    const x = v.getUint8(o) + ox, z = v.getUint8(o + 1) + oz, y = v.getUint16(o + 2, true);
-    const w = v.getUint8(o + 4), h = v.getUint8(o + 5), d = v.getUint8(o + 6), m = mats[v.getUint8(o + 7)];
+    const x = v.getUint8(o), z = v.getUint8(o + 1), y = v.getUint16(o + 2, true);
+    const w = v.getUint8(o + 4), h = v.getUint8(o + 5), d = v.getUint8(o + 6), mi = v.getUint8(o + 7);
     const sx = d < 4 ? w : 1, sy = d < 2 ? 1 : h, sz = d < 2 ? h : d < 4 ? 1 : w;
-    put(m.clear ? T : S, d, x, y, z, sx, sy, sz, m, w, h);
+    put(mats[mi].clear ? T : S, d, x * 16, y * 16, z * 16, sx * 16, sy * 16, sz * 16, mi, x + ox, y, z + oz);
   }
   for (let k = 0; k < nb; k++) {
-    const o = boff + k * 12, m = mats[v.getUint8(o + 4)];
-    const x0 = v.getUint8(o + 5) / 16, y0 = v.getUint8(o + 6) / 16, z0 = v.getUint8(o + 7) / 16;
-    const sx = v.getUint8(o + 8) / 16 - x0, sy = v.getUint8(o + 9) / 16 - y0, sz = v.getUint8(o + 10) / 16 - z0;
-    const x = v.getUint8(o) + ox + x0, z = v.getUint8(o + 1) + oz + z0, y = v.getUint16(o + 2, true) + y0;
-    const b = m.clear ? T : S;
+    const o = boff + k * 12, mi = v.getUint8(o + 4);
+    const X = v.getUint8(o), Z = v.getUint8(o + 1), Y = v.getUint16(o + 2, true);
+    const x0 = v.getUint8(o + 5), y0 = v.getUint8(o + 6), z0 = v.getUint8(o + 7);
+    const ex = v.getUint8(o + 8) - x0, ey = v.getUint8(o + 9) - y0, ez = v.getUint8(o + 10) - z0;
+    const b = mats[mi].clear ? T : S;
     for (let d = 0; d < 6; d++) {
       if (d === 1 && y0 === 0) continue;
-      put(b, d, x, y, z, sx, sy, sz, m, d < 4 ? sx : sz, d < 2 ? sz : sy);
+      put(b, d, X * 16 + x0, Y * 16 + y0, Z * 16 + z0, ex, ey, ez, mi, X + ox, Y, Z + oz);
     }
   }
-  for (const [b, mat] of [[S, solidMat], [T, clearMat]]) {
+  for (const [b, clear] of [[S, false], [T, true]]) {
     if (!b.q) continue;
+    const data = new THREE.DataTexture(b.u, b.w, b.h, THREE.RGBAIntegerFormat, THREE.UnsignedIntType);
+    data.internalFormat = 'RGBA32UI'; data.magFilter = data.minFilter = THREE.NearestFilter; data.generateMipmaps = false; data.needsUpdate = true;
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(b.p, 3));
-    g.setAttribute('normal', new THREE.BufferAttribute(b.nr, 3, true));
-    g.setAttribute('color', new THREE.BufferAttribute(b.c, 3));
-    g.setAttribute('uv', new THREE.BufferAttribute(b.u, 2));
-    g.setIndex(new THREE.BufferAttribute(b.i, 1));
-    g.computeBoundingSphere();
-    const mesh = new THREE.Mesh(g, mat); if (mat === clearMat) mesh.renderOrder = 1; mesh.userData.q = b.q; scene.add(mesh); made.push(mesh);
+    // No vertex attributes are read (the shader uses gl_VertexID); three.js only needs a position count to size the draw.
+    const pos = new THREE.BufferAttribute(new Uint8Array(3), 3); pos.count = b.q * 6; g.setAttribute('position', pos);
+    g.boundingBox = new THREE.Box3(new THREE.Vector3(...b.lo).multiplyScalar(1 / 16), new THREE.Vector3(...b.hi).multiplyScalar(1 / 16));
+    g.boundingSphere = g.boundingBox.getBoundingSphere(new THREE.Sphere());
+    const fm = faceMaterial(data, clear);
+    g.addEventListener('dispose', () => { data.dispose(); fm.dispose(); });
+    const mesh = new THREE.Mesh(g, fm); mesh.position.set(ox, 0, oz); mesh.updateMatrix(); mesh.matrixAutoUpdate = false;
+    if (clear) mesh.renderOrder = 1; mesh.userData.q = b.q; scene.add(mesh); made.push(mesh);
   }
   return made;
 }
@@ -200,7 +251,7 @@ function stream(pos) {
   let best = null, bd = Infinity;
   for (const p of packs) {
     const dx = Math.max(p.x - pos.x, 0, pos.x - p.x - meta.pack), dz = Math.max(p.z - pos.z, 0, pos.z - p.z - meta.pack), d = Math.hypot(dx, dz);
-    if (p.state === 2 && d > streamR + 500) dropPack(p);
+    if (p.state === 2 && d > streamR + 150) dropPack(p); // fog hides everything past streamR, so keep little beyond it
     else if (p.state === 0 && d < streamR && d < bd) { best = p; bd = d; }
   }
   if (best && loading < 3) loadPack(best);
@@ -289,6 +340,9 @@ function startTrip(toNode) {
   // so the car rides the road's slope instead of stepping block by block.
   const raw = [];
   for (let d = 0; d <= trip.L + 2; d += 2) { const q = along(d); raw.push(smoothY(q.p.x, q.p.z, !!trip.edges[Math.min(q.k - 1, trip.edges.length - 1)].dk)); }
+  // fill stretches with no surface under the route from the nearest good samples on either side
+  for (let i = 0, last = NaN; i < raw.length; i++) { if (isNaN(raw[i])) { let j = i; while (j < raw.length && isNaN(raw[j])) j++; const nxt = j < raw.length ? raw[j] : last, a = isNaN(last) ? nxt : last; for (let k = i; k < j; k++) raw[k] = a + ((isNaN(nxt) ? a : nxt) - a) * (k - i + 1) / (j - i + 1); i = j - 1; } else last = raw[i]; }
+  for (let i = 0; i < raw.length; i++) if (isNaN(raw[i])) raw[i] = 1;
   trip.prof = raw.map((_, i) => { const w = raw.slice(Math.max(0, i - 4), i + 5).sort((a, b) => a - b); const m = w[w.length >> 1]; let s = 0, n = 0; for (let j = Math.max(0, i - 2); j <= Math.min(raw.length - 1, i + 2); j++) { s += Math.abs(raw[j] - m) <= 1.5 ? raw[j] : m; n++; } return s / n; });
   const P = [], I = []; let n = 0;
   for (let d = 0; d <= trip.L; d += 2) {
@@ -298,7 +352,7 @@ function startTrip(toNode) {
   }
   ribbon.geometry.dispose(); ribbon.geometry = new THREE.BufferGeometry();
   ribbon.geometry.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); ribbon.geometry.setIndex(I); ghost.geometry = ribbon.geometry;
-  const end = pts[pts.length - 1]; pin.position.set(end.x, groundY(end.x, end.z) + 9, end.z); pin.visible = true;
+  const end = pts[pts.length - 1]; pin.position.set(end.x, yAt(trip.L) + 9, end.z); pin.visible = true;
   snap = true; return true;
 }
 function randomTrip() {
@@ -330,10 +384,8 @@ const labels = [], LABEL_H = 0.032; // sprite height as a fraction of the view h
     placed.push({ nm, mid });
     // sit on the kerb side of the road, not on its centre line
     const side = new THREE.Vector3(-(N[b].z - N[a].z) / len, 0, (N[b].x - N[a].x) / len).multiplyScalar(cl <= 3 ? 14 : 9);
-    const pos = mid.clone().add(side); pos.y = groundY(pos.x, pos.z) + 5;
-    const plain = label(name, false), hot = label(name, true);
-    for (const sp of [plain, hot]) { sp.position.copy(pos); scene.add(sp); }
-    labels.push({ nm, pos, plain, hot });
+    const pos = mid.clone().add(side); pos.y = (smoothY(pos.x, pos.z) || smoothY(mid.x, mid.z) || 1) + 5;
+    labels.push({ nm, name, pos, plain: null, hot: null }); // sprites are made the first time a label is shown
   }
 }
 const _v = new THREE.Vector3();
@@ -345,12 +397,14 @@ function updateLabels(focus, curNm, nextNm) {
   const range = mode === 'orbit' ? 900 : 380;
   const cands = labels.map(l => ({ l, d: l.pos.distanceTo(focus) })).filter(c => c.d < range)
     .sort((a, b) => (b.l.nm === nextNm) - (a.l.nm === nextNm) || a.d - b.d);
-  for (const l of labels) { l.plain.visible = l.hot.visible = false; }
+  for (const l of labels) { if (l.plain) l.plain.visible = false; if (l.hot) l.hot.visible = false; }
   for (const { l } of cands) {
     if (shown.length >= (mode === 'orbit' ? 14 : 7)) break;
     if (mode === 'nav' && l.nm === curNm && l.nm !== nextNm) continue; // the road you are on is named in the trip bar
     _v.copy(l.pos).project(camera); if (_v.z > 1 || Math.abs(_v.x) > 0.96 || Math.abs(_v.y) > 0.96) continue;
-    const hot = l.nm === nextNm && mode === 'nav', sp = hot ? l.hot : l.plain, k = hot ? 1.25 : 1;
+    const hot = l.nm === nextNm && mode === 'nav', key = hot ? 'hot' : 'plain', k = hot ? 1.25 : 1;
+    if (!l[key]) { l[key] = label(l.name, hot); l[key].position.copy(l.pos); scene.add(l[key]); }
+    const sp = l[key];
     const hpx = LABEL_H * k * Hh, wpx = hpx * sp.userData.aspect, cx = (_v.x + 1) / 2 * W, cy = (1 - _v.y) / 2 * Hh;
     const r = [cx - wpx / 2 - 6, cy - hpx / 2 - 4, cx + wpx / 2 + 6, cy + hpx / 2 + 4];
     if (r[0] < 4 || r[2] > W - 4) continue; // never clipped by the screen edge
@@ -371,7 +425,7 @@ scene.add(car);
 let units = params.get('units') ?? 'imperial';
 let hud;
 const dcam = new DriveCamera(camera); dcam.setPreset(params.get('cam') ?? 'smart');
-const sky = createSky(scene, { hemi, sun, clearMat, ribbon, car });
+const sky = createSky(scene, { hemi, sun, clearMat: { emissive: glassGlow }, ribbon, car });
 sky.setMode(params.get('sky') ?? 'auto');
 let prevLayout = '', hudRects = [], navFov = 45, layout = 'desktop', layoutParam = params.get('layout') ?? 'auto';
 function makeHud() {
@@ -434,7 +488,7 @@ function setMode(m) {
   mode = m; orbit.enabled = m === 'orbit'; snap = true; if (m !== 'nav') { camera.clearViewOffset(); }
   for (const [id, mm] of [['mNav', 'nav'], ['mOrbit', 'orbit'], ['mWalk', 'walk']]) $(id).classList.toggle('on', mm === m);
   hud.show(m === 'nav');
-  scene.fog.near = m === 'orbit' ? 700 : 250; scene.fog.far = m === 'orbit' ? 1500 : 850; streamR = m === 'orbit' ? 1300 : 750;
+  scene.fog.near = m === 'orbit' ? 700 : 250; scene.fog.far = m === 'orbit' ? 1500 : 850; streamR = m === 'orbit' ? 1300 : 750; camera.far = scene.fog.far + 50;
   camera.fov = m === 'walk' ? 70 : m === 'nav' ? navFov : 45; camera.updateProjectionMatrix();
   $('help').textContent = m === 'nav' ? 'The car follows the blue route. Pick a destination or try a random trip.' : m === 'orbit' ? 'Drag to rotate, scroll to zoom.' : 'Drag to look, WASD to walk, Shift to run.';
   if (m === 'orbit') { orbit.target.copy(car.position); camera.position.set(car.position.x - 250, car.position.y + 380, car.position.z + 420); orbit.update(); }
@@ -491,7 +545,7 @@ function frame(now = performance.now()) {
     const v = (keys.ShiftLeft ? 12 : 4) * dt;
     if (keys.KeyW) walkPos.addScaledVector(fwd, v); if (keys.KeyS) walkPos.addScaledVector(fwd, -v);
     if (keys.KeyD) walkPos.addScaledVector(right, v); if (keys.KeyA) walkPos.addScaledVector(right, -v);
-    walkPos.y = groundY(walkPos.x, walkPos.z) + 1.7;
+    { const gy = smoothY(walkPos.x, walkPos.z); if (!isNaN(gy)) walkPos.y = gy + 1.7; }
     camera.position.copy(walkPos); camera.rotation.set(pitch, yaw, 0, 'YXZ');
   } else if (mode === 'orbit') orbit.update();
   focus.copy(mode === 'walk' ? walkPos : mode === 'orbit' ? orbit.target : car.position); stream(focus);

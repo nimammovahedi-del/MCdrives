@@ -129,6 +129,11 @@ def boxes(n, pr):
 cache = {}
 SHAPES = [None]          # shape id -> list of boxes; id 0 = full cube
 SHAPE_ID = {}
+# Blocks Arnis lays as road and parking surface, used to find where a canopy hangs over a road.
+ROAD_NAMES = re.compile(r"^(gray_concrete_powder|cyan_terracotta|black_concrete|gray_concrete|polished_andesite|"
+                        r"white_concrete|yellow_concrete|light_gray_concrete)$")
+ROAD_MATS = set()
+
 def classify(p):
     """Returns (material id, shape id). Material 0 means skip."""
     name = str(p["Name"]); pr = p.get("Properties")
@@ -146,6 +151,7 @@ def classify(p):
                 if t not in SHAPE_ID: SHAPES.append(t); SHAPE_ID[t] = len(SHAPES) - 1
                 sid = SHAPE_ID[t]
             r = (mat(*colour(n)), sid)
+            if ROAD_NAMES.match(n): ROAD_MATS.add(r[0])
     cache[key] = r
     return r
 
@@ -261,7 +267,7 @@ QT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("w", "u1"), ("h", "u1"),
 BT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("m", "u1"), ("x0", "u1"), ("y0", "u1"), ("z0", "u1"), ("x1", "u1"), ("y1", "u1"), ("z1", "u1"), ("pad", "u1")])
 M, S = MARGIN, PACK + 2 * MARGIN
 dirs = [((1, 0, 0), 0), ((-1, 0, 0), 1), ((0, 1, 0), 2), ((0, -1, 0), 3), ((0, 0, 1), 4), ((0, 0, -1), 5)]  # +y -y +z -z +x -x as (dy,dz,dx)
-packs = []; total = 0; nquads = 0; nboxes = 0; faces = 0
+packs = []; total = 0; nquads = 0; nboxes = 0; faces = 0; nleafcut = 0
 heights = np.full((2, D, W), -1, dtype=np.int16)  # [0] lowest drivable surface, [1] highest (bridge decks)
 for (rx, rz) in sorted(REG):
     # Window = this region plus a margin from its neighbours, so faces and sky reach are right at the seams.
@@ -276,11 +282,34 @@ for (rx, rz) in sorted(REG):
             wg[:, wz, wx] = r[0][:, sz, sx]; inworld[wz, wx] = r[3][sz, sx]
     _, dmat, dshape, _ = load(rx, rz)
     dmat = dmat.copy()
+    # Trees over a road hide the way ahead in the driving view, so a canopy is cleared where it
+    # overhangs road or parking surface. Leaves 12 blocks above the surface or less go; higher
+    # branches and the trunk stay, which keeps the street looking planted.
+    isroad = np.zeros(256, dtype=bool)
+    for i in ROAD_MATS: isroad[i] = True
+    road = isroad[wg[:, M:M+PACK, M:M+PACK]].any(axis=0) | isroad[dmat].any(axis=0)
+    road = ndimage.binary_dilation(road, np.ones((7, 7), bool))  # reach over the kerb and verge
+    roadtop = np.where(isroad[wg[:, M:M+PACK, M:M+PACK]], np.arange(H)[:, None, None], -1).max(axis=0)
+    isleaf = np.zeros(256, dtype=bool)
+    for i, (_, _, k) in enumerate(MATS):
+        if k == "leaves": isleaf[i] = True
+    over = road[None] & (np.arange(H)[:, None, None] > roadtop[None]) & (np.arange(H)[:, None, None] <= roadtop[None] + 12)
+    cut = over & isleaf[wg[:, M:M+PACK, M:M+PACK]]
+    ncut = int(cut.sum())
+    wg[:, M:M+PACK, M:M+PACK] = np.where(cut, 0, wg[:, M:M+PACK, M:M+PACK])
+    dmat[cut & isleaf[dmat]] = 0
+    nleafcut += ncut
     # Only draw faces that touch air connected to the open sky: hides sealed interiors, the hollow
     # under the terrain shell and the world's cut edges (columns outside the world are not passable).
     # Columns with nothing above the floor layers (outside the baked outline) would let the sky leak under the terrain.
     inworld &= (wg[2:] != 0).any(axis=0)
+    # Slabs, paths and other partial blocks that cover their whole cell seal the ground like a full block,
+    # so sky does not leak through them into the hollow under the terrain. (Centre region only: the margin
+    # has no shape data, which can only make the centre slightly more open, never wrongly closed.)
+    footprint = np.array([False] + [any(b[0] == 0 and b[2] == 0 and b[3] == 16 and b[5] == 16 and b[4] >= 8 for b in sh) for sh in SHAPES[1:]])
+    cover = footprint[dshape] & (dmat != 0)
     passable = np.zeros((H + 1, S, S), dtype=bool); passable[:H] = ((wg == 0) | see[wg]) & inworld[None]; passable[H] = True
+    passable[:H, M:M+PACK, M:M+PACK] &= ~cover
     lab, _ = ndimage.label(passable)
     reach = np.zeros((H + 2, S + 2, S + 2), dtype=bool)
     reach[1:H+1, 1:S+1, 1:S+1] = lab[:H] == lab[H, 0, 0]
@@ -301,7 +330,7 @@ for (rx, rz) in sorted(REG):
     ox, oz = (rx - rx0) * PACK, (rz - rz0) * PACK
     # Surfaces a car can stand on: a solid block (not leaves or water) with open sky-connected space and
     # three blocks of headroom above it. Tree canopies and roofs over the road no longer lift the car.
-    hard = (kinds[grid] == 1) | (kinds[grid] == 3)
+    hard = (kinds[grid] == 1) | (kinds[grid] == 3) | (cover & (kinds[dmat] == 1))  # slabs and paths count as surface too
     up = np.zeros((H + 3,) + hard.shape[1:], dtype=bool); up[:H] = hard
     surf = hard & reach[2:H+2, 1+M:1+M+PACK, 1+M:1+M+PACK] & ~up[1:H+1] & ~up[2:H+2] & ~up[3:H+3]
     anys = surf.any(axis=0)
@@ -348,6 +377,7 @@ for (rx, rz) in sorted(REG):
     packs.append({"id": pid, "x": ox, "z": oz, "quads": sum(t[2] for t in tiles), "tiles": tiles}); total += len(blob_all)
     print(f"  {pid}: {packs[-1]['quads']:,} quads, {len(blob_all)/1e6:.1f} MB", flush=True)
 shutil.rmtree(TMP, ignore_errors=True)
+print(f"canopy over roads removed: {nleafcut:,} leaf blocks")
 print(f"greedy meshing: {nquads:,} quads (from {faces:,} block faces); {nboxes:,} detail boxes for partial blocks")
 
 # Ground height per column, so the viewer can sit a car on the surface
