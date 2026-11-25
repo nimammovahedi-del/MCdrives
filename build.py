@@ -19,6 +19,9 @@ import argparse, base64, gzip, json, math, os, shutil, subprocess, sys, time, ur
 from collections import defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "tools"))
+import places
+
 ROOT = Path(__file__).resolve().parent
 STEPS = ["bake", "convert", "roads", "site"]
 ARNIS_WINDOWS_URL = "https://github.com/louis-e/arnis/releases/latest/download/arnis-windows.exe"
@@ -135,14 +138,15 @@ def read_gz_array(path_bin, path_json):
 def join_roads(parts, area_size, seam_tol, log=print):
     """One road graph for the whole area out of one graph per chunk.
 
-    parts: (id, dx, dz, graph) per chunk, dx/dz being chunk_offset(). Node coordinates are
+    parts: (id, dx, dz, graph) per chunk, dx/dz being chunk_offset(). Returns the graph, the number
+    of seam merges and node_map(chunk position) -> function from a chunk's node index to the joined one. Node coordinates are
     translated, the name tables merged, and the nodes that two chunks share on their seam are
     merged into one junction - by OSM id where the chunk graphs carry one, otherwise by distance.
     Then nodes outside the area are dropped and the largest connected component is kept."""
     names = [""]; nidx = {"": 0}
-    nodes = []; owner = []; osm = []; edges = []
+    nodes = []; owner = []; osm = []; edges = []; bases = []
     for ci, (cid, dx, dz, g) in enumerate(parts):
-        remap = []
+        remap = []; bases.append(len(nodes))
         for nm in g["names"]:
             if nm not in nidx: nidx[nm] = len(names); names.append(nm)
             remap.append(nidx[nm])
@@ -225,7 +229,33 @@ def join_roads(parts, area_size, seam_tol, log=print):
                         if a in big and b in big})
     log(f"  roads: {len(nodes)} chunk nodes -> {len(group)} after merging -> {len(out_nodes)} in the "
         f"largest component, {len(out_edges)} edges, {len(names)} names")
-    return {"size": [asx, asz], "names": names, "nodes": out_nodes, "edges": [list(e) for e in out_edges]}, by_id + by_dist
+    def node_map(ci):
+        """chunk ci's node index -> joined node index (None where the node was dropped)"""
+        return lambda i: ids.get(find(bases[ci] + i))
+    return ({"size": [asx, asz], "names": names, "nodes": out_nodes, "edges": [list(e) for e in out_edges]},
+            by_id + by_dist, node_map)
+
+
+def join_places(info, node_map, roads, area_size, log=print):
+    """One places.json for the area: each chunk's places moved by its offset, nodes remapped to the
+    joined graph (re-snapped when the node was dropped), the overlap between chunks de-duplicated.
+    A chunk without places.json counts as empty."""
+    items = []; asx, asz = area_size
+    for ci, i in enumerate(info):
+        pp = i["dir"] / "places.json"
+        if not pp.exists(): log(f"  places: chunk {i['id']} has no places.json, treating as empty"); continue
+        m = node_map(ci)
+        for name, kind, x, z, nd, al in json.loads(pp.read_text()):
+            x, z = round(x + i["dx"], 1), round(z + i["dz"], 1)
+            if 0 <= x <= asx and 0 <= z <= asz: items.append([name, kind, x, z, None if nd is None else m(nd), al])
+    n0 = len(items)
+    snap = places.Snapper(roads)
+    for it in items:
+        if it[4] is None: it[4] = snap(it[2], it[3])
+    rows = places.dedupe(items, key=lambda it: (it[4] is not None, len(it[5])))
+    rows.sort(key=lambda r: (r[0].lower(), r[2], r[3]))
+    log(f"  places: {n0} in the chunks -> {len(rows)} after overlap de-duplication, {sum(r[4] is not None for r in rows)} routable")
+    return rows
 
 
 def join_addresses(parts, area_size, log=print):
@@ -378,12 +408,14 @@ def join(area, chunks, out, seam_tol=6, log=print):
         rp = i["dir"] / "roads.json"
         if not rp.exists(): sys.exit(f"join: chunk {i['id']} has no roads.json")
         parts.append((i["id"], i["dx"], i["dz"], json.loads(rp.read_text())))
-    roads, merged = join_roads(parts, (psx, psz), seam_tol, log)
+    roads, merged, node_map = join_roads(parts, (psx, psz), seam_tol, log)
     (site / "roads.json").write_text(json.dumps(roads, separators=(",", ":")))
     # ---- addresses for search (optional: a chunk without them is skipped)
     aparts = [(i["id"], i["dx"], i["dz"], json.loads((i["dir"] / "data" / "addresses.json").read_text()))
               for i in info if (i["dir"] / "data" / "addresses.json").exists()]
     if aparts: (data / "addresses.json").write_text(json.dumps(join_addresses(aparts, (psx, psz), log), separators=(",", ":")))
+    pl = join_places(info, node_map, roads, (psx, psz), log)
+    (site / "places.json").write_text(json.dumps(pl, separators=(",", ":"), ensure_ascii=False))
 
     meta = {"tile": info[0]["meta"]["tile"], "pack": info[0]["meta"]["pack"], "ext": ext,
             "width": width, "depth": depth, "height": height, "minx": minx, "minz": minz, "miny": miny,
@@ -399,7 +431,7 @@ def join(area, chunks, out, seam_tol=6, log=print):
     shutil.copytree(ROOT / "web" / "drive", site / "drive", dirs_exist_ok=True)
     size = sum(f.stat().st_size for f in site.rglob("*") if f.is_file())
     return {"chunks": len(info), "blocks": [width, depth, height], "packs": len(packs), "quads": quads,
-            "nodes": len(roads["nodes"]), "edges": len(roads["edges"]), "seam_nodes_merged": merged,
+            "nodes": len(roads["nodes"]), "places": len(pl), "edges": len(roads["edges"]), "seam_nodes_merged": merged,
             "projection_error_blocks": round(worst, 2), "site_mb": round(size / 1e6, 2)}
 
 
@@ -481,8 +513,8 @@ def build_chunk(area, chunk, args, work, overhang=0):
         run([sys.executable, ROOT / "tools" / "mca2web.py", world_dir(), data] + (["--b64"] if args.b64 else []), log)
         times["convert"] = time.time() - times["convert"]
 
-    if step("roads", lambda: (site / "roads.json").exists()):
-        cmd = [sys.executable, ROOT / "tools" / "roadgraph.py", bstr, osm, site / "roads.json"]
+    if step("roads", lambda: (site / "roads.json").exists() and (site / "places.json").exists()):
+        cmd = [sys.executable, ROOT / "tools" / "roadgraph.py", bstr, osm, site / "roads.json", "--places", site / "places.json"]
         if overhang: cmd += ["--overhang", overhang]   # reach past the bbox so the join can sew seams
         run(cmd, log)
         times["roads"] = time.time() - times["roads"]

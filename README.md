@@ -14,7 +14,7 @@ That runs these steps and skips any whose output already exists:
 | --- | --- | --- |
 | bake | OpenStreetMap, terrain, USGS LiDAR and Overture buildings into a block world | [Arnis](https://github.com/louis-e/arnis) (unmodified) |
 | convert | World files into greedy-meshed tiles with our own block palette, grouped into one streamable pack per 512 x 512 blocks | `tools/mca2web.py` |
-| roads | Drivable road graph, in block coordinates, from the same OSM data the bake used | `tools/roadgraph.py` |
+| roads | Drivable road graph, in block coordinates, from the same OSM data the bake used, plus `places.json` (named destinations for search) | `tools/roadgraph.py`, `tools/places.py` |
 | site | Copy the viewer next to the data in `build/<area>/<chunk>/site/` | `build.py` |
 | join | Place every chunk in one world and write `build/<area>/site/` | `build.py` |
 
@@ -77,7 +77,24 @@ puts them back together into one world at `build/<area>/site/`:
   those nodes, then any remaining pair within `--seam-tol` blocks, and keeps the largest connected
   component of the result. Routes cross chunk edges as if the area had been baked in one go.
 
+- Places are merged the same way: each chunk's `places.json` is shifted by its offset, `node` is
+  remapped to the joined graph (re-snapped if that node was dropped), and entries with the same name
+  within 150 blocks, which is what the overlap between chunks produces, are reduced to one. A chunk
+  without a `places.json` counts as empty.
+
 A single-chunk area is already one world, so nothing is joined and the site stays where it was.
+
+## Places
+
+`site/places.json` lists named destinations for search, as rows `[name, kind, x, z, node, aliases]`
+sorted by name. `x`, `z` are block coordinates in the same frame as `roads.json`; `node` is the
+index into `roads.json` `nodes` of the nearest node on a named road that is not a motorway or ramp
+within 300 blocks (`null` if none); `kind` is one of civic, school, university, hospital, shop,
+mall, food, park, office, worship, hotel, fuel, station, neighbourhood, other; `aliases` holds
+`alt_name`, `short_name`, `official_name`, `old_name`, `loc_name` and a `brand` that differs from
+`name`. Sources are named OSM nodes and ways (a way is placed at its centroid) tagged amenity, shop,
+tourism, leisure, office, building, place, station or landuse retail/commercial; parking, benches
+and the like are left out.
 
 ## Optional street photos
 
