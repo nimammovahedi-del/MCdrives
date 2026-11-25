@@ -145,18 +145,21 @@ const tex = (() => {
   const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestMipmapLinearFilter;
   t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
 })();
-const mats = meta.materials.map(m => ({ c: new THREE.Color(m.rgb), clear: m.kind === 'water' || m.kind === 'glass' }));
+// Glass: windows reflect the sky (fresnel), show a frame round each 1 m pane, and at night a random third of the
+// "rooms" behind them are lit. ?glass=0 turns it off (the old flat see-through glass, lit all over at night).
+const GLASS = params.get('glass') !== '0';
+const mats = meta.materials.map(m => ({ c: new THREE.Color(m.rgb), clear: m.kind === 'water' || m.kind === 'glass', glass: m.kind === 'glass' }));
 // Block faces are drawn by vertex pulling: each tile mesh is one non-indexed draw of 6 vertices per face,
 // and the vertex shader reads that face's 16-byte record from an RGBA32UI data texture (one texel per face):
 //   u16 x, y, z   tile-local face-plane min corner, in 1/16 block
 //   u16 su, sv    face size along its two tangent axes (the uv extent), in 1/16 block
 //   u16 dir       0 +y, 1 -y, 2 +z, 3 -z, 4 +x, 5 -x
-//   u16 mat, tint palette index; tint hash 0..999
+//   u16 mat, tint palette index; tint hash 0..999, +1000 on the side face of a window (glass only, see buildTile)
 // The shader rebuilds corner, normal, uv and colour; lighting, map, fog and colour space stay three.js's
 // own MeshLambertMaterial code (patched in onBeforeCompile).
 const palette = (() => {
   const a = new Float32Array(mats.length * 4);
-  mats.forEach((m, i) => { a[i * 4] = m.c.r; a[i * 4 + 1] = m.c.g; a[i * 4 + 2] = m.c.b; a[i * 4 + 3] = 1; });
+  mats.forEach((m, i) => { a[i * 4] = m.c.r; a[i * 4 + 1] = m.c.g; a[i * 4 + 2] = m.c.b; a[i * 4 + 3] = m.glass ? 1 : 0; });   // alpha: 1 = glass
   const t = new THREE.DataTexture(a, mats.length, 1, THREE.RGBAFormat, THREE.FloatType);
   t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t;
 })();
@@ -183,9 +186,55 @@ const faceMain = `
   vec3 qScale = qDir < 2 ? vec3(qSu, 0.0, qSv) : qDir < 4 ? vec3(qSu, qSv, 0.0) : vec3(0.0, qSv, qSu);
   vec3 qPos = (vec3(float(qT.x & 0xFFFFu), float(qT.x >> 16u), float(qT.y & 0xFFFFu)) + FACE_C[qDir * 4 + qCorner] * qScale) * 0.0625;
   vec2 qUv = vec2((qCorner == 1 || qCorner == 2) ? qSu : 0.0, qCorner >= 2 ? qSv : 0.0) * 0.0625;
-  vec3 qCol = texelFetch(blockPalette, ivec2(int(qT.w & 0xFFFFu), 0), 0).rgb * (0.96 + float(qT.w >> 16u) / 1000.0 * 0.08);
+  vec3 qCol = texelFetch(blockPalette, ivec2(int(qT.w & 0xFFFFu), 0), 0).rgb * (0.96 + float((qT.w >> 16u) % 1000u) / 1000.0 * 0.08);
   vMapUv = (mapTransform * vec3(qUv, 1)).xy;
 `;
+// Glass, added to the see-through meshes only (water shares them and is left as it was).
+const glassVS = `
+varying vec3 vGlassW;
+flat varying int vGlassDir;
+flat varying int vGlassKind;   // 0 water, 1 glass, 2 glass on the side face of a window (no pane frame)
+`;
+const glassMain = `
+  vGlassW = (modelMatrix * vec4(qPos, 1.0)).xyz; vGlassDir = qDir;
+  vGlassKind = texelFetch(blockPalette, ivec2(int(qT.w & 0xFFFFu), 0), 0).a > 0.5 ? ((qT.w >> 16u) >= 1000u ? 2 : 1) : 0;
+`;
+const glassFS = `
+uniform vec3 glassSkyTop, glassSkyHorizon;
+uniform float glassNight;
+varying vec3 vGlassW;
+flat varying int vGlassDir;
+flat varying int vGlassKind;
+const vec3 GLASS_N[6] = vec3[6](vec3(0,1,0), vec3(0,-1,0), vec3(0,0,1), vec3(0,0,-1), vec3(1,0,0), vec3(-1,0,0));
+float glassHash(vec3 p) { p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
+`;
+// replaces the lit colour of glass just before it is written: sky reflection by fresnel, pane frames, lit rooms at night
+const glassFrag = `
+  if (vGlassKind > 0) {
+    vec3 gN = GLASS_N[vGlassDir], gD = vGlassW - cameraPosition, gV = normalize(gD);
+    vec3 gCell = floor(vGlassW - gN * 0.5), gRoom = floor(gCell / vec3(3.0, 4.0, 3.0));   // a "room": 3 x 4 x 3 blocks
+    float gH = glassHash(gRoom + 3.0);
+    // panes of one room tilt the reflection a little and differ in tone, so windows are not all the same
+    vec3 gR = reflect(gV, gN); float ry = gR.y + (gH - 0.5) * 0.25;
+    vec3 refl = ry > 0.0 ? mix(glassSkyHorizon, glassSkyTop, sqrt(ry)) : mix(glassSkyHorizon * 0.55, vec3(0.20, 0.21, 0.20) * (1.0 - 0.8 * glassNight), min(1.0, -ry * 4.0));
+    refl *= 0.86 + 0.22 * glassHash(gRoom + 11.0);
+    float cosT = clamp(-dot(gV, gN), 0.0, 1.0), fres = 0.18 + 0.82 * pow(1.0 - cosT, 4.0);
+    float lit = step(glassHash(gRoom), 0.33) * glassNight;
+    // warm or cool, at 60 to 100 %; near panes are kept dimmer, so a window by the road does not glare
+    vec3 warm = mix(vec3(1.0, 0.74, 0.42), vec3(0.80, 0.86, 1.0), step(0.8, glassHash(gRoom + 17.0))) * (0.6 + 0.4 * glassHash(gRoom + 5.0));
+    warm *= mix(0.5, 0.85, smoothstep(15.0, 150.0, length(gD)));
+    outgoingLight = mix(outgoingLight * 0.35, refl, fres * (1.0 - 0.6 * lit)) + warm * lit;
+    diffuseColor.a = mix(0.70, 0.95, fres) + lit * 0.3;
+    if (vGlassKind == 1) {
+      vec2 gU = vGlassDir < 2 ? vGlassW.xz : vGlassDir < 4 ? vGlassW.xy : vGlassW.zy, gE = abs(fract(gU) - 0.5);
+      float frame = step(0.43, max(gE.x, gE.y)) * 0.85;
+      outgoingLight = mix(outgoingLight, vec3(0.30, 0.31, 0.33) * (1.0 - 0.7 * glassNight), frame);
+      diffuseColor.a = mix(diffuseColor.a, 1.0, frame);
+    }
+  }
+`;
+// sky colours for the reflection, set by the sky module whenever its look changes (drive/sky.js, clearMat.onLook)
+const glassU = { glassSkyTop: { value: new THREE.Color() }, glassSkyHorizon: { value: new THREE.Color() }, glassNight: { value: 0 } };
 // One material per tile mesh (they share one compiled program) so each can carry its own data texture.
 // glass and water share one emissive colour, so the night sky can light windows without touching every tile
 const glassGlow = new THREE.Color(0);
@@ -194,14 +243,19 @@ const faceMaterial = (data, clear) => {
   if (clear) m.emissive = glassGlow;
   m.onBeforeCompile = sh => {
     sh.uniforms.faceData = { value: data }; sh.uniforms.blockPalette = { value: palette };
+    const glass = clear && GLASS;
+    if (glass) {
+      Object.assign(sh.uniforms, glassU);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\n' + glassFS).replace('#include <opaque_fragment>', glassFrag + '#include <opaque_fragment>');
+    }
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\n' + faceVS)
-      .replace('#include <uv_vertex>', faceMain)
+      .replace('#include <common>', '#include <common>\n' + faceVS + (glass ? glassVS : ''))
+      .replace('#include <uv_vertex>', faceMain + (glass ? glassMain : ''))
       .replace('#include <color_vertex>', 'vColor = qCol;')
       .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = FACE_N[qDir];')
       .replace('#include <begin_vertex>', 'vec3 transformed = qPos;');
   };
-  m.customProgramCacheKey = () => 'blockface';
+  m.customProgramCacheKey = () => 'blockface' + (clear && GLASS ? '-glass' : '');
   return m;
 };
 let quadCount = 0;
@@ -217,16 +271,29 @@ function buildTile(buf, tx, tz, pk) {
   const mk = c => { const w = Math.max(1, Math.ceil(Math.sqrt(c))), h = Math.max(1, Math.ceil(c / w)), u = new Uint32Array(w * h * 4);
     return { u, a: new Uint16Array(u.buffer), w, h, q: 0, lo: [Infinity, Infinity, Infinity], hi: [-Infinity, -Infinity, -Infinity] }; };
   const S = mk(ns), T = mk(nt);
+  // Glass blocks of this tile, to find the side faces of a window: a wall face of a glass block whose neighbours in
+  // its own row run along the face's normal (the window's plane) and not across it. Those get no pane frame.
+  const gkey = (x, y, z) => (y * 80 + z + 8) * 80 + x + 8, gset = GLASS ? new Set() : null;
+  if (gset) for (let k = 0; k < nq; k++) {
+    const o = 4 + k * 8; if (!mats[v.getUint8(o + 7)].glass) continue;
+    const x = v.getUint8(o), z = v.getUint8(o + 1), y = v.getUint16(o + 2, true), w = v.getUint8(o + 4), h = v.getUint8(o + 5), d = v.getUint8(o + 6);
+    for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) gset.add(d < 2 ? gkey(x + i, y, z + j) : d < 4 ? gkey(x + i, y + j, z) : gkey(x, y + j, z + i));
+  }
+  const sideFace = (d, x, y, z) => {
+    if (!gset || d < 2) return false;
+    const alongX = gset.has(gkey(x - 1, y, z)) || gset.has(gkey(x + 1, y, z)), alongZ = gset.has(gkey(x, y, z - 1)) || gset.has(gkey(x, y, z + 1));
+    return d < 4 ? alongZ && !alongX : alongX && !alongZ;
+  };
   // A pack baked as part of a larger area carries dx/dz/dy: where its own origin sits in this world.
   const ox = tx * meta.tile + (pk?.dx ?? 0), oz = tz * meta.tile + (pk?.dz ?? 0), oy = pk?.dy ?? 0;
   // One face of the axis-aligned box at tile-local (x, y, z) with extents (ex, ey, ez), all in 1/16 block.
   // (wx, wy, wz) is the block the face belongs to, in world blocks, for the per-face tint hash.
-  const put = (b, d, x, y, z, ex, ey, ez, mi, wx, wy, wz) => {
+  const put = (b, d, x, y, z, ex, ey, ez, mi, wx, wy, wz, side = false) => {
     if (d === 0) y += ey; else if (d === 2) z += ez; else if (d === 4) x += ex;
     const su = d < 4 ? ex : ez, sv = d < 2 ? ez : ey;
     const hsh = ((wx * 73856093) ^ (wy * 19349663) ^ (wz * 83492791)) >>> 0;
     const i = b.q++ * 8, a = b.a;
-    a[i] = x; a[i + 1] = y; a[i + 2] = z; a[i + 3] = su; a[i + 4] = sv; a[i + 5] = d; a[i + 6] = mi; a[i + 7] = hsh % 1000;
+    a[i] = x; a[i + 1] = y; a[i + 2] = z; a[i + 3] = su; a[i + 4] = sv; a[i + 5] = d; a[i + 6] = mi; a[i + 7] = hsh % 1000 + (side ? 1000 : 0);
     const X1 = x + (d < 4 ? su : 0), Y1 = y + (d < 2 ? 0 : sv), Z1 = z + (d < 2 ? sv : d < 4 ? 0 : su);
     if (x < b.lo[0]) b.lo[0] = x; if (y < b.lo[1]) b.lo[1] = y; if (z < b.lo[2]) b.lo[2] = z;
     if (X1 > b.hi[0]) b.hi[0] = X1; if (Y1 > b.hi[1]) b.hi[1] = Y1; if (Z1 > b.hi[2]) b.hi[2] = Z1;
@@ -237,7 +304,7 @@ function buildTile(buf, tx, tz, pk) {
     const x = v.getUint8(o), z = v.getUint8(o + 1), y = v.getUint16(o + 2, true);
     const w = v.getUint8(o + 4), h = v.getUint8(o + 5), d = v.getUint8(o + 6), mi = v.getUint8(o + 7);
     const sx = d < 4 ? w : 1, sy = d < 2 ? 1 : h, sz = d < 2 ? h : d < 4 ? 1 : w;
-    put(mats[mi].clear ? T : S, d, x * 16, y * 16, z * 16, sx * 16, sy * 16, sz * 16, mi, x + ox, y, z + oz);
+    put(mats[mi].clear ? T : S, d, x * 16, y * 16, z * 16, sx * 16, sy * 16, sz * 16, mi, x + ox, y, z + oz, mats[mi].glass && sideFace(d, x, y, z));
   }
   for (let k = 0; k < nb; k++) {
     const o = boff + k * 12, mi = v.getUint8(o + 4);
@@ -247,7 +314,7 @@ function buildTile(buf, tx, tz, pk) {
     const b = mats[mi].clear ? T : S;
     for (let d = 0; d < 6; d++) {
       if (d === 1 && y0 === 0) continue;
-      put(b, d, X * 16 + x0, Y * 16 + y0, Z * 16 + z0, ex, ey, ez, mi, X + ox, Y, Z + oz);
+      put(b, d, X * 16 + x0, Y * 16 + y0, Z * 16 + z0, ex, ey, ez, mi, X + ox, Y, Z + oz, GLASS && mats[mi].glass && d >= 2 && (d < 4 ? ex : ez) < 16);
     }
   }
   for (const [b, clear] of [[S, false], [T, true]]) {
@@ -543,7 +610,11 @@ setVehicle(vehicleKind);
 let units = params.get('units') ?? 'imperial';
 let hud;
 const dcam = new DriveCamera(camera); dcam.setPreset(params.get('cam') ?? 'classic');
-const sky = createSky(scene, { hemi, sun, clearMat: { emissive: glassGlow }, ribbon: routeLine, car });
+// with the glass treatment, lit rooms replace the shared night glow (which also lit water), and the sky module
+// hands its colours to the glass reflection
+const sky = createSky(scene, { hemi, sun, ribbon: routeLine, car, clearMat: GLASS
+  ? { emissive: new THREE.Color(), onLook: L => { glassU.glassSkyTop.value.set(L.top); glassU.glassSkyHorizon.value.set(L.horizon); glassU.glassNight.value = L.night ? 1 : 0; } }
+  : { emissive: glassGlow } });
 sky.setMode(params.get('sky') ?? 'auto'); sky.refreshCar();
 let prevLayout = '', hudRects = [], navFov = 45, layout = 'desktop', layoutParam = params.get('layout') ?? 'auto';
 function makeHud() {
