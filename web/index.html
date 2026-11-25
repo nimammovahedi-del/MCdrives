@@ -510,7 +510,7 @@ setVehicle(vehicleKind);
 // ---------- driving HUD, camera, sky and screen layout
 let units = params.get('units') ?? 'imperial';
 let hud;
-const dcam = new DriveCamera(camera); dcam.setPreset(params.get('cam') ?? 'smart');
+const dcam = new DriveCamera(camera); dcam.setPreset(params.get('cam') ?? 'classic');
 const sky = createSky(scene, { hemi, sun, clearMat: { emissive: glassGlow }, ribbon: routeLine, car });
 sky.setMode(params.get('sky') ?? 'auto'); sky.refreshCar();
 let prevLayout = '', hudRects = [], navFov = 45, layout = 'desktop', layoutParam = params.get('layout') ?? 'auto';
