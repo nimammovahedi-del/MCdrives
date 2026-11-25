@@ -67,7 +67,7 @@ renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x8ec5ff);
-scene.fog = new THREE.Fog(0x8ec5ff, 300, 1100);
+scene.fog = new THREE.Fog(0x8ec5ff, 250, 850);
 const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.5, 4000);
 scene.add(new THREE.HemisphereLight(0xe8f2ff, 0x6a6f55, 1.7));
 const sun = new THREE.DirectionalLight(0xfff4e0, 1.5); sun.position.set(0.5, 1, 0.3); scene.add(sun);
@@ -155,22 +155,30 @@ function buildTile(buf, tx, tz) {
 }
 // ---------- streaming: packs of tiles load around the point of interest and unload behind it
 const packs = meta.packs.map(p => ({ ...p, state: 0, meshes: [] }));
-let loading = 0, streamR = 1100, everLoaded = false;
+let loading = 0, streamR = 750, everLoaded = false;
+// Meshes are built a few milliseconds per frame so streaming never stalls the drive.
+const buildQ = [], BUDGET = +(params.get('budget') ?? 6);
 async function loadPack(p) {
   p.state = 1; loading++;
   try {
     const buf = await loadBin(p.id);
-    for (const [tx, tz, n, off, len] of p.tiles) {
-      const tile = await gunzip(buf.slice(off, off + len));
-      if (p.state !== 1) return;
-      p.meshes.push(...buildTile(tile, tx, tz));
-    }
-    p.state = 2;
-    if (!everLoaded) { everLoaded = true; $('load').remove(); }
-  } catch (e) { console.error('pack', p.id, e); p.state = 0; }
-  finally { loading--; }
+    const tiles = await Promise.all(p.tiles.map(([tx, tz, n, off, len]) => gunzip(buf.slice(off, off + len))));
+    if (p.state !== 1) { loading--; return; }
+    p.left = tiles.length;
+    tiles.forEach((tile, i) => buildQ.push({ p, tile, tx: p.tiles[i][0], tz: p.tiles[i][1] }));
+  } catch (e) { console.error('pack', p.id, e); p.state = 0; loading--; }
+}
+function pumpBuilds() {
+  const t = performance.now();
+  while (buildQ.length && performance.now() - t < BUDGET) {
+    const { p, tile, tx, tz } = buildQ.shift();
+    if (p.state !== 1) continue;
+    p.meshes.push(...buildTile(tile, tx, tz));
+    if (--p.left === 0) { p.state = 2; loading--; if (!everLoaded) { everLoaded = true; $('load').remove(); } }
+  }
 }
 function dropPack(p) {
+  if (p.state === 1) loading--;
   for (const m of p.meshes) { scene.remove(m); m.geometry.dispose(); quadCount -= m.userData.q; }
   p.meshes = []; p.state = 0;
 }
@@ -183,6 +191,7 @@ function stream(pos) {
     else if (p.state === 0 && d < streamR && d < bd) { best = p; bd = d; }
   }
   if (best && loading < 3) loadPack(best);
+  pumpBuilds();
   const now = performance.now();
   if (now - lastStats > 500) { lastStats = now; $('stats').textContent = `(${(quadCount / 1e6).toFixed(2)}M faces loaded${loading ? ', streaming…' : ''})`; }
 }
@@ -307,7 +316,7 @@ function setMode(m) {
   mode = m; orbit.enabled = m === 'orbit'; snap = true;
   for (const [id, mm] of [['mNav', 'nav'], ['mOrbit', 'orbit'], ['mWalk', 'walk']]) $(id).classList.toggle('on', mm === m);
   $('banner').style.display = m === 'nav' ? 'flex' : 'none'; $('trip').style.display = m === 'nav' ? 'block' : 'none';
-  scene.fog.near = m === 'orbit' ? 900 : 300; scene.fog.far = m === 'orbit' ? 2000 : 1100; streamR = m === 'orbit' ? 1800 : 1100;
+  scene.fog.near = m === 'orbit' ? 700 : 250; scene.fog.far = m === 'orbit' ? 1500 : 850; streamR = m === 'orbit' ? 1300 : 750;
   camera.fov = m === 'walk' ? 70 : 45; camera.updateProjectionMatrix();
   $('help').textContent = m === 'nav' ? 'The car follows the blue route. Pick a destination or try a random trip.' : m === 'orbit' ? 'Drag to rotate, scroll to zoom.' : 'Drag to look, WASD to walk, Shift to run.';
   if (m === 'orbit') { orbit.target.copy(car.position); camera.position.set(car.position.x - 250, car.position.y + 380, car.position.z + 420); orbit.update(); }
