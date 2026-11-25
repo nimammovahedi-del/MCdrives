@@ -39,6 +39,7 @@ NAIP_LAYER = "USGSNAIPPlus"
 RES = 0.5            # metres per pixel asked for (NAIP in California is 60 cm)
 TILE_PX = 2048       # pixels a side per request, as Arnis asks
 PAD_M = 40.0         # photo fetched past the bbox, for outlines on the edge and the alignment search
+BIG_ROOF_M2 = 500.0  # roofs this large that are not houses get grey tones only
 MIN_PX = 24          # fewest clean interior pixels for a colour (6 m2 at 0.5 m)
 MIN_CLEAN = 0.35     # share of interior pixels that must be clean (not plant, not shadow)
 MAX_SHIFT_PX = 8     # alignment search, each way (4 m at 0.5 m)
@@ -112,17 +113,19 @@ SNAP_LAB = oklab(np.array([s[1] for s in SNAP], dtype=float))
 SNAP_GREY = np.hypot(SNAP_LAB[:, 1], SNAP_LAB[:, 2]) < 0.035
 
 
-def roof_colour(rgb):
+def roof_colour(rgb, neutral=False):
     """Measured mean colour -> the hex written: chroma clamped, lightness kept in range, snapped.
     A colour is snapped within its own side of the line Arnis draws for pitched roofs (Oklab chroma
     0.035: greys become slate or zinc by lightness, anything warmer clay tile), so the snap never
-    moves a roof from one of those families to the other."""
+    moves a roof from one of those families to the other. neutral keeps only the lightness: a large
+    flat roof drawn in a warm block reads as pink or maroon from above, so those stay grey."""
     lab = oklab(np.array(rgb, dtype=float))
     L, a, b = lab
     c = math.hypot(a, b)
     if c > CHROMA_MAX: a, b = a * CHROMA_MAX / c, b * CHROMA_MAX / c
     lab = np.array([min(max(L, 0.2), 0.95), a, b])
     d = tag_distance(SNAP_LAB, lab[None, :])
+    if neutral: c = 0.0; lab = np.array([lab[0], 0.0, 0.0])
     d[SNAP_GREY != (c < 0.035)] = np.inf
     i = int(np.argmin(d))
     return "#%02x%02x%02x" % SNAP[i][1], SNAP[i][0]
@@ -472,13 +475,14 @@ def fill_roof_colours(blds, mos, zone, stats):
         rr, cc, br, bc, full = fp
         rims.append((br, bc))
         if len(rr) < MIN_PX: stats["roof_skipped"]["too_small"] += 1; continue
-        items.append((el, rr, cc))
+        big = area(xy) >= BIG_ROOF_M2 and el["tags"].get("building") not in HOUSES
+        items.append((el, rr, cc, big))
     dr, dc, gain = find_shift(rims, mos)
     stats["naip_shift_m"] = [round(dc * mos.res, 1), round(-dr * mos.res, 1)]   # east, north
     stats["naip_shift_gain"] = round(gain, 3)
     H, W = mos.valid.shape
     names = {}
-    for el, rr, cc in items:
+    for el, rr, cc, big in items:
         r2, c2 = rr + dr, cc + dc
         keep = (r2 >= 0) & (c2 >= 0) & (r2 < H) & (c2 < W)
         r2, c2 = r2[keep], c2[keep]
@@ -486,7 +490,7 @@ def fill_roof_colours(blds, mos, zone, stats):
         if keep.sum() < MIN_PX: stats["roof_skipped"]["no_photo"] += 1; continue
         rgb, why = colour_of(mos.rgb[r2[keep], c2[keep]])
         if rgb is None: stats["roof_skipped"][why] += 1; continue
-        hx, name = roof_colour(rgb)
+        hx, name = roof_colour(rgb, big)
         el["tags"]["roof:colour"] = hx
         names[name] = names.get(name, 0) + 1
         stats["roof_colours_written"] += 1
