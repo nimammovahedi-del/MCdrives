@@ -106,6 +106,8 @@ def register_palette():
     for plank, bark in WOODS.values(): mat(plank, "solid"); mat(bark, "solid")
     for c in NAMED.values(): mat(c, "solid")
     mat(0x8E8E8E, "solid")
+    mat(PATH_MUTED, "solid")   # ground-level cycle paths, see road_fixes(); last, so earlier ids keep their meaning
+PATH_MUTED = 0x7E6E66          # a warm grey between the asphalt and the sidewalk, in place of Arnis's red
 register_palette()
 
 FULL = None
@@ -289,6 +291,99 @@ QT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("w", "u1"), ("h", "u1"),
 BT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("m", "u1"), ("x0", "u1"), ("y0", "u1"), ("z0", "u1"), ("x1", "u1"), ("y1", "u1"), ("z1", "u1"), ("pad", "u1")])
 M, S = MARGIN, PACK + 2 * MARGIN
 dirs = [((1, 0, 0), 0), ((-1, 0, 0), 1), ((0, 1, 0), 2), ((0, -1, 0), 3), ((0, 0, 1), 4), ((0, 0, -1), 5)]  # +y -y +z -z +x -x as (dy,dz,dx)
+
+# ---- Road surface clean-up, applied to each region window's cube grid before the sky-reach labelling.
+# Every rule looks only at the window itself, so a column gets the same answer from each window it is in.
+RF = {}
+def _road_fix_tables():
+    if RF: return RF
+    def lut(names):
+        t = np.zeros(256, dtype=bool)
+        for n in names: t[mat(*colour(n))] = True
+        return t
+    road = np.zeros(256, dtype=bool)
+    for i in ROAD_MATS: road[i] = True
+    RF.update(
+        road=road,
+        asphalt=lut(["gray_concrete_powder", "cyan_terracotta"]),
+        marking=lut(["white_concrete", "yellow_concrete"]), yellow=lut(["yellow_concrete"]),
+        # Arnis "built-up" land-cover ground fill, which shows through where the stamps of meeting roads leave a gap
+        fill=lut(["stone_bricks", "cracked_stone_bricks", "stone", "cobblestone"]),
+        # bare ground that can sit in a road as a stray speck
+        soft=lut(["grass_block", "dirt", "coarse_dirt", "rooted_dirt", "podzol", "moss_block", "sand", "gravel", "mud"]),
+        terrain=lut(["grass_block", "dirt", "coarse_dirt", "rooted_dirt", "podzol", "mud", "sand", "red_sand", "gravel", "stone",
+                     "andesite", "diorite", "granite", "deepslate", "tuff", "clay", "moss_block", "dirt_path"]),
+        red=lut(["red_terracotta", "red_concrete"]),
+        log=lut([w + "_log" for w in WOODS]),
+        leaf=np.array([k == "leaves" for _, _, k in MATS] + [False] * (256 - len(MATS))),
+        path=MAT_ID[(PATH_MUTED, "solid")])
+    return RF
+
+def road_fixes(wg, centre, st):
+    """Cleans the road surface in place in the window grid wg [y, z, x] (cubes only):
+    1. gap fill: a small patch of built-up fill (or a speck of bare ground) at road height that road surrounds is paved
+       with the asphalt around it;
+    2. cycle paths: red terracotta or concrete lying on terrain becomes one muted path colour (roofs sit on air or walls);
+    3. clutter: leaves and logs standing on the road surface, up to 12 blocks up, are cleared.
+    centre is the (z, x) slice pair of the region inside the window; only cells there are counted in st."""
+    T = _road_fix_tables()
+    Hh, Sz, Sx = wg.shape
+    solid = (kinds[wg] == 1) & ~T["log"][wg]
+    has = solid.any(axis=0)
+    ty = np.where(has, Hh - 1 - solid[::-1].argmax(axis=0), -1)
+    zz, xx = np.indices(ty.shape)
+    tm = np.where(has, wg[np.maximum(ty, 0), zz, xx], 0)
+    road = T["road"][tm] & has
+    inc = np.zeros(ty.shape, dtype=bool); inc[centre] = True
+    # 1. gaps: (patch kind, max extent, max area, min share of the rim that is road at the patch's level)
+    filled = np.zeros(ty.shape, dtype=bool)
+    cross = ndimage.generate_binary_structure(2, 1)
+    for key, maxext, maxarea, minfrac in (("fill", 24, 400, 0.75), ("soft", 3, 4, 1.0)):
+        cand = T[key][tm] & has
+        lab, _ = ndimage.label(cand, cross)
+        for i, sl in enumerate(ndimage.find_objects(lab), 1):
+            if sl is None: continue
+            (z0, z1), (x0, x1) = (sl[0].start, sl[0].stop), (sl[1].start, sl[1].stop)
+            if max(z1 - z0, x1 - x0) > maxext or z0 == 0 or x0 == 0 or z1 == Sz or x1 == Sx: continue
+            s0, s1 = slice(z0 - 1, z1 + 1), slice(x0 - 1, x1 + 1)
+            m = lab[s0, s1] == i
+            if m.sum() > maxarea: continue
+            rim = ndimage.binary_dilation(m, cross) & ~m
+            r_ty, r_road, r_tm = ty[s0, s1][rim], road[s0, s1][rim], tm[s0, s1][rim]
+            if not r_road.any(): continue
+            ry = int(np.median(r_ty[r_road]))
+            if (r_road & (np.abs(r_ty - ry) <= 1)).mean() < minfrac: continue
+            cells = m & (ty[s0, s1] == ry)
+            src = r_tm[r_road & T["asphalt"][r_tm]]
+            if not len(src): src = r_tm[r_road & ~T["marking"][r_tm]]
+            if not len(src) or not cells.any(): continue
+            fillm = np.bincount(src, minlength=256).argmax()
+            cz, cx = np.nonzero(cells)
+            wg[ry, cz + z0 - 1, cx + x0 - 1] = fillm
+            filled[s0, s1] |= cells
+            st["fill_" + key] += int((cells & inc[s0, s1]).sum())
+            st["skip_" + key] += int(((m & ~cells) & inc[s0, s1]).sum())
+    # 2. cycle paths on the ground
+    # (on a slope Arnis stacks up to a few red blocks under a step; the whole stack goes, so no red riser shows)
+    run = np.zeros(ty.shape, dtype=np.int32); alive = T["red"][tm] & has
+    for d in range(6):
+        alive &= (ty - d >= 0) & T["red"][wg[np.maximum(ty - d, 0), zz, xx]]
+        run += alive
+    red = (run > 0) & T["terrain"][wg[np.maximum(ty - run, 0), zz, xx]] & (ty - run >= 0)
+    for d in range(6):
+        rz, rx = np.nonzero(red & (run > d))
+        wg[ty[rz, rx] - d, rz, rx] = T["path"]
+    st["red"] += int((red & inc).sum()); st["red_blocks"] += int(np.where(red & inc, run, 0).sum())
+    # 3. leaves and logs on the road
+    paved = (T["asphalt"][tm] | T["yellow"][tm] | filled) & has   # the carriageway, not paths, plazas or white roofs
+    Y = np.arange(Hh)[:, None, None]
+    lf = T["leaf"][wg]
+    clr = paved[None] & (Y > ty[None]) & (Y <= ty[None] + 12) & (lf | T["log"][wg])
+    st["leaf_cleared"] += int((clr & lf & inc[None]).sum())
+    st["log_cleared"] += int((clr & ~lf & inc[None]).sum())
+    wg[clr] = 0
+
+RFS = dict(fill_fill=0, skip_fill=0, fill_soft=0, skip_soft=0, red=0, red_blocks=0, leaf_cleared=0, log_cleared=0)
 packs = []; total = 0; nquads = 0; nboxes = 0; faces = 0; nleafcut = 0
 for (rx, rz) in sorted(REG):
     # Window = this region plus a margin from its neighbours, so faces and sky reach are right at the seams.
@@ -320,6 +415,7 @@ for (rx, rz) in sorted(REG):
     wg[:, M:M+PACK, M:M+PACK] = np.where(cut, 0, wg[:, M:M+PACK, M:M+PACK])
     dmat[cut & isleaf[dmat]] = 0
     nleafcut += ncut
+    road_fixes(wg, (slice(M, M + PACK), slice(M, M + PACK)), RFS)
     # Only draw faces that touch air connected to the open sky: hides sealed interiors, the hollow
     # under the terrain shell and the world's cut edges (columns outside the world are not passable).
     # Columns with nothing above the floor layers (outside the baked outline) would let the sky leak under the terrain.
@@ -407,6 +503,7 @@ for (rx, rz) in sorted(REG):
     print(f"  {pid}: {packs[-1]['quads']:,} quads, {len(blob_all)/1e6:.1f} MB", flush=True)
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"canopy over roads removed: {nleafcut:,} leaf blocks")
+print("road fixes (region centres): " + ", ".join(f"{k} {v:,}" for k, v in RFS.items()))
 print(f"greedy meshing: {nquads:,} quads (from {faces:,} block faces); {nboxes:,} detail boxes for partial blocks")
 
 meta = {"tile": TILE, "pack": PACK, "ext": "json" if B64 else "bin", "width": int(W), "depth": int(D), "height": int(H),
