@@ -7,6 +7,7 @@
 // The same painter draws the minimap shown while driving.
 
 const PIN = ['..####..', '.#++++#.', '#++##++#', '#++##++#', '.#++++#.', '..#++#..', '...##...', '...##...'];
+const DOT = ['..####..', '.#++++#.', '#++++++#', '#++++++#', '#++++++#', '#++++++#', '.#++++#.', '..####..'];
 const FLAG = ['#.......', '#####...', '#++++#..', '#+++++#.', '#++++#..', '#####...', '#.......', '#.......'];
 const ROAD = [ // by road class: [fill, outline, width in map pixels when close]
   ['#f2b84b', '#7a4a12', 3], ['#f2c65e', '#7a4a12', 3], ['#fbf3dc', '#6b5a3a', 2], ['#fbf3dc', '#6b5a3a', 2],
@@ -86,6 +87,12 @@ export function createPainter({ G, N, meta, base = '' }) {
       for (const it of data.traffic?.incidents ?? []) { if (it.x < x0 - 20 || it.x > x1 + 20 || it.z < z0 - 20 || it.z > z1 + 20) continue; ctx.drawImage(incidentIcon(it.kind, 1), Math.round(X(it.x)) - 6, Math.round(Z(it.z)) - 6); }
       for (const s of data.stops ?? []) sprite(FLAG, X(s.x) + 3, Z(s.z), '#3b2a12', '#ffd84a');
       if (data.dest) sprite(FLAG, X(data.dest.x) + 3, Z(data.dest.z), '#14361a', '#5fd35b');
+      if (data.start) sprite(DOT, X(data.start.x), Z(data.start.z) + 3, '#0b2a66', '#ffffff');
+      if (data.me) {   // where the phone says you are: a blue dot with a pale ring
+        const x = Math.round(X(data.me.x)), y = Math.round(Z(data.me.z)), r = data.me.acc / mpp;
+        if (r > 6 && r < 400) { ctx.fillStyle = 'rgba(74,163,255,.15)'; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); }
+        sprite(DOT, x, y + 3, '#ffffff', '#2f6fe0');
+      }
       if (data.pin) sprite(PIN, X(data.pin.x), Z(data.pin.z), '#8e1b1b', '#ff6b5e');
       if (data.car) {
         const x = X(data.car.x), y = Z(data.car.z), a = data.heading ?? 0, f = [-Math.sin(a), -Math.cos(a)], r = [-f[1], f[0]];
@@ -117,6 +124,12 @@ export function createMapView({ stage, painter, labels, onTap }) {
   const B = painter.bounds, MAXMPP = Math.max(8, Math.max(B.maxX - B.minX, B.maxZ - B.minZ) / 60);
 
   function fit() { st.w = stage.clientWidth; st.h = stage.clientHeight; cv.width = Math.ceil(st.w / PX); cv.height = Math.ceil(st.h / PX); st.dirty = true; }
+  // fit a box of the world into the part of the map not under panels and buttons (pad: CSS pixels covered on each side)
+  function fitBox(x0, z0, x1, z1, { top = 0, left = 0, right = 0, bottom = 0 } = {}) {
+    const w = (st.w - left - right) / PX - 12, hh = (st.h - top - bottom) / PX - 12;
+    st.mpp = Math.max(0.5, Math.min(MAXMPP, Math.max((x1 - x0) / Math.max(20, w), (z1 - z0) / Math.max(20, hh))));
+    center.set((x0 + x1) / 2 - (left - right) / 2 / PX * st.mpp, 0, (z0 + z1) / 2 - (top - bottom) / 2 / PX * st.mpp);
+  }
   function fitAll() { st.mpp = Math.min(MAXMPP, Math.max((B.maxX - B.minX) / (st.w / PX - 10), (B.maxZ - B.minZ) / (st.h / PX - 30))); center.set((B.minX + B.maxX) / 2, 0, (B.minZ + B.maxZ) / 2); }
   // sx, sy in CSS pixels
   const toWorld = (sx, sy) => ({ x: center.x + (sx - st.w / 2) / PX * st.mpp, z: center.z + (sy - st.h / 2) / PX * st.mpp });
@@ -164,17 +177,18 @@ export function createMapView({ stage, painter, labels, onTap }) {
 
   let mini = null;
   const api = {
-    center, car: null, heading: 0, pin: null, data: null, traffic: null,
+    center, car: null, heading: 0, pin: null, me: null, data: null, traffic: null,
     get active() { return st.on; },
     get mpp() { return st.mpp; },
     enter(at) { if (st.on) return; st.on = true; for (const e of [cv, names, frame, ctl]) e.style.display = ''; document.body.classList.add('mapmode'); fit(); center.set(at.x, 0, at.z); },
     exit() { if (!st.on) return; st.on = false; for (const e of [cv, names, frame, ctl]) e.style.display = 'none'; document.body.classList.remove('mapmode'); api.pin = null; },
     resize() { if (st.on) fit(); },
+    fitBox,
     markDirty() { st.dirty = true; },
     /** call every frame while open; repaints only when something changed */
     update() {
       if (!st.on || !st.dirty) return false; st.dirty = false;
-      painter.paint(g, { cx: center.x, cz: center.z, mpp: st.mpp, w: cv.width, h: cv.height }, { ...api.data, traffic: api.traffic, pin: api.pin, car: api.car, heading: api.heading });
+      painter.paint(g, { cx: center.x, cz: center.z, mpp: st.mpp, w: cv.width, h: cv.height }, { ...api.data, traffic: api.traffic, pin: api.pin, me: api.me, car: api.car, heading: api.heading });
       paintNames(); return true;
     },
     /** a small always-on map while driving; tap opens the full map */
@@ -188,7 +202,7 @@ export function createMapView({ stage, painter, labels, onTap }) {
           const w = Math.ceil(el.clientWidth / 2), h = Math.ceil(el.clientHeight / 2);
           if (c.width !== w || c.height !== h) { c.width = w; c.height = h; dirty = true; }
           if (!dirty && now - last < 250) return; dirty = false; last = now;   // 4 times a second is plenty
-          if (api.car) painter.paint(x, { cx: api.car.x, cz: api.car.z, mpp: 5, w, h }, { ...api.data, traffic: api.traffic, car: api.car, heading: api.heading });
+          if (api.car) painter.paint(x, { cx: api.car.x, cz: api.car.z, mpp: 5, w, h }, { ...api.data, traffic: api.traffic, me: api.me, car: api.car, heading: api.heading });
         },
       };
       return mini;

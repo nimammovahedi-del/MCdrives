@@ -21,10 +21,20 @@ export function chpKind(t) {
 }
 export const KIND_LABEL = { crash: 'Crash', closure: 'Road closed', fire: 'Fire', animal: 'Animal on road', hazard: 'Hazard', lanes: 'Lane closure', roadwork: 'Road closed' };
 
-export function createTraffic({ url, G, N, meta, adj, onChange }) {
+// latitude and longitude to the map's block frame (x east, z south) and back: the bbox spans the map's own width and depth
+export function geoFrame(meta) {
   const [S, W, Nn, E] = meta.bbox;
   const sx = Math.floor(hav(0, E - W, (S + Nn) / 2)), sz = Math.floor(hav(Nn - S, 0, 0));
-  const toXZ = (lat, lon) => ({ x: (lon - W) / (E - W) * sx - meta.minx, z: (1 - (lat - S) / (Nn - S)) * sz - meta.minz });
+  return {
+    toXZ: (lat, lon) => ({ x: (lon - W) / (E - W) * sx - meta.minx, z: (1 - (lat - S) / (Nn - S)) * sz - meta.minz }),
+    toLL: (x, z) => ({ lat: S + (1 - (z + meta.minz) / sz) * (Nn - S), lon: W + (x + meta.minx) / sx * (E - W) }),
+    // metres from the map's box to a point outside it (0 inside)
+    outside: (lat, lon) => hav(Math.max(0, S - lat, lat - Nn), Math.max(0, W - lon, lon - E), lat),
+  };
+}
+
+export function createTraffic({ url, G, N, meta, adj, onChange }) {
+  const { toXZ } = geoFrame(meta);
 
   // directed edges: key = edge index * 2 + (0 for a->b, 1 for b->a); adj entries carry it as e.k
   const CELL = 128, grid = new Map();

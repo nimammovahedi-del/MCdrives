@@ -11,6 +11,10 @@ const ICONS = {
   close: ['............', '.##......##.', '.###....###.', '..###..###..', '...######...', '....####....', '....####....', '...######...', '..###..###..', '.###....###.', '.##......##.', '............'],
   drive: ['............', '.....##.....', '....####....', '...######...', '..###..###..', '.###....###.', '###......###', '##........##', '............', '............', '............', '............'],
   street: ['....###.....', '....###.....', '.....#......', '...#####....', '..#.###.#...', '....###.....', '....#.#.....', '....#.#.....', '...##.##....', '............', '............', '............'],
+  me: ['............', '....####....', '...#++++#...', '..#++++++#..', '.#++####++#.', '.#++####++#.', '.#++####++#.', '.#++####++#.', '..#++++++#..', '...#++++#...', '....####....', '............'],
+  swap: ['...##.......', '..####......', '.######.....', '...##.......', '...##...##..', '...##...##..', '...##...##..', '...##...##..', '.......##...', '.....######.', '......####..', '.......##...'],
+  route: ['.##.........', '#++#........', '#++#........', '.##.........', '.#..........', '.#######....', '.......#....', '.......#..#.', '....####.###', '....#....###', '....#.....#.', '....#.......'],
+  car: ['............', '............', '...######...', '..#++++++#..', '.##########.', '############', '############', '############', '.##......##.', '.##......##.', '............', '............'],
   pin: ['...######...', '..##++++##..', '..#++##++#..', '..#++##++#..', '..##++++##..', '...##++##...', '....####....', '.....##.....', '.....##.....', '............', '............', '............'],
 };
 export function icon(name, color = '#fff', light = 'rgba(255,255,255,.55)') {
@@ -142,13 +146,15 @@ export function addressIndex(data, pos) {
   };
 }
 /** items: [{ name, pos, kind?, aliases?: [], cats?: [] }] (cats: what it is, "gas", "school": matched, ranked below names); addresses: async () => addressIndex | null, loaded the first time search opens */
-export function createSearch(stage, { items, from, onPick, fmt, addresses, placeholder = 'Search addresses, streets and places' }) {
+// show() takes an optional { placeholder, onPick, extra }: extra rows ({ label, sub, icon, fn }) sit above the results
+// while nothing is typed, and onPick replaces the default pick for that one opening (the directions boxes use both)
+export function createSearch(stage, { items, from, onPick, fmt, addresses, extra: baseExtra = () => [], placeholder = 'Search addresses, streets and places' }) {
   const box = h('div', 'search panel'); box.id = 'search';
   const row = h('div', 'se-row'); row.append(icon('search', '#cfd6dd'));
   const inp = h('input'); inp.type = 'search'; inp.placeholder = placeholder; inp.setAttribute('aria-label', placeholder); inp.autocomplete = 'off'; inp.spellcheck = false;
   const x = h('button', 'mb'); x.append(icon('close')); x.setAttribute('aria-label', 'Close search');
   row.append(inp, x); const list = h('div', 'se-list'); box.append(row, list); stage.append(box);
-  let index = [];
+  let index = [], opts = {};
   const reindex = its => { index = its.map(it => ({ it, keys: [it.name, ...(it.aliases ?? [])].map(normName), cats: (it.cats ?? []).map(normName) })); };
   reindex(items);
   let addr = null, addrState = 0;   // 0 not asked, 1 loading, 2 ready, 3 none
@@ -178,11 +184,15 @@ export function createSearch(stage, { items, from, onPick, fmt, addresses, place
       // two of the same name (a chain's branches): say which street each is on instead of what it is
       const what = seen.get(it.name) > 1 && it.where ? it.where : it.kind;
       const b = h('button', 'se-item'); b.append(icon('pin', '#e53935', '#ffd0cc'), h('span', 'nm', it.name), h('span', 'dd', (what ? what + ' · ' : '') + (p ? fmt(d) : '')));
-      b.onclick = () => { api.close(); onPick(it); }; return b;
+      b.onclick = () => { const pick = opts.onPick ?? onPick; api.close(); pick(it); }; return b;
     });
+    if (!inp.value.trim()) rows.unshift(...(opts.extra ?? baseExtra()).map(x => {
+      const b = h('button', 'se-item se-x'); b.append(x.icon ?? icon('pin', '#e53935', '#ffd0cc'), h('span', 'nm', x.label), h('span', 'dd', x.sub ?? ''));
+      b.onclick = () => { api.close(); x.fn(); }; return b;
+    }));
     // nothing typed matched exactly: say which close spelling we are offering
     if (inp.value.trim() && res.length && res[0].sc >= 3) rows.unshift(h('div', 'se-hint', `Did you mean <b>${res[0].it.name.replace(/</g, '&lt;')}</b>?`));
-    if (!res.length) rows.push(h('div', 'se-none', addrState === 1 && /^\s*\d/.test(inp.value) ? 'Loading addresses…' : 'Nothing by that name on this map yet. Try a street name or the map view.'));
+    if (!res.length && inp.value.trim()) rows.push(h('div', 'se-none', addrState === 1 && /^\s*\d/.test(inp.value) ? 'Loading addresses…' : 'Nothing by that name on this map yet. Try a street name or the map view.'));
     list.replaceChildren(...rows);
   }
   inp.oninput = render;
@@ -191,7 +201,8 @@ export function createSearch(stage, { items, from, onPick, fmt, addresses, place
   const api = {
     search, setItems(its) { reindex(its); if (api.open) render(); },
     get open() { return box.classList.contains('open'); },
-    show() {
+    show(o = {}) {
+      opts = o; inp.placeholder = o.placeholder ?? placeholder; inp.setAttribute('aria-label', inp.placeholder);
       box.classList.add('open'); document.body.classList.add('searching'); inp.value = ''; render(); setTimeout(() => inp.focus(), 50);
       if (!addrState && addresses) { addrState = 1; addresses().then(a => { addr = a; addrState = a ? 2 : 3; if (api.open) render(); }, () => { addrState = 3; }); }
     },
@@ -213,5 +224,39 @@ export function createChip(stage) {
     },
     hide() { el.classList.remove('open'); document.body.classList.remove('chip-open'); },
     get open() { return el.classList.contains('open'); },
+  };
+}
+
+// ---------- directions: a From box and a To box (each opens the search), the drive time and distance, and Start
+export function createDirections(stage, { onField, onSwap, onStart, onClose }) {
+  const el = h('div', 'dirs panel'); el.id = 'dirs';
+  const head = h('div', 'di-head'); head.append(h('b', null, 'Directions'));
+  const x = h('button', 'mb'); x.append(icon('close')); x.setAttribute('aria-label', 'Close directions'); x.onclick = () => onClose(); head.append(x);
+  const fields = h('div', 'di-fields'), boxes = h('div', 'di-boxes');
+  const box = (which, ic, word) => {
+    const b = h('button', 'di-box'); b.append(ic, h('span', 'di-w', word), h('span', 'di-v')); b.onclick = () => onField(which); boxes.append(b); return b;
+  };
+  const from = box('from', icon('me', '#2f6fe0', '#9cc2ff'), 'From'), to = box('to', icon('pin', '#e53935', '#ffd0cc'), 'To');
+  const sw = h('button', 'mb di-swap'); sw.append(icon('swap')); sw.title = 'Swap start and destination'; sw.setAttribute('aria-label', sw.title); sw.onclick = () => onSwap();
+  fields.append(boxes, sw);
+  const sum = h('div', 'di-sum'), go = h('button', 'tile go di-go', 'Start'); go.onclick = () => onStart();
+  el.append(head, fields, sum, go); stage.append(el);
+  const fill = (b, v) => { b.querySelector('.di-v').textContent = v?.label ?? 'Choose…'; b.classList.toggle('empty', !v); b.title = v?.sub ?? ''; };
+  return {
+    el,
+    get open() { return el.classList.contains('open'); },
+    show() { el.classList.add('open'); document.body.classList.add('dirs-open'); },
+    hide() { el.classList.remove('open'); document.body.classList.remove('dirs-open'); },
+    // s: { from, to: { label, sub } | null, sum: { time, dist, line, note, slow } | { busy } | { msg } | null }
+    set({ from: f, to: t, sum: r }) {
+      fill(from, f); fill(to, t);
+      sum.replaceChildren();
+      if (r?.time) {
+        const top = h('div', 'di-top'); top.append(h('b', 'di-t', r.time), h('span', 'di-d', r.dist)); sum.append(top, h('div', 'di-l', r.line));
+        if (r.note) sum.append(h('div', 'di-n' + (r.slow ? ' slow' : ''), r.note));
+      } else if (r?.busy) sum.append(h('div', 'di-l', 'Finding the fastest way…'));
+      else if (r?.msg) sum.append(h('div', 'di-l', r.msg));
+      go.disabled = !r?.time; go.textContent = r?.start ?? 'Start';
+    },
   };
 }

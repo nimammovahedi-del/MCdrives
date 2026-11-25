@@ -274,3 +274,28 @@ body.L-car #minimap { display: none !important; }
 body.chip-open #minimap { display: none !important; }
 /* with the minimap bottom-left, Re-center sits in the middle above the trip bar */
 body.L-phone #recenter { left: 50%; transform: translateX(-50%); }
+
+/* directions: From and To boxes, the drive time, Start */
+#dirs { position: absolute; z-index: 9; display: none; flex-direction: column; gap: 8px; padding: 8px 10px 10px; }
+#dirs.open { display: flex; }
+body.L-phone #dirs { left: 8px; right: 8px; top: calc(8px + env(safe-area-inset-top)); }
+body:not(.L-phone) #dirs { left: 16px; top: 16px; width: 420px; }
+body.L-phoneland #dirs, body.L-car #dirs { left: 8px; top: 8px; width: 360px; max-height: 92%; overflow-y: auto; }
+.di-head { display: flex; align-items: center; padding-left: 4px; } .di-head b { flex: 1; font-size: 20px; } .di-head .mb { width: 44px; height: 44px; }
+.di-fields { display: flex; align-items: center; gap: 8px; } .di-boxes { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.di-box { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 4px 12px; cursor: pointer; text-align: left; color: var(--ink);
+  background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.18); font: 600 17px var(--f-text); }
+.di-box canvas.pix { width: 20px; height: 20px; } .di-w { width: 44px; font-size: 13px; opacity: .65; text-transform: uppercase; letter-spacing: .04em; }
+.di-v { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .di-box.empty .di-v { opacity: .55; }
+.di-swap { width: 44px; height: 44px; }
+.di-sum { padding: 2px 4px; min-height: 22px; } .di-top { display: flex; align-items: baseline; gap: 12px; }
+.di-t { font-size: 30px; color: #5fd35b; } .di-d { font-size: 17px; opacity: .8; } .di-l { font-size: 15px; opacity: .8; margin-top: 2px; }
+.di-n { font-size: 15px; margin-top: 2px; color: #8fe08a; } .di-n.slow { color: #f2c230; }
+.di-go { min-height: 52px; font-size: 18px; background: #2f6fe0; border-color: #000; box-shadow: inset 2px 2px 0 #6ea2ff, inset -2px -2px 0 #173a7a; color: #fff; }
+.di-go:disabled { opacity: .45; cursor: default; }
+body.ui-stone:not(.night) .di-box { background: rgba(0,0,0,.06); border-color: rgba(0,0,0,.2); }
+body.dirs-open #whereTo, body.dirs-open #chip { display: none !important; }
+body.searching #dirs { visibility: hidden; }
+body.L-phone.dirs-open.mapmode #mapBtns { bottom: calc(20px + env(safe-area-inset-bottom)); }
+body.L-phone.dirs-open #mapCtl { display: none !important; }
+body.dirs-open:not(.L-phone) #mapCtl { top: auto; bottom: 24px; transform: none; }
