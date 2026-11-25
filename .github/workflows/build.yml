@@ -1,0 +1,88 @@
+name: Build block world
+
+on:
+  workflow_dispatch:
+    inputs:
+      area:
+        description: Area config under areas/ (without .json)
+        default: spectrum
+      only:
+        description: Chunk ids to build, comma-separated (blank = all)
+        default: ""
+  push:
+    branches: [main]
+    paths: ["areas/spectrum.json", "tools/**", "web/**", "build.py", ".github/workflows/build.yml"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ARNIS_REF: ebefb3f034ed289daa919f7bade9d52673d3b004
+  AREA: ${{ inputs.area || 'spectrum' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Restore Arnis binary
+        id: arnis
+        uses: actions/cache@v4
+        with:
+          path: bin/arnis
+          key: arnis-${{ runner.os }}-${{ env.ARNIS_REF }}
+      - name: Build Arnis (first run only)
+        if: steps.arnis.outputs.cache-hit != 'true'
+        run: |
+          git init -q arnis-src && cd arnis-src
+          git fetch -q --depth 1 https://github.com/louis-e/arnis "$ARNIS_REF" && git checkout -q FETCH_HEAD
+          cargo build --release --no-default-features
+          mkdir -p ../bin && cp target/release/arnis ../bin/arnis
+
+      - name: Build
+        run: |
+          ONLY="${{ inputs.only }}"
+          python build.py "areas/$AREA.json" --arnis bin/arnis ${ONLY:+--only "$ONLY"}
+      - name: Build log
+        if: always()
+        run: tail -n 200 build/*/*/build.log || true
+
+      - name: Assemble site
+        run: |
+          mkdir -p public
+          first=$(ls -d build/$AREA/*/site | head -n 1)
+          cp -r "$first"/. public/
+          cp build/$AREA/report.json public/report.json
+          for d in build/$AREA/*/site; do id=$(basename "$(dirname "$d")"); mkdir -p "public/chunks/$id"; cp -r "$d"/. "public/chunks/$id/"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site-${{ env.AREA }}
+          path: public
+          retention-days: 14
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

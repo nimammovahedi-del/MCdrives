@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blockville</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #8ec5ff; font-family: system-ui, sans-serif; }
+  #ui { position: absolute; top: 12px; left: 12px; background: rgba(20,24,32,.85); color: #f2f2f2; padding: 10px 12px;
+        border-radius: 8px; font-size: 13px; line-height: 1.5; max-width: 300px; }
+  #ui button, #ui select { font: inherit; margin: 2px 2px 2px 0; padding: 4px 9px; border-radius: 5px; border: 0; max-width: 100%; }
+  #ui button.on { background: #f1c232; }
+  #banner { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: #14633a; color: #fff; padding: 10px 18px;
+            border-radius: 10px; display: none; align-items: center; gap: 14px; box-shadow: 0 3px 10px rgba(0,0,0,.35); max-width: 60vw; }
+  #arrow { font-size: 44px; line-height: 1; font-weight: 700; }
+  #bdist { font-size: 24px; font-weight: 700; } #bname { font-size: 15px; opacity: .92; }
+  #trip { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); background: rgba(20,24,32,.88); color: #fff;
+          padding: 8px 18px; border-radius: 10px; font-size: 17px; font-weight: 600; display: none; white-space: nowrap; }
+  #credit { position: absolute; bottom: 4px; right: 8px; font-size: 11px; color: #123; background: rgba(255,255,255,.7); padding: 1px 5px; border-radius: 3px; }
+  #load { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #123; }
+</style>
+</head>
+<body>
+<div id="load">Loading blocks…</div>
+<div id="ui">
+  <b id="areaname">Blockville</b> <span id="stats"></span><br>
+  <button id="mNav" class="on">Navigate</button><button id="mOrbit">Overview</button><button id="mWalk">Street view</button><br>
+  Drive to <select id="dest"></select><br>
+  <button id="random">Random trip</button><button id="pause">Pause</button>
+  <div id="help" style="opacity:.8"></div>
+</div>
+<div id="banner"><div id="arrow">↑</div><div><div id="bdist"></div><div id="bname"></div></div></div>
+<div id="trip"></div>
+<div id="credit">Map data © OpenStreetMap contributors, Overture Maps Foundation (ODbL). World generated with Arnis (Apache-2.0). Not an official Minecraft product. Not for use while driving.</div>
+<script type="module">
+import * as THREE from './vendor/three.module.js';
+import { OrbitControls } from './vendor/OrbitControls.js';
+
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const meta = await (await fetch('data/meta.json')).json();
+if (meta.name) { document.getElementById('areaname').textContent = meta.name + ', in blocks'; document.title = 'Blockville: ' + meta.name; }
+const G = await (await fetch('roads.json')).json();
+
+// Binary data ships as base64 inside JSON so the artifact host can serve it.
+async function loadBin(name) {
+  const { base64 } = await (await fetch(`data/${name}.json`)).json();
+  const bin = atob(base64), out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+async function gunzip(buf) {
+  return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+}
+const heights = new Int16Array(await gunzip(await loadBin('height')));
+const groundY = (x, z) => {
+  const ix = Math.max(0, Math.min(meta.width - 1, Math.floor(x))), iz = Math.max(0, Math.min(meta.depth - 1, Math.floor(z)));
+  return heights[iz * meta.width + ix] + 1;
+};
+const smoothY = (x, z) => { let s = 0; for (const [dx, dz] of [[0,0],[2,0],[-2,0],[0,2],[0,-2]]) s += groundY(x + dx, z + dz); return s / 5; };
+
+// ---------- scene
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8ec5ff);
+scene.fog = new THREE.Fog(0x8ec5ff, 300, 1100);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.5, 4000);
+scene.add(new THREE.HemisphereLight(0xe8f2ff, 0x6a6f55, 1.7));
+const sun = new THREE.DirectionalLight(0xfff4e0, 1.5); sun.position.set(0.5, 1, 0.3); scene.add(sun);
+
+// Original 16x16 grain texture multiplied over each block colour.
+const tex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d');
+  let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    let v = 0.88 + rnd() * 0.12; if (x === 0 || y === 0) v *= 0.95;
+    const k = Math.round(v * 255); g.fillStyle = `rgb(${k},${k},${k})`; g.fillRect(x, y, 1, 1);
+  }
+  const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestMipmapLinearFilter;
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+})();
+const solidMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: tex });
+const clearMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: tex, transparent: true, opacity: 0.62, depthWrite: false });
+const mats = meta.materials.map(m => ({ c: new THREE.Color(m.rgb), clear: m.kind === 'water' || m.kind === 'glass' }));
+
+// Faces: index -> [normal, 4 corners]   0 +y, 1 -y, 2 +z, 3 -z, 4 +x, 5 -x
+const FACES = [
+  [[0,1,0], [[0,1,1],[1,1,1],[1,1,0],[0,1,0]]],
+  [[0,-1,0],[[0,0,0],[1,0,0],[1,0,1],[0,0,1]]],
+  [[0,0,1], [[0,0,1],[1,0,1],[1,1,1],[0,1,1]]],
+  [[0,0,-1],[[1,0,0],[0,0,0],[0,1,0],[1,1,0]]],
+  [[1,0,0], [[1,0,1],[1,0,0],[1,1,0],[1,1,1]]],
+  [[-1,0,0],[[0,0,0],[0,0,1],[0,1,1],[0,1,0]]],
+];
+let quadCount = 0;
+// Tile layout: u32 quad count, then 8-byte greedy quads (x u8, z u8, y u16, w u8, h u8, dir u8, mat u8),
+// then 12-byte boxes for partial blocks (x u8, z u8, y u16, mat u8, x0 y0 z0 x1 y1 z1 in 1/16 block, pad).
+function buildTile(buf, tx, tz) {
+  const v = new DataView(buf); const nq = v.getUint32(0, true); const nb = (buf.byteLength - 4 - nq * 8) / 12;
+  let ns = 0, nt = 0;
+  for (let k = 0; k < nq; k++) mats[v.getUint8(4 + k * 8 + 7)].clear ? nt++ : ns++;
+  const boff = 4 + nq * 8;
+  for (let k = 0; k < nb; k++) { const o = boff + k * 12; const f = v.getUint8(o + 6) === 0 ? 5 : 6; if (mats[v.getUint8(o + 4)].clear) nt += f; else ns += f; }
+  const mk = c => ({ p: new Float32Array(c * 12), nr: new Int8Array(c * 12), c: new Float32Array(c * 12), u: new Float32Array(c * 8), i: new Uint32Array(c * 6), q: 0 });
+  const S = mk(ns), T = mk(nt);
+  const ox = tx * meta.tile, oz = tz * meta.tile;
+  const put = (b, d, x, y, z, sx, sy, sz, m, uw, vh) => {
+    const [nrm, cs] = FACES[d];
+    const hsh = ((Math.floor(x) * 73856093) ^ (Math.floor(y) * 19349663) ^ (Math.floor(z) * 83492791)) >>> 0, tint = 0.96 + (hsh % 1000) / 1000 * 0.08;
+    const q = b.q++, vb = q * 4;
+    for (let c = 0; c < 4; c++) {
+      const i3 = (vb + c) * 3;
+      b.p[i3] = x + cs[c][0] * sx; b.p[i3 + 1] = y + cs[c][1] * sy; b.p[i3 + 2] = z + cs[c][2] * sz;
+      b.nr[i3] = nrm[0] * 127; b.nr[i3 + 1] = nrm[1] * 127; b.nr[i3 + 2] = nrm[2] * 127;
+      b.c[i3] = m.c.r * tint; b.c[i3 + 1] = m.c.g * tint; b.c[i3 + 2] = m.c.b * tint;
+      b.u[(vb + c) * 2] = (c === 1 || c === 2) ? uw : 0; b.u[(vb + c) * 2 + 1] = (c >= 2) ? vh : 0;
+    }
+    b.i.set([vb, vb + 1, vb + 2, vb, vb + 2, vb + 3], q * 6); quadCount++;
+  };
+  for (let k = 0; k < nq; k++) {
+    const o = 4 + k * 8;
+    const x = v.getUint8(o) + ox, z = v.getUint8(o + 1) + oz, y = v.getUint16(o + 2, true);
+    const w = v.getUint8(o + 4), h = v.getUint8(o + 5), d = v.getUint8(o + 6), m = mats[v.getUint8(o + 7)];
+    const sx = d < 4 ? w : 1, sy = d < 2 ? 1 : h, sz = d < 2 ? h : d < 4 ? 1 : w;
+    put(m.clear ? T : S, d, x, y, z, sx, sy, sz, m, w, h);
+  }
+  for (let k = 0; k < nb; k++) {
+    const o = boff + k * 12, m = mats[v.getUint8(o + 4)];
+    const x0 = v.getUint8(o + 5) / 16, y0 = v.getUint8(o + 6) / 16, z0 = v.getUint8(o + 7) / 16;
+    const sx = v.getUint8(o + 8) / 16 - x0, sy = v.getUint8(o + 9) / 16 - y0, sz = v.getUint8(o + 10) / 16 - z0;
+    const x = v.getUint8(o) + ox + x0, z = v.getUint8(o + 1) + oz + z0, y = v.getUint16(o + 2, true) + y0;
+    const b = m.clear ? T : S;
+    for (let d = 0; d < 6; d++) {
+      if (d === 1 && y0 === 0) continue;
+      put(b, d, x, y, z, sx, sy, sz, m, d < 4 ? sx : sz, d < 2 ? sz : sy);
+    }
+  }
+  for (const [b, mat] of [[S, solidMat], [T, clearMat]]) {
+    if (!b.q) continue;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(b.p, 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(b.nr, 3, true));
+    g.setAttribute('color', new THREE.BufferAttribute(b.c, 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(b.u, 2));
+    g.setIndex(new THREE.BufferAttribute(b.i, 1));
+    g.computeBoundingSphere();
+    const mesh = new THREE.Mesh(g, mat); if (mat === clearMat) mesh.renderOrder = 1; scene.add(mesh);
+  }
+}
+const t0 = performance.now();
+const world = await loadBin('world');
+await Promise.all(meta.tiles.map(async ([tx, tz, n, off, len]) => buildTile(await gunzip(world.slice(off, off + len)), tx, tz)));
+const loadMs = Math.round(performance.now() - t0);
+$('load').remove();
+$('stats').textContent = `(${(quadCount / 1e6).toFixed(2)}M faces, ${(loadMs / 1000).toFixed(1)} s)`;
+window.__stats = { quadCount, loadMs };
+
+// ---------- road graph and routing
+const SPEED = [29, 24, 20, 17, 14, 12, 11, 7]; // m/s by road class
+const N = G.nodes.map(([x, z]) => new THREE.Vector3(x - meta.minx, 0, z - meta.minz));
+const adj = N.map(() => []);
+for (const [a, b, nm, cl, ow] of G.edges) {
+  const len = N[a].distanceTo(N[b]);
+  adj[a].push({ to: b, nm, cl, len }); if (!ow) adj[b].push({ to: a, nm, cl, len });
+}
+function route(from, to) {
+  const dist = new Float64Array(N.length).fill(Infinity), prev = new Int32Array(N.length).fill(-1), pe = new Array(N.length), done = new Uint8Array(N.length);
+  dist[from] = 0;
+  for (;;) {
+    let u = -1, best = Infinity;
+    for (let i = 0; i < N.length; i++) if (!done[i] && dist[i] < best) { best = dist[i]; u = i; }
+    if (u < 0 || u === to) break; done[u] = 1;
+    for (const e of adj[u]) { const d = dist[u] + e.len / SPEED[e.cl]; if (d < dist[e.to]) { dist[e.to] = d; prev[e.to] = u; pe[e.to] = e; } }
+  }
+  if (!isFinite(dist[to])) return null;
+  const nodes = [], edges = [];
+  for (let u = to; u !== -1; u = prev[u]) { nodes.unshift(u); if (prev[u] !== -1) edges.unshift(pe[u]); }
+  return { nodes, edges };
+}
+// destinations: one node per named road (closest to the road's centre)
+const byName = new Map();
+for (const [a, b, nm] of G.edges) if (G.names[nm] && G.names[nm] !== 'ramp') { if (!byName.has(nm)) byName.set(nm, new Set()); byName.get(nm).add(a).add(b); }
+const dests = [...byName].map(([nm, set]) => {
+  const ids = [...set], c = ids.reduce((s, i) => s.add(N[i]), new THREE.Vector3()).multiplyScalar(1 / ids.length);
+  return { name: G.names[nm], node: ids.reduce((bst, i) => N[i].distanceTo(c) < N[bst].distanceTo(c) ? i : bst, ids[0]) };
+}).sort((a, b) => a.name.localeCompare(b.name));
+for (const [i, d] of dests.entries()) $('dest').add(new Option(d.name, i));
+
+// ---------- trip state
+let trip = null, dist = 0, curNode = dests.find(d => d.name === 'Entertainment Way')?.node ?? 0, paused = false, speed = 0, snap = true;
+const ribbon = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+ribbon.frustumCulled = false; scene.add(ribbon);
+const pin = new THREE.Mesh(new THREE.ConeGeometry(4, 14, 4), new THREE.MeshLambertMaterial({ color: 0xe53935 })); pin.rotation.x = Math.PI; scene.add(pin); pin.visible = false;
+function along(d) {
+  d = Math.max(0, Math.min(trip.L, d));
+  let k = 1; while (k < trip.cum.length - 1 && trip.cum[k] < d) k++;
+  const a = trip.pts[k - 1], b = trip.pts[k], l = trip.cum[k] - trip.cum[k - 1] || 1;
+  return { p: a.clone().lerp(b, (d - trip.cum[k - 1]) / l), dir: b.clone().sub(a).normalize(), k };
+}
+function startTrip(toNode) {
+  const r = route(curNode, toNode); if (!r || r.nodes.length < 2) return false;
+  const pts = r.nodes.map(i => N[i]); const cum = [0];
+  for (let k = 1; k < pts.length; k++) cum.push(cum[k - 1] + pts[k].distanceTo(pts[k - 1]));
+  // manoeuvres: a named-road change or a bend sharper than 35 degrees
+  const steps = [];
+  for (let k = 1; k < r.edges.length; k++) {
+    const a = pts[k].clone().sub(pts[k - 1]), b = pts[k + 1].clone().sub(pts[k]);
+    const ang = Math.atan2(a.x * b.z - a.z * b.x, a.x * b.x + a.z * b.z) * 180 / Math.PI; // + = right
+    const changed = r.edges[k].nm !== r.edges[k - 1].nm, abs = Math.abs(ang);
+    if (abs < 35 && !changed) continue;
+    if (abs < 20 && adj[r.nodes[k]].length <= 2) continue;
+    const kind = abs > 150 ? 'uturn' : abs > 50 ? (ang > 0 ? 'right' : 'left') : abs > 20 ? (ang > 0 ? 'slight right' : 'slight left') : 'straight';
+    steps.push({ at: cum[k], kind, name: G.names[r.edges[k].nm] || 'the road ahead' });
+  }
+  steps.push({ at: cum[cum.length - 1], kind: 'arrive', name: $('dest').selectedOptions[0]?.text ?? '' });
+  trip = { pts, cum, L: cum[cum.length - 1], edges: r.edges, steps, toNode }; dist = 0; speed = 0;
+  const P = [], I = []; let n = 0;
+  for (let d = 0; d <= trip.L; d += 2) {
+    const { p, dir } = along(d); const nx = -dir.z, nz = dir.x, hw = 2.6, y = smoothY(p.x, p.z) + 0.35;
+    P.push(p.x + nx * hw, y, p.z + nz * hw, p.x - nx * hw, y, p.z - nz * hw);
+    if (n) I.push(n * 2 - 2, n * 2 - 1, n * 2, n * 2 - 1, n * 2 + 1, n * 2); n++;
+  }
+  ribbon.geometry.dispose(); ribbon.geometry = new THREE.BufferGeometry();
+  ribbon.geometry.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); ribbon.geometry.setIndex(I);
+  const end = pts[pts.length - 1]; pin.position.set(end.x, groundY(end.x, end.z) + 9, end.z); pin.visible = true;
+  snap = true; return true;
+}
+function randomTrip() {
+  for (let tries = 0; tries < 50; tries++) {
+    const i = Math.floor(Math.random() * dests.length);
+    if (N[dests[i].node].distanceTo(N[curNode]) > 500) { $('dest').value = i; if (startTrip(dests[i].node)) return; }
+  }
+}
+$('dest').onchange = e => startTrip(dests[+e.target.value].node);
+$('random').onclick = randomTrip;
+$('pause').onclick = () => { paused = !paused; $('pause').textContent = paused ? 'Resume' : 'Pause'; };
+
+// ---------- street name labels (billboards)
+function label(text) {
+  const c = document.createElement('canvas'), g = c.getContext('2d'); g.font = '600 44px system-ui, sans-serif';
+  c.width = Math.ceil(g.measureText(text).width) + 36; c.height = 64;
+  g.font = '600 44px system-ui, sans-serif'; g.fillStyle = '#1b5e3a'; g.beginPath(); g.roundRect(0, 0, c.width, c.height, 10); g.fill();
+  g.fillStyle = '#fff'; g.textBaseline = 'middle'; g.fillText(text, 18, 34);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, sizeAttenuation: true }));
+  s.scale.set(c.width / 64 * 7, 7, 1); s.renderOrder = 5; return s;
+}
+const placed = [];
+for (const [a, b, nm, cl] of G.edges) {
+  const name = G.names[nm]; if (!name || name === 'ramp' || cl > 6) continue;
+  const mid = N[a].clone().lerp(N[b], 0.5);
+  if (N[a].distanceTo(N[b]) < 25 || placed.some(p => p.nm === nm && p.mid.distanceTo(mid) < 260) || placed.some(p => p.mid.distanceTo(mid) < 45)) continue;
+  placed.push({ nm, mid }); const s = label(name); s.position.set(mid.x, groundY(mid.x, mid.z) + 9, mid.z); scene.add(s);
+}
+
+// ---------- car: an original block car
+const car = new THREE.Group();
+const box = (w, h, d, c, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: c, map: tex })); m.position.set(x, y, z); car.add(m); };
+box(2.2, 1, 4.4, 0xe53935, 0, 0.9, 0); box(2, 0.8, 2.2, 0xe8f1f5, 0, 1.8, -0.2);
+for (const [x, z] of [[-1.1, 1.4], [1.1, 1.4], [-1.1, -1.4], [1.1, -1.4]]) box(0.4, 0.8, 0.8, 0x1d1d1d, x, 0.4, z);
+scene.add(car);
+
+// ---------- modes
+const orbit = new OrbitControls(camera, renderer.domElement);
+let mode = 'nav', heading = 0, camH = 40, camBack = 50;
+const keys = {};
+addEventListener('keydown', e => keys[e.code] = true); addEventListener('keyup', e => keys[e.code] = false);
+let yaw = 0, pitch = 0, walkPos = new THREE.Vector3(), dragging = false, lx = 0, ly = 0;
+renderer.domElement.addEventListener('pointerdown', e => { dragging = true; lx = e.clientX; ly = e.clientY; });
+addEventListener('pointerup', () => dragging = false);
+addEventListener('pointermove', e => { if (!dragging || mode !== 'walk') return; yaw -= (e.clientX - lx) * 0.004; pitch = Math.max(-1.2, Math.min(1.2, pitch - (e.clientY - ly) * 0.004)); lx = e.clientX; ly = e.clientY; });
+function setMode(m) {
+  mode = m; orbit.enabled = m === 'orbit'; snap = true;
+  for (const [id, mm] of [['mNav', 'nav'], ['mOrbit', 'orbit'], ['mWalk', 'walk']]) $(id).classList.toggle('on', mm === m);
+  $('banner').style.display = m === 'nav' ? 'flex' : 'none'; $('trip').style.display = m === 'nav' ? 'block' : 'none';
+  scene.fog.near = m === 'orbit' ? 1200 : 300; scene.fog.far = m === 'orbit' ? 3200 : 1100;
+  camera.fov = m === 'walk' ? 70 : 45; camera.updateProjectionMatrix();
+  $('help').textContent = m === 'nav' ? 'The car follows the blue route. Pick a destination or try a random trip.' : m === 'orbit' ? 'Drag to rotate, scroll to zoom.' : 'Drag to look, WASD to walk, Shift to run.';
+  if (m === 'orbit') { orbit.target.copy(car.position); camera.position.set(car.position.x - 250, car.position.y + 380, car.position.z + 420); orbit.update(); }
+  if (m === 'walk') { walkPos.copy(car.position); yaw = heading; pitch = 0; }
+}
+$('mNav').onclick = () => setMode('nav'); $('mOrbit').onclick = () => setMode('orbit'); $('mWalk').onclick = () => setMode('walk');
+const ARROW = { left: '↰', right: '↱', 'slight left': '↖', 'slight right': '↗', straight: '↑', uturn: '↶', arrive: '⚑' };
+const TEXT = { left: 'Turn left onto', right: 'Turn right onto', 'slight left': 'Keep left onto', 'slight right': 'Keep right onto', straight: 'Continue onto', uturn: 'Make a U-turn onto', arrive: 'Arrive at' };
+const clock = new THREE.Clock();
+function frame() {
+  const dt = Math.min(clock.getDelta(), 0.1);
+  if (trip) {
+    const here = along(dist), next = trip.steps.find(s => s.at > dist + 0.5) ?? trip.steps[trip.steps.length - 1];
+    const toNext = Math.max(0, next.at - dist);
+    // speed: road class limit, easing down before a turn and at the destination
+    let target = SPEED[trip.edges[Math.min(here.k - 1, trip.edges.length - 1)].cl];
+    if (next.kind !== 'straight' && toNext < 70) target = Math.min(target, 6 + toNext * 0.2);
+    if (paused || dist >= trip.L) target = 0;
+    speed += Math.max(-9 * dt, Math.min(4 * dt, target - speed));
+    dist = Math.min(trip.L, dist + speed * dt);
+    const { p } = along(dist), ahead = along(dist + 8).p;
+    p.y = smoothY(p.x, p.z); car.position.copy(p);
+    if (ahead.distanceTo(new THREE.Vector3(p.x, 0, p.z)) > 0.5) {
+      const want = Math.atan2(-(ahead.x - p.x), -(ahead.z - p.z));
+      let dh = want - heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+      heading = snap ? want : heading + dh * (1 - Math.exp(-dt * 3));
+      car.rotation.set(0, want, 0);
+    }
+    if (dist >= trip.L - 0.5 && speed < 0.2) curNode = trip.toNode;
+    if (mode === 'nav') {
+      // tilted heading-up camera; drops and tightens near a manoeuvre
+      const near = next.kind !== 'straight' && toNext < 140;
+      camH += ((near ? 30 : 42) - camH) * (1 - Math.exp(-dt * 1.5)); camBack += ((near ? 34 : 52) - camBack) * (1 - Math.exp(-dt * 1.5));
+      const f = new THREE.Vector3(-Math.sin(heading), 0, -Math.cos(heading));
+      const camPos = p.clone().addScaledVector(f, -camBack).setY(p.y + camH);
+      if (snap) { camera.position.copy(camPos); snap = false; } else camera.position.lerp(camPos, 1 - Math.exp(-dt * 5));
+      camera.lookAt(p.x + f.x * 30, p.y, p.z + f.z * 30);
+      $('arrow').textContent = ARROW[next.kind];
+      $('bdist').textContent = toNext > 950 ? (toNext / 1000).toFixed(1) + ' km' : Math.round(toNext / 10) * 10 + ' m';
+      $('bname').textContent = `${TEXT[next.kind]} ${next.name}`;
+      const left = trip.L - dist, mins = Math.max(1, Math.round(left / 13 / 60));
+      $('trip').textContent = dist >= trip.L - 0.5 ? 'You have arrived' : `${Math.round(speed * 3.6)} km/h · ${left > 950 ? (left / 1000).toFixed(1) + ' km' : Math.round(left) + ' m'} · ${mins} min`;
+    }
+  }
+  if (mode === 'walk') {
+    const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)), right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    const v = (keys.ShiftLeft ? 12 : 4) * dt;
+    if (keys.KeyW) walkPos.addScaledVector(fwd, v); if (keys.KeyS) walkPos.addScaledVector(fwd, -v);
+    if (keys.KeyD) walkPos.addScaledVector(right, v); if (keys.KeyA) walkPos.addScaledVector(right, -v);
+    walkPos.y = groundY(walkPos.x, walkPos.z) + 1.7;
+    camera.position.copy(walkPos); camera.rotation.set(pitch, yaw, 0, 'YXZ');
+  } else if (mode === 'orbit') orbit.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+const wanted = dests.findIndex(d => d.name === (params.get('to') ?? 'Alton Parkway'));
+if (wanted >= 0) { $('dest').value = wanted; if (!startTrip(dests[wanted].node)) randomTrip(); } else randomTrip();
+setMode(params.get('mode') ?? 'nav');
+window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
+frame();
+</script>
+</body>
+</html>

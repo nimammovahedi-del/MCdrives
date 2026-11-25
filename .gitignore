@@ -1,0 +1,11 @@
+build/
+bin/
+worlds/
+.venv/
+venv/
+__pycache__/
+*.mca
+*token*
+.env
+*.log
+node_modules/

@@ -1,0 +1,7 @@
+{
+  "name": "Irvine",
+  "slug": "irvine",
+  "bbox": [33.6000, -117.8700, 33.7750, -117.6800],
+  "lidar": true,
+  "max_chunk_km2": 4
+}
