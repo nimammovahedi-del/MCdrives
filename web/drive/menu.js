@@ -76,9 +76,10 @@ export function createSheet(stage, { title = 'Menu', sections, footer }) {
 // ---------- search: streets and places by name, forgiving of typos, abbreviations and informal names
 const ABBR = { st: 'street', ave: 'avenue', av: 'avenue', pkwy: 'parkway', pky: 'parkway', dr: 'drive', blvd: 'boulevard', rd: 'road', ln: 'lane',
   ctr: 'center', cntr: 'center', centre: 'center', pl: 'place', ct: 'court', hwy: 'highway', fwy: 'freeway', n: 'north', s: 'south', e: 'east', w: 'west',
-  cir: 'circle', ter: 'terrace', trl: 'trail', sq: 'square', mt: 'mount', univ: 'university', hs: 'high school', elem: 'elementary', apt: 'apartments', i: 'interstate',
-  plz: 'plaza', crk: 'creek', gln: 'glen', vw: 'view', grv: 'grove', rdg: 'ridge', spgs: 'springs', pne: 'pine', vly: 'valley', cyn: 'canyon', hl: 'hill', mdw: 'meadow', mdws: 'meadows', xing: 'crossing', lp: 'loop', aly: 'alley', hts: 'heights', pt: 'point', pk: 'park', lk: 'lake', est: 'estates', cv: 'cove', sprgs: 'springs' };
-export const normName = t => t.toLowerCase().replace(/[’']/g, '').replace(/([a-z])([0-9])/g, '$1 $2').replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean).map(w => ABBR[w] ?? w).join(' ');
+  cir: 'circle', ter: 'terrace', trl: 'trail', sq: 'square', mt: 'mount', univ: 'university', uni: 'university', hs: 'high school', elem: 'elementary', apt: 'apartments', i: 'interstate',
+  plz: 'plaza', crk: 'creek', gln: 'glen', vw: 'view', grv: 'grove', rdg: 'ridge', spgs: 'springs', pne: 'pine', vly: 'valley', cyn: 'canyon', hl: 'hill', mdw: 'meadow', mdws: 'meadows', xing: 'crossing', lp: 'loop', aly: 'alley', hts: 'heights', pt: 'point', pk: 'park', lk: 'lake', est: 'estates', cv: 'cove', sprgs: 'springs',
+  4: 'for', 2: 'to' };   // "Cha 4 Tea"
+export const normName = t => t.toLowerCase().replace(/&/g, ' and ').replace(/[’']/g, '').replace(/([a-z])([0-9])/g, '$1 $2').replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean).map(w => ABBR[w] ?? w).join(' ');
 function lev(a, b) {     // edit distance with adjacent swaps
   const m = a.length, n = b.length; if (!m || !n) return m || n;
   let p2 = null, p = Array.from({ length: n + 1 }, (_, j) => j);
@@ -140,7 +141,7 @@ export function addressIndex(data, pos) {
     },
   };
 }
-/** items: [{ name, pos, kind?, aliases?: [] }]; addresses: async () => addressIndex | null, loaded the first time search opens */
+/** items: [{ name, pos, kind?, aliases?: [], cats?: [] }] (cats: what it is, "gas", "school": matched, ranked below names); addresses: async () => addressIndex | null, loaded the first time search opens */
 export function createSearch(stage, { items, from, onPick, fmt, addresses, placeholder = 'Search addresses, streets and places' }) {
   const box = h('div', 'search panel'); box.id = 'search';
   const row = h('div', 'se-row'); row.append(icon('search', '#cfd6dd'));
@@ -148,23 +149,32 @@ export function createSearch(stage, { items, from, onPick, fmt, addresses, place
   const x = h('button', 'mb'); x.append(icon('close')); x.setAttribute('aria-label', 'Close search');
   row.append(inp, x); const list = h('div', 'se-list'); box.append(row, list); stage.append(box);
   let index = [];
-  const reindex = its => { index = its.map(it => ({ it, keys: [it.name, ...(it.aliases ?? [])].map(normName) })); };
+  const reindex = its => { index = its.map(it => ({ it, keys: [it.name, ...(it.aliases ?? [])].map(normName), cats: (it.cats ?? []).map(normName) })); };
   reindex(items);
   let addr = null, addrState = 0;   // 0 not asked, 1 loading, 2 ready, 3 none
   function search(text) {
     const q = normName(text), p = from(), dist = it => p ? Math.hypot(it.pos.x - p.x, it.pos.z - p.z) : 0;
-    const named = index.map(({ it, keys }) => {
+    const named = index.map(({ it, keys, cats }) => {
       let sc = null; for (const k of keys) { const v = matchScore(q, k); if (v != null && (sc == null || v < sc)) sc = v; }
-      return sc == null ? null : { it, sc, d: dist(it) };
+      // by kind ("gas", "school"): whole words only, after anything matched by name, nearest first
+      // (a whole kind word asked for leads: "gas" means gas stations before Gascogne Avenue)
+      let cat = false;
+      if (q.length >= 3) for (const c of cats) if (c === q || (c.startsWith(q) && q.length >= 4)) { const v = c === q ? -0.1 : 2.5; if (sc == null || v < sc) { sc = v; cat = true; } }
+      return sc == null ? null : { it, sc, d: dist(it), cat };
     }).filter(Boolean);
     const addrs = addr ? addr.find(text).map(r => ({ ...r, d: dist(r.it) })) : [];
     // a query that starts with a house number is an address: those lead
-    return (/^\s*\d/.test(text) ? [...addrs, ...named] : [...named, ...addrs]).sort((a, b) => a.sc - b.sc || a.d - b.d).slice(0, 8);
+    // at most 5 matched only by kind, so places and streets by that name still show
+    let nCat = 0;
+    return (/^\s*\d/.test(text) ? [...addrs, ...named] : [...named, ...addrs]).sort((a, b) => a.sc - b.sc || a.d - b.d).filter(r => !r.cat || nCat++ < 5).slice(0, 8);
   }
   function render() {
-    const res = search(inp.value), p = from();
+    const res = search(inp.value), p = from(), seen = new Map();
+    for (const { it } of res) seen.set(it.name, (seen.get(it.name) ?? 0) + 1);
     const rows = res.map(({ it, d }) => {
-      const b = h('button', 'se-item'); b.append(icon('pin', '#e53935', '#ffd0cc'), h('span', 'nm', it.name), h('span', 'dd', (it.kind ? it.kind + ' · ' : '') + (p ? fmt(d) : '')));
+      // two of the same name (a chain's branches): say which street each is on instead of what it is
+      const what = seen.get(it.name) > 1 && it.where ? it.where : it.kind;
+      const b = h('button', 'se-item'); b.append(icon('pin', '#e53935', '#ffd0cc'), h('span', 'nm', it.name), h('span', 'dd', (what ? what + ' · ' : '') + (p ? fmt(d) : '')));
       b.onclick = () => { api.close(); onPick(it); }; return b;
     });
     // nothing typed matched exactly: say which close spelling we are offering
