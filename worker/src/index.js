@@ -56,8 +56,23 @@ function chpTime(s) {  // "Nov 24 2026  9:24AM", Pacific time -> epoch seconds (
   return Date.UTC(y, mo, d, h + (dst ? 7 : 8), +m[5]) / 1000;
 }
 const tag = (s, t) => { const m = new RegExp(`<${t}>"?([^<]*?)"?</${t}>`).exec(s); return m ? m[1].trim() : ''; };
+// CHP's host sometimes serves an old, cut-off copy (seen 2026-11-25: 172,032 bytes from the day before, no
+// </State>), depending on which of its servers answers. Ask again with a cache-busting query until the file is
+// whole and has a log from the last 3 hours; otherwise fail, and the caller keeps its last good list.
+async function chpXml(stats) {
+  let last = '';
+  for (let i = 0; i < 3; i++) {
+    const xml = await get('https://media.chp.ca.gov/sa_xml/sa.xml' + (i ? `?nocache=${Date.now()}${i}` : ''));
+    const whole = /<\/State>\s*$/.test(xml);
+    let newest = 0; for (const m of xml.matchAll(/<LogTime>"?([^<"]+)"?<\/LogTime>/g)) newest = Math.max(newest, chpTime(m[1]));
+    if (stats) (stats.tries ??= []).push({ bytes: xml.length, whole, newest });
+    if (whole && newest > Date.now() / 1000 - 3 * 3600) return xml;
+    last = whole ? 'old' : 'cut off';
+  }
+  throw new Error(`CHP feed is ${last}`);
+}
 async function chp(stats = null) {
-  const xml = await get('https://media.chp.ca.gov/sa_xml/sa.xml'), out = [], cut = Date.now() / 1000 - 6 * 3600;
+  const xml = await chpXml(stats), out = [], cut = Date.now() / 1000 - 6 * 3600;
   let center = '', dispatch = '';
   if (stats) stats.bytes = xml.length;
   for (const m of xml.matchAll(/<Center ID\s*=\s*"([^"]+)"|<Dispatch ID\s*=\s*"([^"]+)"|<Log ID\s*=\s*"([^"]+)">([\s\S]*?)<\/Log>/g)) {
@@ -127,7 +142,11 @@ export default {
     const p = new URL(req.url).pathname, json = 'application/json';
     if (p === '/v1/incidents.json') return cached('incidents', 60, json, async () => {
       const [a, b] = await Promise.allSettled([chp(), cachedClosures()]);
-      return JSON.stringify({ t: Math.round(Date.now() / 1000), chp: a.value ?? [], closures: b.value ?? [],
+      // while the CHP feed is bad, keep the last good list for up to 20 minutes
+      const good = memo.get('chp-good');
+      if (a.status === 'fulfilled') memo.set('chp-good', { t: Date.now(), v: a.value });
+      const chpList = a.value ?? (good && Date.now() - good.t < 1200000 ? good.v : []);
+      return JSON.stringify({ t: Math.round(Date.now() / 1000), chp: chpList, closures: b.value ?? [],
         errors: { chp: a.reason ? String(a.reason.message ?? a.reason) : null, closures: b.reason ? String(b.reason.message ?? b.reason) : null } });
     }, ctx);
     if (p === '/v1/speeds.json') return cached('speeds', 300, json, async () => JSON.stringify(await speeds()), ctx);
