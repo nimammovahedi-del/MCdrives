@@ -84,8 +84,8 @@ def colour(n):
     for w, (plank, bark) in WOODS.items():
         if n.startswith(w + "_") or n.startswith("stripped_" + w):
             return (bark if (n.endswith("_log") or n.endswith("_wood") or n.endswith("_stem") or n.endswith("_hyphae")) and not n.startswith("stripped") else plank), "solid"
-    for k, c in NAMED.items():
-        if k in n: return c, "solid"
+    ks = [k for k in NAMED if k in n]   # the longest name wins: "polished_blackstone_bricks" is not "stone_bricks"
+    if ks: return NAMED[max(ks, key=len)], "solid"
     unknown.add(n)
     return 0x8E8E8E, "solid"
 unknown = set()
