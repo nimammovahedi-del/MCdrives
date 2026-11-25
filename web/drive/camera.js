@@ -23,7 +23,15 @@ export class DriveCamera {
     this.h = 40; this.back = 50; this.ahead = 30; this.heading = 0; this.hv = 0; this.turnW = 0;
     this.pos = new THREE.Vector3(); this.look = new THREE.Vector3(); this._t = new THREE.Vector3(); this._f = new THREE.Vector3();
     this.snap = true; this.viewport = { w: 1, h: 1, padTop: 0, padBottom: 0, padLeft: 0 };
+    // look-around: the driver's own rotation, tilt and zoom on top of the automatic camera. It eases back
+    // to the automatic view 8 s after the last touch, or at once on recenter().
+    this.user = { yaw: 0, tilt: 0, zoom: 1, idle: 0, back: false };
   }
+  userDrag(dx, dy) { const u = this.user; u.yaw -= dx * 0.006; u.tilt = Math.max(-0.55, Math.min(0.55, u.tilt + dy * 0.004)); u.idle = 0; u.back = false; }
+  userTwist(a) { const u = this.user; u.yaw += a; u.idle = 0; u.back = false; }
+  userZoom(f) { const u = this.user; u.zoom = Math.max(0.35, Math.min(3, u.zoom * f)); u.idle = 0; u.back = false; }
+  recenter() { this.user.back = true; }
+  get lookingAround() { const u = this.user; return Math.abs(u.yaw) > 0.03 || Math.abs(u.tilt) > 0.03 || Math.abs(u.zoom - 1) > 0.03; }
   setPreset(name) { if (CAMERAS[name]) { this.preset = name; } }
   /** pad* are screen fractions hidden by the HUD; the car is placed in the visible part */
   setViewport(v) { Object.assign(this.viewport, v); this.snap = true; }
@@ -43,6 +51,15 @@ export class DriveCamera {
     const wantA = lerp(P.ahead[0], P.ahead[1], sp);
     const k = this.snap ? 1 : ease(0, 1.2, dt);
     this.h += (wantH - this.h) * k; this.back += (wantB - this.back) * k; this.ahead += (wantA - this.ahead) * k;
+    const u = this.user;
+    if ((u.idle += dt) > 8 || u.back) {
+      const r = ease(0, u.back ? 4 : 1.5, dt); u.yaw = wrap(u.yaw) * (1 - r); u.tilt *= 1 - r; u.zoom += (1 - u.zoom) * r;
+      if (!this.lookingAround) { u.yaw = 0; u.tilt = 0; u.zoom = 1; u.back = false; }
+    }
+    // free = 1 while the driver is looking around: the automatic turn preview then stays out of the way
+    const free = Math.min(1, Math.abs(wrap(u.yaw)) * 3 + Math.abs(u.tilt) * 3);
+    const R = Math.hypot(this.h, this.back) * u.zoom, el = Math.max(0.22, Math.min(1.45, Math.atan2(this.h, this.back) + u.tilt));
+    const camH = R * Math.sin(el), camB = R * Math.cos(el);
     // heading: critically damped spring toward the travel direction, pre-rotated toward the exit road
     let target = Math.atan2(-s.dir.x, -s.dir.z);
     if (s.outDir && P.lead > 0 && tw > 0) target += wrap(Math.atan2(-s.outDir.x, -s.outDir.z) - target) * P.lead * tw;
@@ -51,15 +68,15 @@ export class DriveCamera {
       const w = 2.6, err = wrap(target - this.heading);
       this.hv += (w * w * err - 2 * w * this.hv) * dt; this.heading = wrap(this.heading + this.hv * dt);
     }
-    const f = this._f.set(-Math.sin(this.heading), 0, -Math.cos(this.heading));
-    const camPos = this._t.copy(s.p).addScaledVector(f, -this.back); camPos.y = s.p.y + this.h;
-    if (this.snap) this.pos.copy(camPos); else this.pos.lerp(camPos, ease(0, 6, dt));
+    const hd = this.heading + u.yaw, f = this._f.set(-Math.sin(hd), 0, -Math.cos(hd));
+    const camPos = this._t.copy(s.p).addScaledVector(f, -camB); camPos.y = s.p.y + camH;
+    if (this.snap || u.idle < 0.3) this.pos.copy(camPos); else this.pos.lerp(camPos, ease(0, 6, dt));  // follow fingers directly
     // look point: ahead of the car, pulled toward the turn so its exit road is on screen
-    const ah = this.ahead + (this.extraAhead ?? 0), lx = s.p.x + f.x * ah, lz = s.p.z + f.z * ah;
+    const ah = (this.ahead + (this.extraAhead ?? 0) * (1 - free)) * u.zoom, lx = s.p.x + f.x * ah, lz = s.p.z + f.z * ah;
     let wx = lx, wz = lz;
-    if (s.turnPoint && P.peek > 0 && tw > 0) { wx = lerp(lx, s.turnPoint.x, P.peek * tw); wz = lerp(lz, s.turnPoint.z, P.peek * tw); }
+    if (s.turnPoint && P.peek > 0 && tw > 0) { const pk = P.peek * tw * (1 - free); wx = lerp(lx, s.turnPoint.x, pk); wz = lerp(lz, s.turnPoint.z, pk); }
     const wantLook = this._t.set(wx, s.p.y, wz);
-    if (this.snap) this.look.copy(wantLook); else this.look.lerp(wantLook, ease(0, 5, dt));
+    if (this.snap || u.idle < 0.3) this.look.copy(wantLook); else this.look.lerp(wantLook, ease(0, 5, dt));
     this.cam.position.copy(this.pos); this.cam.lookAt(this.look);
     // place the car lower on screen so more road ahead is visible (pitch the view by a screen offset)
     const { w: vw, h: vh, padTop, padBottom, padLeft } = this.viewport;

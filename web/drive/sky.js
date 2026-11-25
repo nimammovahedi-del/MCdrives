@@ -108,13 +108,18 @@ export function createSky(scene, { hemi, sun, clearMat, ribbon, car, animateClou
     car?.traverse(o => { if (o.material?.emissive && o !== car) o.material.emissive.copy(o.material.color).multiplyScalar(name === 'night' ? 0.45 : 0); });
     document.body.classList.toggle('night', name === 'night');
   }
-  function resolve() { return look.mode === 'auto' ? (sunAltitude(new Date()) > -3 ? 'day' : 'night') : look.mode; }
+  function resolve() { if (look.force) return look.force; return look.mode === 'auto' ? (sunAltitude(new Date()) > -3 ? 'day' : 'night') : look.mode; }
   apply(resolve());
   let check = 0;
   return {
     get mode() { return look.mode; }, get now() { return look.now; },
     setMode(m) { look.mode = m; apply(resolve()); },
     setAnimate(v) { animateClouds = v; },
+    /** force a look regardless of the chosen mode (the top-down map is always drawn by day); null to release */
+    force(name) { look.force = name; apply(resolve()); },
+    setClouds(v) { clouds.visible = v; },
+    /** call after swapping the car's model: re-applies night glow and moves the headlights to its nose */
+    refreshCar() { if (car) lights.position.z = (car.userData.headlightZ ?? -2.25) + 2.25; apply(look.now); },
     get animating() { return animateClouds && look.now === 'day'; },
     update(dt, cam) {
       if ((check += dt) > 30) { check = 0; const r = resolve(); if (r !== look.now) apply(r); }
