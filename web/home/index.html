@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maps Craft: drive Irvine, one block at a time</title>
+<meta name="description" content="A blocky 3D driving map of Irvine, California, built from real map data. Search, get directions and drive it in your browser.">
+<meta property="og:title" content="Maps Craft">
+<meta property="og:description" content="Drive Irvine, one block at a time.">
+<meta property="og:image" content="assets/img/title-bg.jpg">
+<meta name="theme-color" content="#1b1c1f">
+<link rel="stylesheet" href="assets/home.css">
+</head>
+<body data-page="title">
+<section class="title">
+  <div class="bg" aria-hidden="true"></div>
+  <!-- Flyover loop goes here once filmed: set data-src="assets/flyover.mp4" (the still above stays as the fallback). -->
+  <video muted loop playsinline preload="none" aria-hidden="true" style="opacity:0;transition:opacity 1s"></video>
+  <div class="shade"></div>
+  <div class="wrap">
+    <h1><canvas class="logo" data-text="MAPS CRAFT" data-stack="auto" aria-hidden="true"></canvas><span class="sr">Maps Craft</span></h1>
+    <div class="sub">DRIVE IRVINE, ONE BLOCK AT A TIME</div>
+    <nav class="menu" aria-label="Main">
+      <a class="btn primary" href="map"><canvas class="ico" data-i="car"></canvas>Drive on Web</a>
+      <a class="btn" href="#" data-pop="app-pop" aria-haspopup="dialog"><canvas class="ico" data-i="phone"></canvas>Get the App <span class="tag">SOON</span></a>
+      <a class="btn" href="map?mode=orbit"><canvas class="ico" data-i="map"></canvas>View Map</a>
+      <div class="row"><a class="btn" href="how-it-works">How It Works</a><a class="btn" href="how-its-built">How It's Built</a></div>
+    </nav>
+  </div>
+  <div class="foot"><span>Irvine beta</span><span><a href="legal">Legal &amp; Privacy</a> · Map data © OpenStreetMap contributors · Not affiliated with any game</span></div>
+</section>
+
+<div class="pop" id="app-pop" role="dialog" aria-modal="true" aria-labelledby="app-pop-h">
+  <div class="card panel">
+    <h2 id="app-pop-h">App coming soon</h2>
+    <p>Phone apps for iPhone and Android are on the way. Until then, Maps Craft runs in your phone's browser: tap Drive on Web, then add it to your home screen.</p>
+    <a class="btn primary" href="map"><canvas class="ico" data-i="car"></canvas>Drive on Web</a>
+    <p style="margin:14px 0 0"><a href="#" data-close>Close</a></p>
+  </div>
+</div>
+<script src="assets/home.js"></script>
+</body>
+</html>
