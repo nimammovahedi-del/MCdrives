@@ -388,6 +388,9 @@ def join(area, chunks, out, seam_tol=6, log=print):
             "name": area["name"], "bbox": parent,
             "chunks": [{"id": i["id"], "dx": i["sx"], "dz": i["sz"], "dy": i["sy"], "err": i["err"]} for i in info]}
     (data / "meta.json").write_text(json.dumps(meta))
+    # overhead colour layer for the 2D map (optional: the map falls back to roads on parchment)
+    r = subprocess.run([sys.executable, str(ROOT / "tools" / "maptiles.py"), str(site)], capture_output=True, text=True)
+    log("join: " + (r.stdout.strip().splitlines() or [""])[-1] if r.returncode == 0 else f"join: map colour layer skipped ({r.stderr.strip()[-300:]})")
     shutil.copy(ROOT / "web" / "index.html", site / "index.html")
     shutil.copytree(ROOT / "web" / "vendor", site / "vendor", dirs_exist_ok=True)
     shutil.copytree(ROOT / "web" / "drive", site / "drive", dirs_exist_ok=True)

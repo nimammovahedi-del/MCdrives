@@ -40,12 +40,14 @@ export function createPainter({ G, N, meta, base = '' }) {
     paint(ctx, v, data) {
       const { cx, cz, mpp, w, h } = v, X = x => (x - cx) / mpp + w / 2, Z = z => (z - cz) / mpp + h / 2;
       ctx.imageSmoothingEnabled = false;
-      ctx.fillStyle = '#d9c99a'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = M ? '#b9b49c' : '#d9c99a'; ctx.fillRect(0, 0, w, h);
       const x0 = cx - w / 2 * mpp, x1 = cx + w / 2 * mpp, z0 = cz - h / 2 * mpp, z1 = cz + h / 2 * mpp;
       if (M) {
-        if (mpp >= 10 && M.overview) { const o = M.overview, e = img(o.file); if (e.ok) ctx.drawImage(e.im, X(o.x), Z(o.z), e.im.width * o.scale / mpp, e.im.height * o.scale / mpp); }
-        else for (const [file, tx, tz] of M.tiles) {
-          const size = 512; if (tx > x1 || tz > z1 || tx + size < x0 || tz + size < z0) continue;
+        // image x/z are world blocks; the road graph (N) is shifted by meta.minx/minz
+        const mx = meta.minx ?? 0, mz = meta.minz ?? 0;
+        if (mpp >= 10 && M.overview) { const o = M.overview, e = img(o.file); if (e.ok) ctx.drawImage(e.im, X(o.x - mx), Z(o.z - mz), e.im.width * o.scale / mpp, e.im.height * o.scale / mpp); }
+        else for (const [file, wx, wz] of M.tiles) {
+          const size = meta.pack ?? 512, tx = wx - mx, tz = wz - mz; if (tx > x1 || tz > z1 || tx + size < x0 || tz + size < z0) continue;
           const e = img(file); if (e.ok) ctx.drawImage(e.im, Math.round(X(tx)), Math.round(Z(tz)), Math.ceil(size / mpp), Math.ceil(size / mpp));
         }
         trim();
@@ -54,13 +56,13 @@ export function createPainter({ G, N, meta, base = '' }) {
         if (mpp < 4) { ctx.fillStyle = 'rgba(120,95,50,.12)'; const s = 64; for (let gx = Math.ceil(x0 / s) * s; gx < x1; gx += s) ctx.fillRect(Math.round(X(gx)), 0, 1, h); for (let gz = Math.ceil(z0 / s) * s; gz < z1; gz += s) ctx.fillRect(0, Math.round(Z(gz)), w, 1); }
       }
       // roads: which classes show depends on zoom; outlines first, then fills
-      const maxCl = mpp > 24 ? 1 : mpp > 12 ? 3 : mpp > 6 ? 5 : 7, seen = new Set(), list = [];
+      const maxCl = M ? (mpp > 24 ? 1 : mpp > 12 ? 3 : mpp > 5 ? 4 : -1) : mpp > 24 ? 1 : mpp > 12 ? 3 : mpp > 6 ? 5 : 7, seen = new Set(), list = [];
       for (let gx = Math.floor(x0 / CELL); gx <= Math.floor(x1 / CELL); gx++) for (let gz = Math.floor(z0 / CELL); gz <= Math.floor(z1 / CELL); gz++)
         for (const i of cells.get(gx * 65536 + gz) ?? []) { if (seen.has(i)) continue; seen.add(i); if (G.edges[i][3] <= maxCl) list.push(i); }
-      const width = cl => Math.max(1, Math.round(ROAD[cl][2] * Math.min(1.6, 4 / mpp)));
+      const width = cl => M ? (cl < 2 ? 2 : 1) : Math.max(1, Math.round(ROAD[cl][2] * Math.min(1.6, 4 / mpp)));
       ctx.lineCap = 'square';
       for (const pass of [0, 1]) for (let cl = maxCl; cl >= 0; cl--) {
-        const [fill, edge] = ROAD[cl]; if (pass === 0 && !edge) continue;
+        const [fill, edge] = ROAD[cl]; if (pass === 0 && (!edge || M)) continue;
         ctx.strokeStyle = pass ? fill : edge; ctx.lineWidth = width(cl) + (pass ? 0 : 2); ctx.beginPath();
         for (const i of list) { const e = G.edges[i]; if (e[3] !== cl) continue; const A = N[e[0]], B = N[e[1]]; ctx.moveTo(X(A.x), Z(A.z)); ctx.lineTo(X(B.x), Z(B.z)); }
         ctx.stroke();

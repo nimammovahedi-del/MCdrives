@@ -76,7 +76,8 @@ export function createSheet(stage, { title = 'Menu', sections, footer }) {
 // ---------- search: streets and places by name, forgiving of typos, abbreviations and informal names
 const ABBR = { st: 'street', ave: 'avenue', av: 'avenue', pkwy: 'parkway', pky: 'parkway', dr: 'drive', blvd: 'boulevard', rd: 'road', ln: 'lane',
   ctr: 'center', cntr: 'center', centre: 'center', pl: 'place', ct: 'court', hwy: 'highway', fwy: 'freeway', n: 'north', s: 'south', e: 'east', w: 'west',
-  cir: 'circle', ter: 'terrace', trl: 'trail', sq: 'square', mt: 'mount', univ: 'university', hs: 'high school', elem: 'elementary', apt: 'apartments', i: 'interstate' };
+  cir: 'circle', ter: 'terrace', trl: 'trail', sq: 'square', mt: 'mount', univ: 'university', hs: 'high school', elem: 'elementary', apt: 'apartments', i: 'interstate',
+  plz: 'plaza', crk: 'creek', gln: 'glen', vw: 'view', grv: 'grove', rdg: 'ridge', spgs: 'springs', pne: 'pine', vly: 'valley', cyn: 'canyon', hl: 'hill', mdw: 'meadow', mdws: 'meadows', xing: 'crossing', lp: 'loop', aly: 'alley', hts: 'heights', pt: 'point', pk: 'park', lk: 'lake', est: 'estates', cv: 'cove', sprgs: 'springs' };
 export const normName = t => t.toLowerCase().replace(/[’']/g, '').replace(/([a-z])([0-9])/g, '$1 $2').replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean).map(w => ABBR[w] ?? w).join(' ');
 function lev(a, b) {     // edit distance with adjacent swaps
   const m = a.length, n = b.length; if (!m || !n) return m || n;
@@ -112,7 +113,8 @@ export function matchScore(q, name) {
 }
 // address points (tools/addresses.py): street names come in county style, "IRVINE CENTER DR"
 const SHOW = { dr: 'Drive', blvd: 'Boulevard', pkwy: 'Parkway', rd: 'Road', ave: 'Avenue', av: 'Avenue', st: 'Street', ln: 'Lane', ct: 'Court', pl: 'Place',
-  cir: 'Circle', ter: 'Terrace', trl: 'Trail', hwy: 'Highway', ctr: 'Center', sq: 'Square', pt: 'Point', n: 'N', s: 'S', e: 'E', w: 'W' };
+  cir: 'Circle', ter: 'Terrace', trl: 'Trail', hwy: 'Highway', ctr: 'Center', sq: 'Square', pt: 'Point', n: 'N', s: 'S', e: 'E', w: 'W',
+  plz: 'Plaza', crk: 'Creek', gln: 'Glen', vw: 'View', grv: 'Grove', rdg: 'Ridge', spgs: 'Springs', pne: 'Pine', vly: 'Valley', cyn: 'Canyon', hl: 'Hill', mdw: 'Meadow', mdws: 'Meadows', xing: 'Crossing', lp: 'Loop', aly: 'Alley', hts: 'Heights', pk: 'Park', lk: 'Lake', est: 'Estates', cv: 'Cove', sprgs: 'Springs' };
 export const titleStreet = t => t.toLowerCase().split(' ').map(w => SHOW[w] ?? w.replace(/^./, c => c.toUpperCase())).join(' ');
 export function addressIndex(data, pos) {
   const streets = data.streets.map(s => ({ raw: s, name: titleStreet(s), key: normName(s), nums: new Map() }));
