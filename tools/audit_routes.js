@@ -12,13 +12,13 @@ const fs = require('fs');
   await p.goto(`${process.env.URL || 'http://localhost:8765'}/?budget=400`);
   await p.waitForFunction(() => window.__ready, null, { timeout: 600000 });
   const idle = () => p.waitForFunction(() => window.__idle(), null, { timeout: 600000 });
-  const routes = await p.evaluate(N => {
+  const routes = await p.evaluate(async N => {
     const A = window.__api; let s = 12345; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
     const res = [];
     for (let i = 0; i < N * 4 && res.length < N; i++) {
       const a = A.dests[Math.floor(rnd() * A.dests.length)], c = A.dests[Math.floor(rnd() * A.dests.length)];
       if (a === c) continue;
-      A.setStart(a.node); if (!A.startTrip(c.node)) continue;
+      A.setStart(a.node); if (!await A.startTrip(c.node)) continue;
       const t = A.trip(); if (t.L < 600) continue;
       const prof = []; for (let d = 0; d <= t.L; d += 2) { const q = A.along(d).p; prof.push([Math.round(q.x), Math.round(q.z), +A.yAt(d).toFixed(2), A.groundY(q.x, q.z)]); }
       const jumps = []; for (let k = 1; k < prof.length; k++) { const dy = prof[k][2] - prof[k - 1][2]; if (Math.abs(dy) >= 1.2) jumps.push({ at: k * 2, dy: +dy.toFixed(2), x: prof[k][0], z: prof[k][1] }); }
@@ -27,7 +27,7 @@ const fs = require('fs');
     return res;
   }, N);
   for (const r of routes) {
-    await p.evaluate(r => { window.__api.setStart(r.fromNode); window.__api.startTrip(r.toNode); window.__setMode('nav'); }, r);
+    await p.evaluate(async r => { window.__api.setStart(r.fromNode); await window.__api.startTrip(r.toNode); window.__setMode('nav'); }, r);
     // cluster jumps into incidents 40 m apart, then shoot the worst ones plus evenly spaced points
     const inc = []; for (const j of r.jumps) { const l = inc[inc.length - 1]; if (l && j.at - l.end < 40) { l.end = j.at; l.max = Math.max(l.max, Math.abs(j.dy)); l.n++; } else inc.push({ at: j.at, end: j.at, max: Math.abs(j.dy), n: 1 }); }
     r.incidents = inc;
@@ -38,7 +38,8 @@ const fs = require('fs');
       await p.evaluate(d => window.__seek(d), s.d); await p.waitForTimeout(600); await idle(); await p.waitForTimeout(1200);
       const f = `r${r.id}_${i}.png`; await p.screenshot({ path: `${out}/${f}` }); r.shots.push({ file: f, at: s.d, why: s.why });
     }
-    console.log(`route ${r.id}: ${r.from} -> ${r.to}, ${r.L} m, ${r.jumps.length} jumps in ${inc.length} incidents`);
+    r.heightTiles = await p.evaluate(() => window.__stats().heightTiles);
+    console.log(`route ${r.id}: ${r.from} -> ${r.to}, ${r.L} m, ${r.jumps.length} jumps in ${inc.length} incidents, ${r.heightTiles} height tiles held`);
     fs.writeFileSync(`${out}/routes.json`, JSON.stringify(routes, null, 1));
   }
   await b.close();

@@ -8,7 +8,7 @@
 
 An area larger than max_chunk_km2 is baked as a grid of chunks, each its own Arnis world with its
 own origin. The join step then writes ONE site for the whole area at build/<slug>/site: every
-chunk's packs placed at its offset in one pack list, one height field, and one road graph sewn
+chunk's packs and height tiles placed at its offset in one pack list, and one road graph sewn
 together across the chunk seams, so the viewer drives across the whole area without a break.
 
 Each step is skipped when its output already exists, so a failed or interrupted run
@@ -84,7 +84,7 @@ def chunk_offset(parent_bbox, bbox):
 
 
 def read_gz_array(path_bin, path_json):
-    """height.bin (gzipped int16) or, for --b64 builds, height.json."""
+    """A gzipped int16 file (a height tile, or the whole-area height.bin of older converters), or its --b64 .json."""
     import numpy as np
     if path_bin.exists():
         raw = gzip.decompress(path_bin.read_bytes())
@@ -192,9 +192,10 @@ def join_roads(parts, area_size, seam_tol, log=print):
 def join(area, chunks, out, seam_tol=6, log=print):
     """Write one site for the whole area from the per-chunk sites already in out/<id>/site.
 
-    Packs are copied (never re-encoded) and given unique ids plus the offset of their chunk; the
-    height field is pasted together through a memory-mapped file, so neither step holds more than
-    one chunk at a time."""
+    Packs and their height tiles are linked (never re-encoded) and given unique ids plus the offset
+    of their chunk, so nothing holds more than one chunk at a time. Where chunks overlap, the viewer
+    takes a column's height from the last pack in the list that has a surface there, as the merged
+    height field of earlier joins did."""
     import numpy as np
     parent = area["bbox"]
     psx, psz, _ = projection(parent)
@@ -228,24 +229,44 @@ def join(area, chunks, out, seam_tol=6, log=print):
     # height. Neighbours overlap by a strip of blocks: the median height difference there is the
     # step between them, and least squares turns the pairwise steps into one lift per chunk.
     def rect(i): return i["sx"], i["sz"], i["sx"] + i["meta"]["width"], i["sz"] + i["meta"]["depth"]
+
+    def ground(i, x0, z0, x1, z1):
+        """Layer 0 of chunk i over its own columns [z0:z1, x0:x1], from its height tiles (or an older height.bin)."""
+        cm = i["meta"]; P = cm["pack"]
+        if not all("h" in p for p in cm["packs"]):
+            h0 = read_gz_array(i["dir"] / "data" / "height.bin", i["dir"] / "data" / "height.json")
+            return h0[:cm["depth"] * cm["width"]].reshape(cm["depth"], cm["width"])[z0:z1, x0:x1].copy()
+        out = np.full((z1 - z0, x1 - x0), -1, dtype="<i2")
+        for p in cm["packs"]:
+            ax, az, bx, bz = max(x0, p["x"]), max(z0, p["z"]), min(x1, p["x"] + P), min(z1, p["z"] + P)
+            if bx <= ax or bz <= az: continue
+            t = read_gz_array(i["dir"] / "data" / f"{p['h']}.bin", i["dir"] / "data" / f"{p['h']}.json")[:P * P].reshape(P, P)
+            out[az - z0:bz - z0, ax - x0:bx - x0] = t[az - p["z"]:bz - p["z"], ax - p["x"]:bx - p["x"]]
+        return out
     strips = {}
     for a, i in enumerate(info):
-        cm = i["meta"]; h0 = None
         for b, j in enumerate(info):
             if a == b: continue
             x0, z0 = (max(p, q) for p, q in zip(rect(i)[:2], rect(j)[:2])); x1 = min(rect(i)[2], rect(j)[2]); z1 = min(rect(i)[3], rect(j)[3])
             if x1 - x0 < 8 or z1 - z0 < 8: continue
-            if h0 is None:
-                h0 = read_gz_array(i["dir"] / "data" / "height.bin", i["dir"] / "data" / "height.json")
-                h0 = h0[:cm["depth"] * cm["width"]].reshape(cm["depth"], cm["width"])
-            strips[a, b] = h0[z0 - i["sz"]:z1 - i["sz"], x0 - i["sx"]:x1 - i["sx"]].astype(np.int32)
-        del h0
+            strips[a, b] = ground(i, x0 - i["sx"], z0 - i["sz"], x1 - i["sx"], z1 - i["sz"]).astype(np.int32)
     rows, rhs = [], []
     for (a, b), sa in strips.items():
         if a > b: continue
         sb = strips[b, a]; ok = (sa > 2) & (sb > 2)
-        if ok.sum() < 200: continue
-        d = (sb - sa)[ok]; step = float(np.median(d))
+        d = (sb - sa)[ok]
+        if d.size < 200:
+            # The bakes barely overlap: compare each chunk's last surface before the seam with the
+            # other's first one after it, line by line across the seam.
+            if sa.shape[0] < sa.shape[1]: sa, sb = sa.T, sb.T
+            va, vb = sa > 2, sb > 2; n = sa.shape[1]; col = np.arange(n); d = []
+            for p, vp, q, vq in ((sa, va, sb, vb), (sb, vb, sa, va)):   # p ends where q begins
+                last = np.where(vp, col, -1).max(axis=1); first = np.where(vq, col, n).min(axis=1)
+                r = np.nonzero((last >= 0) & (first < n) & (np.abs(first - last) <= 6))[0]
+                d.append((q[r, first[r]] - p[r, last[r]]) * (1 if p is sa else -1))
+            d = max(d, key=len)
+        if d.size < 50: continue
+        step = float(np.median(d))
         r = np.zeros(len(info)); r[a], r[b] = 1, -1; rows.append(r); rhs.append(step)   # lift[a] - lift[b] = h_b - h_a
         log(f"join: ground step {info[a]['id']} to {info[b]['id']}: {step:+.0f} blocks "
             f"(middle half of the overlap within {np.percentile(d, 25):+.0f}..{np.percentile(d, 75):+.0f})")
@@ -264,48 +285,35 @@ def join(area, chunks, out, seam_tol=6, log=print):
     log(f"join: {width} x {depth} x {height} blocks, origin ({minx}, {minz}, {miny})")
 
     shutil.rmtree(site, ignore_errors=True); data.mkdir(parents=True)
-    # ---- packs: copy the bytes, translate the ids and the placement
-    packs = []; used = set(); total = 0; quads = 0
+    # ---- packs and height tiles: link the bytes, translate the ids and the placement
+    packs = []; used = set(); total = 0; hbytes = 0; quads = 0
+
+    def put(src, dst):
+        try: os.link(src, dst)
+        except OSError: shutil.copy(src, dst)
+        return dst.stat().st_size
     for i in info:
-        for p in i["meta"]["packs"]:
+        cm, P = i["meta"], i["meta"]["pack"]
+        old = None   # a chunk converted before height tiles existed: cut its height.bin into tiles here
+        if not all("h" in p for p in cm["packs"]):
+            old = read_gz_array(i["dir"] / "data" / "height.bin", i["dir"] / "data" / "height.json")
+            old = old.reshape(-1, cm["depth"], cm["width"])[[0, -1]]
+        for p in cm["packs"]:
             pid = p["id"] if p["id"] not in used else f"{i['id']}_{p['id']}"
             while pid in used: pid += "_"
+            hid = "h" + pid[1:] if pid.startswith("p_") else "h_" + pid
             used.add(pid)
-            src = i["dir"] / "data" / f"{p['id']}.{ext}"
-            dst = data / f"{pid}.{ext}"
-            try: os.link(src, dst)
-            except OSError: shutil.copy(src, dst)
-            total += dst.stat().st_size; quads += p["quads"]
-            packs.append({"id": pid, "x": p["x"] + i["sx"], "z": p["z"] + i["sz"], "quads": p["quads"],
+            total += put(i["dir"] / "data" / f"{p['id']}.{ext}", data / f"{pid}.{ext}"); quads += p["quads"]
+            if old is None: hbytes += put(i["dir"] / "data" / f"{p['h']}.{ext}", data / f"{hid}.{ext}")
+            else:
+                t = np.full((2, P, P), -1, dtype="<i2")
+                src = old[:, p["z"]:p["z"] + P, p["x"]:p["x"] + P]
+                t[:, :src.shape[1], :src.shape[2]] = src
+                (data / f"{hid}.{ext}").write_bytes(gzip.compress(t.tobytes(), 6)); hbytes += (data / f"{hid}.{ext}").stat().st_size
+            packs.append({"id": pid, "h": hid, "x": p["x"] + i["sx"], "z": p["z"] + i["sz"], "quads": p["quads"],
                           "dx": i["sx"], "dz": i["sz"], "dy": i["sy"], "tiles": p["tiles"]})
-    log(f"join: {len(packs)} packs, {total/1e6:.1f} MB, {quads:,} quads")
-
-    # ---- height: one [2, depth, width] field, -1 where no chunk covers
-    tmp = data / "height.memmap"
-    h = np.memmap(tmp, dtype="<i2", mode="w+", shape=(2, depth, width))
-    for z in range(0, depth, 2048): h[:, z:z+2048, :] = -1
-    for i in info:
-        cm = i["meta"]
-        a = read_gz_array(i["dir"] / "data" / "height.bin", i["dir"] / "data" / "height.json")
-        a = a.reshape(2, cm["depth"], cm["width"]) if a.size == 2 * cm["depth"] * cm["width"] else \
-            np.repeat(a.reshape(1, cm["depth"], cm["width"]), 2, axis=0)
-        a = np.where(a >= 0, a + i["sy"], -1).astype("<i2")
-        x0, z0 = i["sx"], i["sz"]
-        sx0, sz0 = max(0, -x0), max(0, -z0)
-        x0, z0 = max(0, x0), max(0, z0)
-        ex = min(width, x0 + a.shape[2] - sx0); ez = min(depth, z0 + a.shape[1] - sz0)
-        if ex <= x0 or ez <= z0: continue
-        src = a[:, sz0:sz0 + (ez - z0), sx0:sx0 + (ex - x0)]
-        np.copyto(h[:, z0:ez, x0:ex], src, where=src >= 0)
-        del a, src
-    h.flush()
-    with gzip.open(data / "height.bin", "wb", compresslevel=6) as f:
-        for layer in range(2):
-            for z in range(0, depth, 1024):
-                f.write(np.ascontiguousarray(h[layer, z:z+1024, :]).tobytes())
-    del h
-    tmp.unlink()
-    log(f"join: height.bin {(data/'height.bin').stat().st_size/1e6:.1f} MB for {width}x{depth} columns")
+        del old
+    log(f"join: {len(packs)} packs, {total/1e6:.1f} MB, {quads:,} quads; height tiles {hbytes/1e6:.1f} MB")
 
     # ---- roads
     parts = []

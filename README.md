@@ -47,7 +47,9 @@ Three things keep cost flat as the area grows:
 - The converter decodes one 512 x 512 region at a time and meshes it with a margin borrowed from
   its neighbours, so memory does not depend on the size of the world.
 - The viewer streams packs in around the car and drops them behind it, so the browser only ever
-  holds about a kilometre of world in each direction.
+  holds about a kilometre of world in each direction. Heights come in one 1 MB tile per pack
+  (`h_<i>_<j>.bin`), loaded with the pack and, when a trip starts, along the route; at most 48
+  are kept beyond the ones under loaded packs.
 - `build/<area>/report.json` records size, quad count and seconds per step, which is the data for
   estimating a bigger build.
 
@@ -68,8 +70,9 @@ puts them back together into one world at `build/<area>/site/`:
   offset of its chunk, which the viewer applies when it places the tile meshes. Material ids are
   the same in every world (`tools/mca2web.py` registers the whole palette up front), so one
   palette covers the area.
-- The height field is pasted together through a memory-mapped file, one chunk at a time, so the
-  area's 1.4 GB of columns never sit in RAM.
+- Height tiles (one per pack, the surface under every column) are linked the same way and carry
+  their chunk's vertical offset with the pack. Where two chunks' packs overlap, the viewer reads a
+  column from the later chunk when it has a surface there, else from the earlier one.
 - Road graphs are merged. A chunk's graph reaches 32 blocks past its bbox (`roadgraph.py
   --overhang`), so neighbours hold the same OSM nodes either side of their seam; the join merges
   those nodes, then any remaining pair within `--seam-tol` blocks, and keeps the largest connected

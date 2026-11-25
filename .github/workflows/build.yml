@@ -99,7 +99,7 @@ jobs:
           name: ${{ matrix.id }}
           path: build/${{ env.AREA }}/${{ matrix.id }}/site
           retention-days: 3
-          compression-level: 0    # packs and the height field are already gzipped
+          compression-level: 0    # packs and height tiles are already gzipped
 
   join:
     needs: [plan, chunk]

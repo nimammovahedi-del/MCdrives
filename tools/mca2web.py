@@ -8,6 +8,10 @@ Memory stays flat however large the world is: regions are decoded one at a time 
 cache, then each region is meshed with a margin borrowed from its eight neighbours.
 
     mca2web.py WORLD_DIR OUT_DIR [--b64]     (--b64 wraps packs as base64 JSON for hosts that refuse .bin)
+
+Beside each pack p_<i>_<j> goes its height tile h_<i>_<j> (named in meta.json as the pack's "h"):
+gzipped int16 [2, PACK, PACK] over the pack's columns, [0] the lowest drivable surface and [1] the
+highest (bridge decks), in blocks above miny, -1 where there is none.
 """
 import sys, os, re, zlib, gzip, json, struct, glob, io, math, time
 import numpy as np
@@ -286,7 +290,6 @@ BT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("m", "u1"), ("x0", "u1")
 M, S = MARGIN, PACK + 2 * MARGIN
 dirs = [((1, 0, 0), 0), ((-1, 0, 0), 1), ((0, 1, 0), 2), ((0, -1, 0), 3), ((0, 0, 1), 4), ((0, 0, -1), 5)]  # +y -y +z -z +x -x as (dy,dz,dx)
 packs = []; total = 0; nquads = 0; nboxes = 0; faces = 0; nleafcut = 0
-heights = np.full((2, D, W), -1, dtype=np.int16)  # [0] lowest drivable surface, [1] highest (bridge decks)
 for (rx, rz) in sorted(REG):
     # Window = this region plus a margin from its neighbours, so faces and sky reach are right at the seams.
     wg = np.zeros((H, S, S), dtype=np.uint8); inworld = np.zeros((S, S), dtype=bool)
@@ -352,8 +355,7 @@ for (rx, rz) in sorted(REG):
     up = np.zeros((H + 3,) + hard.shape[1:], dtype=bool); up[:H] = hard
     surf = hard & reach[2:H+2, 1+M:1+M+PACK, 1+M:1+M+PACK] & ~up[1:H+1] & ~up[2:H+2] & ~up[3:H+3]
     anys = surf.any(axis=0)
-    heights[0, oz:oz+PACK, ox:ox+PACK] = np.where(anys, surf.argmax(axis=0), -1)
-    heights[1, oz:oz+PACK, ox:ox+PACK] = np.where(anys, H - 1 - surf[::-1].argmax(axis=0), -1)
+    hts = np.stack([np.where(anys, surf.argmax(axis=0), -1), np.where(anys, H - 1 - surf[::-1].argmax(axis=0), -1)]).astype("<i2")
     blob_all = bytearray(); tiles = []
     for b in range(0, PACK, TILE):
         for a in range(0, PACK, TILE):
@@ -389,19 +391,16 @@ for (rx, rz) in sorted(REG):
             tiles.append([(ox + a) // TILE, (oz + b) // TILE, len(rec), len(blob_all), len(blob)])
             blob_all += blob
     if not tiles: continue
-    pid = f"p_{rx - rx0}_{rz - rz0}"
-    if B64: json.dump({"base64": base64.b64encode(bytes(blob_all)).decode()}, open(os.path.join(OUT, pid + ".json"), "w"))
-    else: open(os.path.join(OUT, pid + ".bin"), "wb").write(blob_all)
-    packs.append({"id": pid, "x": ox, "z": oz, "quads": sum(t[2] for t in tiles), "tiles": tiles}); total += len(blob_all)
+    pid, hid = f"p_{rx - rx0}_{rz - rz0}", f"h_{rx - rx0}_{rz - rz0}"
+    for name, blob in ((pid, bytes(blob_all)), (hid, gzip.compress(hts.tobytes(), 6))):
+        if B64: json.dump({"base64": base64.b64encode(blob).decode()}, open(os.path.join(OUT, name + ".json"), "w"))
+        else: open(os.path.join(OUT, name + ".bin"), "wb").write(blob)
+    packs.append({"id": pid, "h": hid, "x": ox, "z": oz, "quads": sum(t[2] for t in tiles), "tiles": tiles}); total += len(blob_all)
     print(f"  {pid}: {packs[-1]['quads']:,} quads, {len(blob_all)/1e6:.1f} MB", flush=True)
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"canopy over roads removed: {nleafcut:,} leaf blocks")
 print(f"greedy meshing: {nquads:,} quads (from {faces:,} block faces); {nboxes:,} detail boxes for partial blocks")
 
-# Ground height per column, so the viewer can sit a car on the surface
-hz = gzip.compress(heights.astype("<i2").tobytes(), 6)
-if B64: json.dump({"base64": base64.b64encode(hz).decode()}, open(os.path.join(OUT, "height.json"), "w"))
-else: open(os.path.join(OUT, "height.bin"), "wb").write(hz)
 meta = {"tile": TILE, "pack": PACK, "ext": "json" if B64 else "bin", "width": int(W), "depth": int(D), "height": int(H),
         "minx": int(minx), "minz": int(minz), "miny": int(gminy), "quads": int(nquads), "bytes": int(total), "packs": packs,
         "materials": [{"name": n, "rgb": f"#{c:06x}", "kind": k} for n, c, k in MATS]}
