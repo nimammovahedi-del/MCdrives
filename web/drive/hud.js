@@ -68,6 +68,7 @@ export function fmtDist(m, units) {
   if (ft < 1000) { const r = ft < 300 ? 25 : 50; return [String(Math.max(r, Math.round(ft / r) * r)), 'ft']; }
   const mi = m / 1609.34; return [mi < 9.95 ? mi.toFixed(1) : String(Math.round(mi)), 'mi'];
 }
+export const roadName = n => (n || '').replace(/^(I|SR|US|CA)\s+(\d+)/, '$1-$2').replace(/^[a-z]/, c => c.toUpperCase());
 const fmtClock = d => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 const VERB = { left: 'Turn left', right: 'Turn right', 'slight left': 'Keep left', 'slight right': 'Keep right', straight: 'Continue', uturn: 'U-turn', arrive: 'Arrive' };
 
@@ -103,14 +104,14 @@ export function createHud({ units = 'imperial', onMenu, onEnd } = {}) {
       if (s.rerouting) {
         arrowInto(el.arrow, 'uturn'); el.dist.textContent = 'Rerouting'; el.name.textContent = 'Finding a new route'; el.then.style.display = 'none';
       } else if (s.arrived) {
-        arrowInto(el.arrow, 'arrive'); el.dist.textContent = 'Arrived'; el.name.textContent = s.name; el.then.style.display = 'none';
+        arrowInto(el.arrow, 'arrive'); el.dist.textContent = 'Arrived'; el.name.textContent = roadName(s.name); el.then.style.display = 'none';
       } else {
         arrowInto(el.arrow, s.kind);
         const [n, u] = fmtDist(s.toNext, units); el.dist.innerHTML = `${n}<small>${u}</small>`;
         card.classList.toggle('soon', s.toNext < 60 && s.kind !== 'straight');
-        el.name.textContent = s.name;
+        el.name.textContent = roadName(s.name);
         el.name.title = `${VERB[s.kind]} ${s.name}`;
-        if (s.then) { el.then.style.display = ''; arrowInto(el.thenArrow, s.then.kind); el.thenName.textContent = s.then.name; }
+        if (s.then) { el.then.style.display = ''; arrowInto(el.thenArrow, s.then.kind); el.thenName.textContent = roadName(s.then.name); }
         else el.then.style.display = 'none';
       }
       el.spd.textContent = Math.round(s.speed * (units === 'metric' ? 3.6 : 2.23694));

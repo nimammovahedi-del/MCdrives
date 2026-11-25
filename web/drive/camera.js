@@ -6,7 +6,7 @@ export const CAMERAS = {
   // the original demo view: fixed 40 m tilted heading-up, drops near a turn
   classic: { label: 'Classic', h: [42, 42], back: [52, 52], ahead: [30, 30], turnH: 30, turnBack: 34, peek: 0, lead: 0, carY: 0.5 },
   // speed-aware: low and close in town, higher and farther on the freeway; previews the turn
-  smart: { label: 'Smart (speed + turns)', h: [34, 70], back: [40, 70], ahead: [26, 70], turnH: 62, turnBack: 40, peek: 0.45, lead: 0.3, carY: 0.68 },
+  smart: { label: 'Smart (speed + turns)', h: [34, 70], back: [40, 70], ahead: [26, 70], turnH: 62, turnBack: 40, peek: 0.6, lead: 0.3, carY: 0.68 },
   // nearly top-down 2.5D: easiest to read, least 3D
   high: { label: 'High (2.5D)', h: [110, 170], back: [24, 40], ahead: [10, 24], turnH: 95, turnBack: 20, peek: 0.3, lead: 0.2, carY: 0.62 },
   // low chase cam: most immersive, least overview
@@ -36,7 +36,7 @@ export class DriveCamera {
     const sp = Math.min(1, Math.max(0, (s.speed - 8) / 22));            // 0 in town, 1 at ~30 m/s
     // turn weight: time-based, so the camera starts preparing ~8 s before a turn at any speed
     const tt = s.toNext / Math.max(s.speed, 6);
-    const wantTurn = s.nextKind && s.nextKind !== 'straight' && s.nextKind !== 'arrive' && s.toNext < 220 ? Math.min(1, Math.max(0, (9 - tt) / 5)) : 0;
+    const wantTurn = s.nextKind && s.nextKind !== 'straight' && s.nextKind !== 'arrive' && s.toNext < 360 ? Math.min(1, Math.max(0, (16 - tt) / 10)) : 0;
     this.turnW += (wantTurn - this.turnW) * ease(0, 1.6, dt);
     const tw = this.turnW;
     const wantH = lerp(lerp(P.h[0], P.h[1], sp), P.turnH, tw), wantB = lerp(lerp(P.back[0], P.back[1], sp), P.turnBack, tw);
@@ -55,7 +55,7 @@ export class DriveCamera {
     const camPos = this._t.copy(s.p).addScaledVector(f, -this.back); camPos.y = s.p.y + this.h;
     if (this.snap) this.pos.copy(camPos); else this.pos.lerp(camPos, ease(0, 6, dt));
     // look point: ahead of the car, pulled toward the turn so its exit road is on screen
-    const lx = s.p.x + f.x * this.ahead, lz = s.p.z + f.z * this.ahead;
+    const ah = this.ahead + (this.extraAhead ?? 0), lx = s.p.x + f.x * ah, lz = s.p.z + f.z * ah;
     let wx = lx, wz = lz;
     if (s.turnPoint && P.peek > 0 && tw > 0) { wx = lerp(lx, s.turnPoint.x, P.peek * tw); wz = lerp(lz, s.turnPoint.z, P.peek * tw); }
     const wantLook = this._t.set(wx, s.p.y, wz);
@@ -70,6 +70,15 @@ export class DriveCamera {
     this.offX = (this.offX ?? wantX) + (wantX - (this.offX ?? wantX)) * kk;
     this.cam.setViewOffset(vw, vh, -this.offX, -this.offY, vw, vh); this.cam.updateProjectionMatrix();
     this.carScreen = { x: sc.x + this.offX / vw, y: sc.y + this.offY / vh };
+    // keep the junction below the card: measure where the turn point lands and push the look point toward it
+    let want2 = 0;
+    if (s.turnPoint && tw > 0.05) {
+      const v = this._t.copy(s.turnPoint).setY(s.p.y).project(this.cam), ty = (1 - v.y) / 2;
+      const top = padTop + 0.08;
+      want2 = v.z < 1 ? Math.max(0, Math.min(220, ((this.extraAhead ?? 0) + (top - ty) * 500))) : (this.extraAhead ?? 0) + 40;
+      want2 = Math.min(220, Math.max(0, want2)) * tw;
+    }
+    this.extraAhead = (this.extraAhead ?? 0) + (want2 - (this.extraAhead ?? 0)) * (this.snap ? 1 : ease(0, 1.5, dt));
     this.snap = false;
   }
   screenOf(p) {

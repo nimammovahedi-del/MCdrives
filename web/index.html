@@ -38,7 +38,7 @@
 <script type="module">
 import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
-import { createHud, pickLayout } from './drive/hud.js';
+import { createHud, pickLayout, roadName } from './drive/hud.js';
 import { DriveCamera, CAMERAS } from './drive/camera.js';
 import { createSky } from './drive/sky.js';
 
@@ -301,7 +301,8 @@ let trip = null, dist = 0, curNode = dests.find(d => d.name === 'Entertainment W
 const ribbon = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
 ribbon.frustumCulled = false; scene.add(ribbon);
 // faint copy drawn through everything, so the route stays readable under trees and behind buildings
-const ghost = new THREE.Mesh(ribbon.geometry, new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
+// limited to the next 120 m and kept faint: further on it read as the route leaving the road, and it tinted parked cars
+const ghost = new THREE.Mesh(ribbon.geometry, new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
 ghost.frustumCulled = false; ghost.renderOrder = 3; scene.add(ghost);
 // a marker over the next manoeuvre: a yellow arrow pointing into the road to take
 const turnMark = new THREE.Group();
@@ -351,7 +352,8 @@ function startTrip(toNode) {
     if (n) I.push(n * 2 - 2, n * 2 - 1, n * 2, n * 2 - 1, n * 2 + 1, n * 2); n++;
   }
   ribbon.geometry.dispose(); ribbon.geometry = new THREE.BufferGeometry();
-  ribbon.geometry.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); ribbon.geometry.setIndex(I); ghost.geometry = ribbon.geometry;
+  ribbon.geometry.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); ribbon.geometry.setIndex(I);
+  ghost.geometry = new THREE.BufferGeometry(); ghost.geometry.setAttribute('position', ribbon.geometry.getAttribute('position')); ghost.geometry.setIndex(ribbon.geometry.getIndex());
   const end = pts[pts.length - 1]; pin.position.set(end.x, yAt(trip.L) + 9, end.z); pin.visible = true;
   snap = true; return true;
 }
@@ -385,10 +387,11 @@ const labels = [], LABEL_H = 0.032; // sprite height as a fraction of the view h
     // sit on the kerb side of the road, not on its centre line
     const side = new THREE.Vector3(-(N[b].z - N[a].z) / len, 0, (N[b].x - N[a].x) / len).multiplyScalar(cl <= 3 ? 14 : 9);
     const pos = mid.clone().add(side); pos.y = (smoothY(pos.x, pos.z) || smoothY(mid.x, mid.z) || 1) + 5;
-    labels.push({ nm, name, pos, plain: null, hot: null }); // sprites are made the first time a label is shown
+    labels.push({ nm, name: roadName(name), pos, plain: null, hot: null }); // sprites are made the first time a label is shown
   }
 }
 const _v = new THREE.Vector3();
+let nextExit = null;
 function updateLabels(focus, curNm, nextNm) {
   const W = stageEl.clientWidth, Hh = stageEl.clientHeight, shown = [];
   // screen areas that must stay clear: the control panel, the turn banner, the trip bar, and the car itself
@@ -396,6 +399,7 @@ function updateLabels(focus, curNm, nextNm) {
   const keep = [...hudRects, [cx0 - 70, cy0 - 90, cx0 + 70, cy0 + 60]];
   const range = mode === 'orbit' ? 900 : 380;
   const cands = labels.map(l => ({ l, d: l.pos.distanceTo(focus) })).filter(c => c.d < range)
+    .map(c => (c.l.nm === nextNm && nextExit ? { ...c, d: c.l.pos.distanceTo(nextExit) } : c))
     .sort((a, b) => (b.l.nm === nextNm) - (a.l.nm === nextNm) || a.d - b.d);
   for (const l of labels) { if (l.plain) l.plain.visible = false; if (l.hot) l.hot.visible = false; }
   for (const { l } of cands) {
@@ -513,7 +517,7 @@ function frame(now = performance.now()) {
     speed += Math.max(-9 * dt, Math.min(4 * dt, target - speed));
     dist = Math.min(trip.L, dist + speed * dt);
     if (frozen) { dist = frozen.d; speed = frozen.v; }   // test hook: hold the car still for screenshots
-    ribbon.geometry.setDrawRange(Math.max(0, Math.floor((dist - 6) / 2)) * 6, Infinity); // trim the part already driven
+    { const i0 = Math.max(0, Math.floor((dist - 6) / 2)) * 6; ribbon.geometry.setDrawRange(i0, Infinity); ghost.geometry.setDrawRange(i0, 60 * 6); } // trim the part already driven
     const { p } = along(dist), ahead = along(dist + 8).p;
     p.y = yAt(dist); car.position.copy(p);
     if (ahead.distanceTo(new THREE.Vector3(p.x, 0, p.z)) > 0.5) {
@@ -556,7 +560,7 @@ function frame(now = performance.now()) {
       const h = along(dist), nx = trip.steps.find(s => s.at > dist + 0.5);
       curNm = trip.edges[Math.min(h.k - 1, trip.edges.length - 1)].nm;
       if (nx) {
-        nextNm = G.names.indexOf(nx.name);
+        nextNm = G.names.indexOf(nx.name); nextExit = nx.kind === 'arrive' ? null : along(nx.at + 40).p;
         if (mode === 'nav' && nx.kind !== 'arrive' && nx.at - dist < 400) {
           const a = along(nx.at + 6), c = along(nx.at + 16);
           turnMark.position.set(a.p.x, yAt(nx.at + 6) + 7 + Math.sin(performance.now() / 300) * 0.8, a.p.z);
@@ -579,7 +583,7 @@ if (wanted >= 0) { $('dest').value = wanted; if (!startTrip(dests[wanted].node))
 makeHud(); setMode(params.get('mode') ?? 'nav'); applyLayout();
 window.__api = { startTrip, randomTrip, along, groundY, smoothY, yAt, dests, trip: () => trip, setStart: n => { curNode = n; }, nodes: N, names: G.names };
 let frozen = null; window.__freeze = (d, v = 13) => { frozen = d == null ? null : { d, v }; snap = true; };
-window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
+window.__dcam = dcam; window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
 frame();
 </script>
 </body>
