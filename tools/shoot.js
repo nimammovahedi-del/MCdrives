@@ -4,7 +4,7 @@ const { chromium } = require('playwright');
   const p = await b.newPage({ viewport: { width: 1280, height: 760 }, deviceScaleFactor: 1 });
   p.on('console', m => { if (m.type() === 'error') console.log('console:', m.text()); });
   p.on('pageerror', e => console.log('pageerror:', e.message));
-  await p.goto(`http://localhost:8765/?budget=400&to=${encodeURIComponent(process.argv[2] || 'Alton Parkway')}`);
+  await p.goto(`${process.env.URL || 'http://localhost:8765'}/?budget=400&to=${encodeURIComponent(process.argv[2] || 'Alton Parkway')}`);
   await p.waitForFunction(() => window.__ready, null, { timeout: 600000 });
   const idle = () => p.waitForFunction(() => window.__idle(), null, { timeout: 600000 });
   await idle(); console.log(JSON.stringify(await p.evaluate(() => window.__stats())), JSON.stringify(await p.evaluate(() => window.__trip())));
