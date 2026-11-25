@@ -19,7 +19,7 @@ const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
 
 export class DriveCamera {
   constructor(camera) {
-    this.cam = camera; this.preset = 'smart';
+    this.cam = camera; this.preset = 'classic';
     this.h = 40; this.back = 50; this.ahead = 30; this.heading = 0; this.hv = 0; this.turnW = 0;
     this.pos = new THREE.Vector3(); this.look = new THREE.Vector3(); this._t = new THREE.Vector3(); this._f = new THREE.Vector3();
     this.snap = true; this.viewport = { w: 1, h: 1, padTop: 0, padBottom: 0, padLeft: 0 };
