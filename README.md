@@ -27,7 +27,7 @@ with `cargo build --release --no-default-features` and pass `--arnis` or set `AR
 
 `.github/workflows/build.yml` does the same build on a GitHub runner and publishes the viewer to
 GitHub Pages. It runs when the Spectrum config, the tools or the viewer change, or by hand from
-the Actions tab with any area name. Enable it once under Settings, Pages, Source: GitHub Actions.
+the Actions tab with any area name. Enable it once under Settings, Pages, Source: GitHub Actions. Each build also force-pushes the finished site to a `built/<area>` branch, so the output can be fetched with git.
 
 ## Areas and scale
 

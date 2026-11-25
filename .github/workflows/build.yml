@@ -14,7 +14,7 @@ on:
     paths: ["areas/spectrum.json", "tools/**", "web/**", "build.py", ".github/workflows/build.yml"]
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -73,6 +73,13 @@ jobs:
           name: site-${{ env.AREA }}
           path: public
           retention-days: 14
+      - name: Publish built site to a branch
+        run: |
+          cd public && git init -q -b "built/$AREA"
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Built $AREA from ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "built/$AREA"
+          rm -rf .git
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public
