@@ -2,3 +2,6 @@ numpy
 nbtlib
 numba
 scipy
+requests
+pmtiles
+mapbox-vector-tile
