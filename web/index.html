@@ -28,7 +28,7 @@
   <button id="random">Random trip</button><button id="pause">Pause</button>
   <div class="row">Camera</div><select id="camSel"></select>
   <div class="row">Sky</div><button id="skyAuto">Auto</button><button id="skyDay">Day</button><button id="skyNight">Night</button>
-  <div class="row">Style</div><select id="uiSel"><option value="stone">Stone (light menu panel)</option><option value="slate">Slate (squared text)</option><option value="clean">Clean (plain text)</option><option value="classic">Classic (all pixel)</option></select>
+  <div class="row">Style</div><select id="uiSel"><option value="slate">Slate (default)</option><option value="stone">Stone (light menu panel)</option><option value="clean">Clean (plain text)</option><option value="classic">Classic (all pixel)</option></select>
   <div class="row">Screen</div><select id="laySel"><option value="auto">Auto</option><option value="phone">Phone (portrait)</option><option value="phoneland">Phone (landscape)</option><option value="desktop">Desktop</option><option value="car">Car screen preview</option></select>
   <select id="unitSel"><option value="imperial">mi / ft</option><option value="metric">km / m</option></select>
   <div id="help" style="opacity:.8"></div>
@@ -473,7 +473,7 @@ const skyBtns = { auto: 'skyAuto', day: 'skyDay', night: 'skyNight' };
 const markSky = () => { for (const [m, id] of Object.entries(skyBtns)) $(id).classList.toggle('on', sky.mode === m); };
 for (const [m, id] of Object.entries(skyBtns)) $(id).onclick = () => { sky.setMode(m); markSky(); };
 markSky();
-let uiStyle = params.get('ui') ?? 'stone';
+let uiStyle = params.get('ui') ?? 'slate';
 const applyStyle = () => { document.body.className = document.body.className.replace(/\bui-\S+/g, '').trim(); document.body.classList.add('ui-' + uiStyle); };
 applyStyle(); $('uiSel').value = uiStyle; $('uiSel').onchange = e => { uiStyle = e.target.value; applyStyle(); applyLayout(); };
 $('laySel').value = layoutParam; $('laySel').onchange = e => { layoutParam = e.target.value; applyLayout(); };
