@@ -155,7 +155,7 @@ body.L-car #credit { font-size: 9px; }
 body.L-car #carNote { position: absolute; z-index: 7; left: 0; right: 0; bottom: 4px; text-align: center; color: #bbb; font: 12px system-ui, sans-serif; }
 
 /* ===================== controls: map buttons, where-to, sheet, search, place card, block map ===================== */
-.ctl, .mb, .tile, #whereTo, #search, #chip, #sheet, #recenter { font-family: var(--f-text); color: var(--ink); box-sizing: border-box; }
+.ctl, .mb, .tile, #whereTo, #search, #chip, #sheet, #recenter, #dirs { font-family: var(--f-text); color: var(--ink); box-sizing: border-box; }
 canvas.pix { image-rendering: pixelated; image-rendering: crisp-edges; display: block; width: 24px; height: 24px; flex: none; }
 /* square blocky buttons: 52 px is an easy thumb target (Apple and Google both ask for at least 44 to 48) */
 .mb { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; pointer-events: auto;
@@ -319,3 +319,20 @@ body.L-phone .mk-row { font-size: 14px; gap: 8px; }
 #mapBtns .mb.cap canvas.pix { width: 22px; height: 22px; }
 .cap-t { font: 700 11px var(--f-text); letter-spacing: .02em; line-height: 1; }
 body.L-car #mapBtns .mb.cap { height: 52px; }
+/* directions folded down to the route: one line, the drive time and Start; the map shows only the route */
+.di-brief { display: none; align-items: center; gap: 8px; }
+#dirs.compact .di-head, #dirs.compact .di-fields { display: none; }
+#dirs.compact .di-brief { display: flex; }
+.di-bline { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 10px; cursor: pointer; text-align: left;
+  color: var(--ink); background: rgba(255,255,255,.06); border: 2px solid rgba(255,255,255,.14); font: inherit; font-size: 15px; }
+.di-bline canvas.pix { width: 18px; height: 18px; flex: none; }
+.di-bf, .di-bt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .di-bf { flex: 0 1 auto; max-width: 40%; opacity: .75; } .di-bt { flex: 1; }
+.di-ar { opacity: .6; flex: none; }
+.di-brief .mb { width: 44px; height: 44px; flex: none; }
+body.ui-stone:not(.night) .di-bline { background: rgba(0,0,0,.06); border-color: rgba(0,0,0,.2); }
+body.L-phone #dirs.compact { top: auto; bottom: calc(8px + env(safe-area-inset-bottom)); }
+#dirs.compact .di-t { font-size: 26px; }
+body.dirs-route #mapBtns, body.dirs-route #mapCtl, body.dirs-route #mapKey { display: none !important; }
+body.dirs-route #recenter, body.dirs-route #menuBtn { display: none !important; }
+/* the panel sits on the map: solid, so street names under it do not show through */
+#dirs.panel { background: linear-gradient(var(--panel), var(--panel)), var(--lo, #18181b); }

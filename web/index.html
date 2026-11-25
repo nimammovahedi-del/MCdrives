@@ -760,7 +760,7 @@ function placeAt(x, z, title, at = {}) {
   mapView.pin = { x, z }; mapView.markDirty();
   const gy = smoothY(x, z); dropPin.position.set(x, isNaN(gy) ? car.position.y : gy, z); dropPin.visible = mode === 'orbit';
   chip.show({ title: name, sub: (at.kind ? at.kind + ' · ' : '') + `${fmtD(far)} away` + (street && title && street !== title ? ` · on ${street}` : ''),
-    actions: [{ label: trip ? 'Go now' : 'Drive here', primary: true, fn: () => go(node, name) }, ...(trip ? [{ label: 'Add stop', primary: true, fn: () => addStop(node, name) }] : []),
+    actions: [{ label: trip ? 'Go now' : 'Drive here', primary: true, fn: () => openDirs({ from: CAR(), to: { label: name, sub: at.kind, target: node, pos: { x, z } } }) }, ...(trip ? [{ label: 'Add stop', primary: true, fn: () => addStop(node, name) }] : []),
       { label: 'Directions', fn: () => openDirs({ to: { label: name, sub: at.kind, target: node, pos: { x, z } } }) },
       { label: 'Close', fn: () => { chip.hide(); dropPin.visible = false; mapView.pin = null; mapView.markDirty(); dirty = true; } }] });
   dirty = true;
@@ -880,8 +880,11 @@ if (hallDest) searchItems.unshift({ name: 'Irvine City Hall', aliases: ['city ha
 // street addresses (tools/addresses.py), fetched the first time search opens; same block coordinates as roads.json
 const loadAddresses = async () => { try { const r = await fetch('data/addresses.json'); if (!r.ok) return null; return addressIndex(await r.json(), (x, z) => new THREE.Vector3(x - meta.minx, 0, z - meta.minz)); } catch { return null; } };
 const search = createSearch(stageEl, { items: searchItems, from: () => car.position, fmt: fmtD, addresses: loadAddresses, extra: () => searchExtra(), onPick: it => {
+  const at = it.place ? { node: it.node ?? undefined, kind: it.kind, point: it.point } : { street: it.street, target: it.target };
+  // no trip yet: straight to the route on the map (the place card would only ask "Drive here?"); on a trip the card offers Add stop too
+  if (!trip) return openDirs({ to: { label: it.name, sub: it.kind, pos: it.pos, at } });
   if (mode === 'map') { mapView.center.set(it.pos.x, 0, it.pos.z); }
-  placeAt(it.pos.x, it.pos.z, it.name, it.place ? { node: it.node ?? undefined, kind: it.kind, point: it.point } : { street: it.street, target: it.target });
+  placeAt(it.pos.x, it.pos.z, it.name, at);
 } });
 // named places (tools/places.py; places.json next to roads.json): [name, kind, x, z, node, aliases] in the roads.json
 // frame. Each is found by its name, its other names, and (ranked lower, nearest first) by what it is: "gas", "school".
@@ -959,7 +962,10 @@ function dirFit() {
   if (!dirData || mode !== 'map') return;
   const ps = dirData.route, xs = ps.map(p => p.x), zs = ps.map(p => p.z), phone = document.body.classList.contains('L-phone'), r = dirs.el.getBoundingClientRect();
   // clear of the panel (above on a phone, to the left otherwise), the buttons on the right and "Back to driving" below
-  mapView.fitBox(Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs), phone ? { top: r.bottom + 8, left: 16, right: 70, bottom: 90 } : { left: r.right + 8, right: 80, top: 20, bottom: 90 });
+  // folded down to the route: the panel sits at the bottom on a phone and the map buttons are hidden
+  const pad = !dirs.compact ? (phone ? { top: r.bottom + 8, left: 16, right: 70, bottom: 90 } : { left: r.right + 8, right: 80, top: 20, bottom: 90 })
+    : phone ? { top: 24, left: 24, right: 24, bottom: stageEl.clientHeight - r.top + 16 } : { left: r.right + 24, right: 40, top: 40, bottom: 40 };
+  mapView.fitBox(Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs), pad);
 }
 async function dirUpdate() {
   const seq = ++dirSeq; dirRes = null; dirData = null;
@@ -1009,7 +1015,7 @@ function closeDirs(back = true) {
   dirPrevMode = null; dirty = true;
 }
 const dirs = createDirections(stageEl, {
-  onField: pickField, onClose: () => closeDirs(),
+  onField: pickField, onClose: () => closeDirs(), onCompact: () => setTimeout(() => { dirFit(); dirty = true; }, 0),
   onSwap: () => { const plain = e => e && { ...e, why: undefined }; [dirFrom, dirTo] = [plain(dirTo), plain(dirFrom)]; dirUpdate(); },
   onStart: () => {
     if (!dirRes) return;

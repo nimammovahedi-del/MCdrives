@@ -230,7 +230,7 @@ export function createChip(stage) {
 }
 
 // ---------- directions: a From box and a To box (each opens the search), the drive time and distance, and Start
-export function createDirections(stage, { onField, onSwap, onStart, onClose }) {
+export function createDirections(stage, { onField, onSwap, onStart, onClose, onCompact }) {
   const el = h('div', 'dirs panel'); el.id = 'dirs';
   const head = h('div', 'di-head'); head.append(h('b', null, 'Directions'));
   const x = h('button', 'mb'); x.append(icon('close')); x.setAttribute('aria-label', 'Close directions'); x.onclick = () => onClose(); head.append(x);
@@ -241,17 +241,30 @@ export function createDirections(stage, { onField, onSwap, onStart, onClose }) {
   const from = box('from', icon('me', '#2f6fe0', '#9cc2ff'), 'From'), to = box('to', icon('pin', '#e53935', '#ffd0cc'), 'To');
   const sw = h('button', 'mb di-swap'); sw.append(icon('swap')); sw.title = 'Swap start and destination'; sw.setAttribute('aria-label', sw.title); sw.onclick = () => onSwap();
   fields.append(boxes, sw);
+  // once a route is found the panel folds down to this one line, the drive time and Start, so the map shows the route;
+  // tapping the line opens From and To again
+  const brief = h('div', 'di-brief'), bline = h('button', 'di-bline'), bx = h('button', 'mb');
+  bline.title = 'Change the start or destination'; bline.onclick = () => setCompact(false);
+  bx.append(icon('close')); bx.setAttribute('aria-label', 'Close directions'); bx.onclick = () => onClose();
+  brief.append(bline, bx);
   const sum = h('div', 'di-sum'), go = h('button', 'tile go di-go', 'Start'); go.onclick = () => onStart();
-  el.append(head, fields, sum, go); stage.append(el);
+  el.append(head, brief, fields, sum, go); stage.append(el);
   const fill = (b, v) => { b.querySelector('.di-v').textContent = v?.label ?? 'Choose…'; b.classList.toggle('empty', !v); b.title = v?.sub ?? ''; };
+  const setCompact = v => {
+    if (v === el.classList.contains('compact')) return;
+    el.classList.toggle('compact', v); document.body.classList.toggle('dirs-route', v && el.classList.contains('open')); onCompact?.(v);
+  };
   return {
     el,
     get open() { return el.classList.contains('open'); },
+    get compact() { return el.classList.contains('compact'); },
     show() { el.classList.add('open'); document.body.classList.add('dirs-open'); },
-    hide() { el.classList.remove('open'); document.body.classList.remove('dirs-open'); },
+    hide() { setCompact(false); el.classList.remove('open'); document.body.classList.remove('dirs-open'); },
     // s: { from, to: { label, sub } | null, sum: { time, dist, line, note, slow } | { busy } | { msg } | null }
+    // a new route folds the panel down; anything else (busy, a message) opens it
     set({ from: f, to: t, sum: r }) {
       fill(from, f); fill(to, t);
+      bline.replaceChildren(icon('me', '#2f6fe0', '#9cc2ff'), h('span', 'di-bf', f?.label ?? ''), h('span', 'di-ar', '→'), icon('pin', '#e53935', '#ffd0cc'), h('span', 'di-bt', t?.label ?? ''));
       sum.replaceChildren();
       if (r?.time) {
         const top = h('div', 'di-top'); top.append(h('b', 'di-t', r.time), h('span', 'di-d', r.dist)); sum.append(top, h('div', 'di-l', r.line));
@@ -259,6 +272,7 @@ export function createDirections(stage, { onField, onSwap, onStart, onClose }) {
       } else if (r?.busy) sum.append(h('div', 'di-l', 'Finding the fastest way…'));
       else if (r?.msg) sum.append(h('div', 'di-l', r.msg));
       go.disabled = !r?.time; go.textContent = r?.start ?? 'Start';
+      if (!r?.busy) setCompact(!!r?.time);
     },
   };
 }
