@@ -192,8 +192,8 @@ export function createChip(stage) {
   const el = h('div', 'chip panel'); el.id = 'chip'; stage.append(el);
   return {
     el,
-    show({ title, sub, actions }) {
-      el.replaceChildren(); const t = h('div', 'ch-t'); t.append(icon('pin', '#e53935', '#ffd0cc'), h('b', null, title)); el.append(t);
+    show({ title, sub, actions, icon: ic }) {
+      el.replaceChildren(); const t = h('div', 'ch-t'); if (ic) ic.classList.add('pix'); t.append(ic ?? icon('pin', '#e53935', '#ffd0cc'), h('b', null, title)); el.append(t);
       if (sub) el.append(h('div', 'ch-s', sub));
       const r = h('div', 'ch-a'); for (const a of actions) { const b = h('button', 'tile' + (a.primary ? ' go' : '')); b.textContent = a.label; b.onclick = a.fn; r.append(b); }
       el.append(r); el.classList.add('open'); document.body.classList.add('chip-open');

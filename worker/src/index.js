@@ -56,18 +56,24 @@ function chpTime(s) {  // "Nov 24 2026  9:24AM", Pacific time -> epoch seconds (
   return Date.UTC(y, mo, d, h + (dst ? 7 : 8), +m[5]) / 1000;
 }
 const tag = (s, t) => { const m = new RegExp(`<${t}>"?([^<]*?)"?</${t}>`).exec(s); return m ? m[1].trim() : ''; };
-async function chp() {
+async function chp(stats = null) {
   const xml = await get('https://media.chp.ca.gov/sa_xml/sa.xml'), out = [], cut = Date.now() / 1000 - 6 * 3600;
   let center = '', dispatch = '';
+  if (stats) stats.bytes = xml.length;
   for (const m of xml.matchAll(/<Center ID\s*=\s*"([^"]+)"|<Dispatch ID\s*=\s*"([^"]+)"|<Log ID\s*=\s*"([^"]+)">([\s\S]*?)<\/Log>/g)) {
     if (m[1]) { center = m[1]; continue; }
     if (m[2]) { dispatch = m[2]; continue; }
     const body = m[4], ll = /<LATLON>"?(\d+):(\d+)"?<\/LATLON>/.exec(body);
+    const s = stats && (stats.dispatch[center + '/' + dispatch] ??= { logs: 0, latlon: 0, inOC: 0, recent: 0, sample: body.slice(0, 700) });
+    if (s) s.logs++;
     if (!ll) continue;
     const lat = +ll[1] / 1e6, lon = -ll[2] / 1e6;
+    if (s) s.latlon++;
     if (!inOC(lat, lon)) continue;
+    if (s) s.inOC++;
     const time = chpTime(tag(body, 'LogTime'));
     if (time && time < cut) continue;
+    if (s) s.recent++;
     const details = [...body.matchAll(/<IncidentDetail>"?([^<]*?)"?<\/IncidentDetail>/g)].map(d => d[1].replace(/^\[\d+\]\s*/, '').trim()).filter(Boolean).slice(0, 3);
     out.push({ id: m[3], center, dispatch, time, type: tag(body, 'LogType'), loc: tag(body, 'Location'), desc: tag(body, 'LocationDesc'), area: tag(body, 'Area'), lat, lon, details });
   }
@@ -135,6 +141,11 @@ export default {
       if (!env.TOMTOM_KEY) return send('', 'text/plain', 60, 503);
       if (z < 10 || z > 16 || !tileInOC(z, x, y)) return send('', 'text/plain', 3600, 404);
       return cached(`tt-flow-${z}-${x}-${y}`, 300, 'application/x-protobuf', () => get(`https://api.tomtom.com/traffic/map/4/tile/flow/relative0/${z}/${x}/${y}.pbf?key=${env.TOMTOM_KEY}`, 'buf'), ctx);
+    }
+    if (p === '/v1/debug/chp') {   // how the CHP feed looks from here: logs per center/dispatch and what the filters keep
+      const stats = { dispatch: {} }; let err = null;
+      try { stats.kept = (await chp(stats)).length; } catch (e) { err = String(e.message ?? e); }
+      return send(JSON.stringify({ err, now: Math.round(Date.now() / 1000), ...stats }), json, 0);
     }
     if (p === '/v1/health') {
       const r = {};
