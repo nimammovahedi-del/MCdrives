@@ -306,18 +306,22 @@ for (const [a, b, nm, cl, ow, ln, dk] of G.edges) {
   adj[a].push({ to: b, nm, cl, len, dk }); if (!ow) adj[b].push({ to: a, nm, cl, len, dk });
 }
 function route(from, to) {
+  // A* on travel time with a binary heap: the city has about 90,000 nodes, and scanning them all for
+  // every step froze the page for seconds
   const dist = new Float64Array(N.length).fill(Infinity), prev = new Int32Array(N.length).fill(-1), pe = new Array(N.length), done = new Uint8Array(N.length);
-  dist[from] = 0;
-  for (;;) {
-    let u = -1, best = Infinity;
-    for (let i = 0; i < N.length; i++) if (!done[i] && dist[i] < best) { best = dist[i]; u = i; }
-    if (u < 0 || u === to) break; done[u] = 1;
-    for (const e of adj[u]) { const d = dist[u] + e.len / SPEED[e.cl]; if (d < dist[e.to]) { dist[e.to] = d; prev[e.to] = u; pe[e.to] = e; } }
+  const T = N[to], h = i => Math.hypot(N[i].x - T.x, N[i].z - T.z) / SPEED[0];
+  const hk = [], hv = []; // heap of [priority, node]
+  const push = (k, v) => { let i = hk.length; hk.push(k); hv.push(v); while (i) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hk[i] = hk[p]; hv[i] = hv[p]; i = p; } hk[i] = k; hv[i] = v; };
+  const pop = () => { const top = hv[0], k = hk.pop(), v = hv.pop(), n = hk.length; if (n) { let i = 0; for (;;) { let c = 2 * i + 1; if (c >= n) break; if (c + 1 < n && hk[c + 1] < hk[c]) c++; if (hk[c] >= k) break; hk[i] = hk[c]; hv[i] = hv[c]; i = c; } hk[i] = k; hv[i] = v; } return top; };
+  dist[from] = 0; push(h(from), from);
+  while (hk.length) {
+    const u = pop(); if (done[u]) continue; if (u === to) break; done[u] = 1;
+    for (const e of adj[u]) { const d = dist[u] + e.len / SPEED[e.cl]; if (d < dist[e.to]) { dist[e.to] = d; prev[e.to] = u; pe[e.to] = e; push(d + h(e.to), e.to); } }
   }
   if (!isFinite(dist[to])) return null;
   const nodes = [], edges = [];
-  for (let u = to; u !== -1; u = prev[u]) { nodes.unshift(u); if (prev[u] !== -1) edges.unshift(pe[u]); }
-  return { nodes, edges };
+  for (let u = to; u !== -1; u = prev[u]) { nodes.push(u); if (prev[u] !== -1) edges.push(pe[u]); }
+  return { nodes: nodes.reverse(), edges: edges.reverse() };
 }
 // destinations: one node per named road (closest to the road's centre)
 const byName = new Map();
@@ -381,7 +385,7 @@ async function startTrip(toNode) {
   let ahead = 0;
   for (const [x, z, dk] of S) {
     const ps = packsNear(x, z, 2);
-    for (const last = Math.max(-1, ...ps.map(p => order.get(p))); ahead < need.length && ahead <= last + 3; ahead++) hload(need[ahead]);
+    for (const last = Math.max(-1, ...ps.map(p => order.get(p))); ahead < need.length && ahead <= last + 8; ahead++) hload(need[ahead]);
     for (const p of ps) p.hused = ++hclock;
     if (!ps.every(p => p.hgt || !p.h)) await Promise.all(ps.map(hload));
     raw.push(smoothY(x, z, dk));
