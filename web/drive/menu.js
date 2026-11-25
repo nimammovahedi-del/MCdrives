@@ -139,7 +139,8 @@ export function addressIndex(data, pos) {
           for (const [k, v] of s.nums) { const n = parseInt(k, 10); if (isNaN(n)) continue; const d = Math.abs(n - n0) + ((n - n0) % 2 ? 0.5 : 0); if (!best || d < best.d) best = { d, k, v }; }
           if (!best || best.d > 300) continue; at = best.v; shown = best.k; near = true;
         }
-        out.push({ it: { name: `${shown} ${s.name}`, pos: pos(at[0], at[1]), kind: near ? `Closest to ${num}` : 'Address' }, sc: sc + (near ? 0.5 : 0) - 0.01 });
+        // street: the address's own street (raw, county style), so the trip can end on it (web/drive/arrival.js)
+        out.push({ it: { name: `${shown} ${s.name}`, pos: pos(at[0], at[1]), kind: near ? `Closest to ${num}` : 'Address', street: s.raw }, sc: sc + (near ? 0.5 : 0) - 0.01 });
       }
       return out;
     },
