@@ -1,4 +1,4 @@
-/* Maps Craft homepage: "Asphalt" look. Original blocky art; fonts are OFL (see vendor/fonts). */
+/* Map Craft homepage: "Asphalt" look. Original blocky art; fonts are OFL (see vendor/fonts). */
 @font-face { font-family: 'Pixelify'; src: url('../vendor/fonts/pixelify-sans-latin-500-normal.woff2') format('woff2'); font-weight: 500; font-display: swap; }
 @font-face { font-family: 'Pixelify'; src: url('../vendor/fonts/pixelify-sans-latin-700-normal.woff2') format('woff2'); font-weight: 700; font-display: swap; }
 @font-face { font-family: 'InterV'; src: url('../vendor/fonts/inter-latin-500-normal.woff2') format('woff2'); font-weight: 500; font-display: swap; }

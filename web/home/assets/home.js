@@ -1,4 +1,4 @@
-// Maps Craft homepage: draws the blocky asphalt logo and pixel icons, and runs the small popups.
+// Map Craft homepage: draws the blocky asphalt logo and pixel icons, and runs the small popups.
 (() => {
   // Old links to the map went to the site root with query options (?to=, ?trip=, ...). Send them on to the map.
   if (document.body.dataset.page === 'title' && location.search &&
@@ -19,7 +19,7 @@
   // Each lit pixel of the letters is a little block of asphalt: a rough grey face, a dark extruded side,
   // a white edge line along the top row and a yellow lane dash through the middle row.
   function drawLogo(c) {
-    const text = (c.dataset.text || 'MAPS CRAFT').toUpperCase(), stack = c.dataset.stack === 'auto' ? innerWidth < 760 : c.dataset.stack === '1';
+    const text = (c.dataset.text || 'MAP CRAFT').toUpperCase(), stack = c.dataset.stack === 'auto' ? innerWidth < 760 : c.dataset.stack === '1';
     const words = stack ? text.split(' ') : [text], S = +(c.dataset.px || (stack ? 13 : 17)), D = Math.round(S * .45), gap = 1, pad = 1;
     const glyph = ch => (G[ch] || G[' ']).split(' ');
     const lineW = w => [...w].reduce((a, ch) => a + glyph(ch)[0].length + gap, -gap);
