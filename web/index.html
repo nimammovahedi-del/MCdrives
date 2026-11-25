@@ -28,6 +28,7 @@
   <button id="random">Random trip</button><button id="pause">Pause</button>
   <div class="row">Camera</div><select id="camSel"></select>
   <div class="row">Sky</div><button id="skyAuto">Auto</button><button id="skyDay">Day</button><button id="skyNight">Night</button>
+  <div class="row">Route line</div><select id="routeSel"></select>
   <div class="row">Style</div><select id="uiSel"><option value="slate">Slate (default)</option><option value="stone">Stone (light menu panel)</option><option value="clean">Clean (plain text)</option><option value="classic">Classic (all pixel)</option></select>
   <div class="row">Screen</div><select id="laySel"><option value="auto">Auto</option><option value="phone">Phone (portrait)</option><option value="phoneland">Phone (landscape)</option><option value="desktop">Desktop</option><option value="car">Car screen preview</option></select>
   <select id="unitSel"><option value="imperial">mi / ft</option><option value="metric">km / m</option></select>
@@ -41,6 +42,7 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { createHud, pickLayout, roadName } from './drive/hud.js';
 import { DriveCamera, CAMERAS } from './drive/camera.js';
 import { createSky } from './drive/sky.js';
+import { createRoute, voxelArrow, ROUTE_STYLES } from './drive/route.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -345,20 +347,9 @@ for (const [i, d] of dests.entries()) $('dest').add(new Option(d.name, i));
 
 // ---------- trip state
 let trip = null, tripSeq = 0, dist = 0, curNode = dests.find(d => d.name === 'Entertainment Way')?.node ?? 0, paused = false, speed = 0, snap = true;
-const ribbon = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
-ribbon.frustumCulled = false; scene.add(ribbon);
-// faint copy drawn through everything, so the route stays readable under trees and behind buildings
-// limited to the next 120 m and kept faint: further on it read as the route leaving the road, and it tinted parked cars
-const ghost = new THREE.Mesh(ribbon.geometry, new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
-ghost.frustumCulled = false; ghost.renderOrder = 3; scene.add(ghost);
-// a marker over the next manoeuvre: a yellow arrow pointing into the road to take
-const turnMark = new THREE.Group();
-{
-  const m = new THREE.MeshBasicMaterial({ color: 0xf1c232, depthTest: false, transparent: true, opacity: 0.95 });
-  const shaft = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.6, 9), m); shaft.position.z = -1.5;
-  const head = new THREE.Mesh(new THREE.ConeGeometry(4, 6, 4), m); head.rotation.x = -Math.PI / 2; head.position.z = -9;
-  turnMark.add(shaft, head); turnMark.traverse(o => o.renderOrder = 4); turnMark.visible = false; scene.add(turnMark);
-}
+// the route line and the marker over the next manoeuvre (web/drive/route.js)
+const routeLine = createRoute(scene, { style: params.get('route') ?? 'strip' });
+const turnMark = voxelArrow(); turnMark.visible = false; scene.add(turnMark);
 const pin = new THREE.Mesh(new THREE.ConeGeometry(4, 14, 4), new THREE.MeshLambertMaterial({ color: 0xe53935 })); pin.rotation.x = Math.PI; scene.add(pin); pin.visible = false;
 function along(d, T = trip) {
   d = Math.max(0, Math.min(T.L, d));
@@ -408,15 +399,7 @@ async function startTrip(toNode) {
   for (let i = 0, last = NaN; i < raw.length; i++) { if (isNaN(raw[i])) { let j = i; while (j < raw.length && isNaN(raw[j])) j++; const nxt = j < raw.length ? raw[j] : last, a = isNaN(last) ? nxt : last; for (let k = i; k < j; k++) raw[k] = a + ((isNaN(nxt) ? a : nxt) - a) * (k - i + 1) / (j - i + 1); i = j - 1; } else last = raw[i]; }
   for (let i = 0; i < raw.length; i++) if (isNaN(raw[i])) raw[i] = 1;
   trip.prof = raw.map((_, i) => { const w = raw.slice(Math.max(0, i - 4), i + 5).sort((a, b) => a - b); const m = w[w.length >> 1]; let s = 0, n = 0; for (let j = Math.max(0, i - 2); j <= Math.min(raw.length - 1, i + 2); j++) { s += Math.abs(raw[j] - m) <= 1.5 ? raw[j] : m; n++; } return s / n; });
-  const P = [], I = []; let n = 0;
-  for (let d = 0; d <= trip.L; d += 2) {
-    const { p, dir } = along(d); const nx = -dir.z, nz = dir.x, hw = 2.6, y = yAt(d) + 0.35;
-    P.push(p.x + nx * hw, y, p.z + nz * hw, p.x - nx * hw, y, p.z - nz * hw);
-    if (n) I.push(n * 2 - 2, n * 2 - 1, n * 2, n * 2 - 1, n * 2 + 1, n * 2); n++;
-  }
-  ribbon.geometry.dispose(); ribbon.geometry = new THREE.BufferGeometry();
-  ribbon.geometry.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); ribbon.geometry.setIndex(I);
-  ghost.geometry = new THREE.BufferGeometry(); ghost.geometry.setAttribute('position', ribbon.geometry.getAttribute('position')); ghost.geometry.setIndex(ribbon.geometry.getIndex());
+  routeLine.build(trip.L, d => along(d), yAt);
   const end = pts[pts.length - 1]; pin.position.set(end.x, yAt(trip.L) + 9, end.z); pin.visible = true;
   snap = true; return true;
 }
@@ -494,7 +477,7 @@ scene.add(car);
 let units = params.get('units') ?? 'imperial';
 let hud;
 const dcam = new DriveCamera(camera); dcam.setPreset(params.get('cam') ?? 'smart');
-const sky = createSky(scene, { hemi, sun, clearMat: { emissive: glassGlow }, ribbon, car });
+const sky = createSky(scene, { hemi, sun, clearMat: { emissive: glassGlow }, ribbon: routeLine, car });
 sky.setMode(params.get('sky') ?? 'auto');
 let prevLayout = '', hudRects = [], navFov = 45, layout = 'desktop', layoutParam = params.get('layout') ?? 'auto';
 function makeHud() {
@@ -540,6 +523,8 @@ for (const [m, id] of Object.entries(skyBtns)) $(id).onclick = () => { sky.setMo
 markSky();
 let uiStyle = params.get('ui') ?? 'slate';
 const applyStyle = () => { document.body.className = document.body.className.replace(/\bui-\S+/g, '').trim(); document.body.classList.add('ui-' + uiStyle); };
+for (const [k, v] of Object.entries(ROUTE_STYLES)) $('routeSel').add(new Option(v, k));
+$('routeSel').value = routeLine.style; $('routeSel').onchange = e => { routeLine.setStyle(e.target.value); dirty = true; };
 applyStyle(); $('uiSel').value = uiStyle; $('uiSel').onchange = e => { uiStyle = e.target.value; applyStyle(); applyLayout(); };
 $('laySel').value = layoutParam; $('laySel').onchange = e => { layoutParam = e.target.value; applyLayout(); };
 $('unitSel').value = units; $('unitSel').onchange = e => { units = e.target.value; makeHud(); applyLayout(); };
@@ -582,7 +567,7 @@ function frame(now = performance.now()) {
     speed += Math.max(-9 * dt, Math.min(4 * dt, target - speed));
     dist = Math.min(trip.L, dist + speed * dt);
     if (frozen) { dist = frozen.d; speed = frozen.v; }   // test hook: hold the car still for screenshots
-    { const i0 = Math.max(0, Math.floor((dist - 6) / 2)) * 6; ribbon.geometry.setDrawRange(i0, Infinity); ghost.geometry.setDrawRange(i0, 60 * 6); } // trim the part already driven
+    if (routeLine.update(dt, dist)) dirty = true; // trims the part already driven; chevrons creep forward
     const { p } = along(dist), ahead = along(dist + 8).p;
     p.y = yAt(dist); car.position.copy(p);
     if (ahead.distanceTo(new THREE.Vector3(p.x, 0, p.z)) > 0.5) {

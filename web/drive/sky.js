@@ -102,7 +102,7 @@ export function createSky(scene, { hemi, sun, clearMat, ribbon, car, animateClou
     cloudMat.color.set(L.cloud); cloudMat.opacity = L.cloudOpacity;
     stars.visible = L.stars > 0; sunDisc.visible = name === 'day'; moonDisc.visible = name === 'night';
     if (clearMat) { clearMat.emissive?.set(L.glassGlow); }
-    if (ribbon) ribbon.material.color.set(L.ribbon);
+    if (ribbon?.setNight) ribbon.setNight(name === 'night'); else if (ribbon) ribbon.material.color.set(L.ribbon);
     lights.visible = L.headlights;
     // the car glows a little at night so it stays the brightest thing in its neighbourhood
     car?.traverse(o => { if (o.material?.emissive && o !== car) o.material.emissive.copy(o.material.color).multiplyScalar(name === 'night' ? 0.45 : 0); });
