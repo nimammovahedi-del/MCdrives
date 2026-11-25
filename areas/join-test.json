@@ -1,0 +1,16 @@
+{
+  "name": "Join test",
+  "slug": "join-test",
+  "bbox": [
+    33.633,
+    -117.764,
+    33.668,
+    -117.722
+  ],
+  "max_chunk_km2": 4,
+  "arnis_args": [
+    "--lidar-max-mb",
+    "4000"
+  ],
+  "lidar": true
+}

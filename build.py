@@ -4,17 +4,28 @@
     python build.py areas/spectrum.json            # bake, convert, road graph, pack
     python build.py areas/spectrum.json --serve    # ...then open the viewer locally
     python build.py areas/irvine.json --plan       # only show how a big area splits into chunks
+    python build.py areas/irvine.json --join-only  # join chunk outputs that are already there
+
+An area larger than max_chunk_km2 is baked as a grid of chunks, each its own Arnis world with its
+own origin. The join step then writes ONE site for the whole area at build/<slug>/site: every
+chunk's packs and height tiles placed at its offset in one pack list, and one road graph sewn
+together across the chunk seams, so the viewer drives across the whole area without a break.
 
 Each step is skipped when its output already exists, so a failed or interrupted run
 resumes where it stopped. Use --force to redo everything, or --from STEP to redo from
 bake | convert | roads | site.
 """
-import argparse, json, math, os, shutil, subprocess, sys, time, urllib.request
+import argparse, base64, gzip, json, math, os, shutil, subprocess, sys, time, urllib.parse, urllib.request
+from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 STEPS = ["bake", "convert", "roads", "site"]
 ARNIS_WINDOWS_URL = "https://github.com/louis-e/arnis/releases/latest/download/arnis-windows.exe"
+EARTH = 6371000.0
+# How far past its own bbox a chunk's road graph reaches, so neighbours share the OSM nodes on
+# their seam and the join can sew the graphs together there. Blocks.
+OVERHANG = 32
 
 
 def km(bbox):
@@ -33,10 +44,336 @@ def split(bbox, max_km2):
         for c in range(cols):
             out.append({
                 "id": f"r{r}c{c}" if rows * cols > 1 else "all", "row": r, "col": c,
-                "bbox": [s + (n - s) * r / rows, w + (e - w) * c / cols,
-                         s + (n - s) * (r + 1) / rows, w + (e - w) * (c + 1) / cols],
+                # rounded to the six decimals the bake is given, so the join projects the same bbox
+                "bbox": [round(v, 6) for v in (s + (n - s) * r / rows, w + (e - w) * c / cols,
+                                               s + (n - s) * (r + 1) / rows, w + (e - w) * (c + 1) / cols)],
             })
     return out, rows, cols
+
+
+def keep_chunks(area, chunks):
+    """Drop the chunks an area does not want. "keep" in the area file lists chunk ids outright;
+    "within" names an administrative boundary (e.g. {"name": "Irvine", "admin_level": "8"}) and keeps
+    the chunks it covers at least min_share of (default a tenth). MC_KEEP (a JSON list) overrides both, so every job of one CI run uses
+    the list its plan job worked out instead of asking the map server again."""
+    ids = json.loads(os.environ["MC_KEEP"]) if os.environ.get("MC_KEEP") else area.get("keep")
+    if ids is None and area.get("within") and len(chunks) > 1:
+        s, w, n, e = area["bbox"]; wi = area["within"]
+        q = (f'[out:json][timeout:90];rel["boundary"="administrative"]["name"="{wi["name"]}"]'
+             f'["admin_level"="{wi.get("admin_level", "8")}"]({s},{w},{n},{e});out geom;')
+        data = None
+        for host in ("overpass-api.de", "overpass.private.coffee", "overpass.kumi.systems"):
+            try:
+                req = urllib.request.Request(f"https://{host}/api/interpreter", data=("data=" + urllib.parse.quote(q)).encode(),
+                                             headers={"User-Agent": "mcdrives-build"})
+                data = json.loads(urllib.request.urlopen(req, timeout=120).read())
+                if data.get("elements"): break
+            except Exception as ex: print(f"boundary: {host} failed: {ex}", file=sys.stderr)
+        if not data or not data.get("elements"): sys.exit(f"boundary: no administrative boundary named {wi['name']} found")
+        # Even-odd ray casting over every boundary segment: no need to stitch the ways into rings.
+        segs = [(a["lon"], a["lat"], b["lon"], b["lat"]) for el in data["elements"] for m in el.get("members", [])
+                if m.get("type") == "way" and m.get("geometry") for a, b in zip(m["geometry"], m["geometry"][1:])]
+        def inside(lon, lat):
+            return sum(1 for x0, y0, x1, y1 in segs if (y0 > lat) != (y1 > lat) and lon < x0 + (lat - y0) * (x1 - x0) / (y1 - y0)) % 2 == 1
+        ids = []
+        for c in chunks:
+            cs, cw, cn, ce = c["bbox"]; N = 12
+            share = sum(inside(cw + (ce - cw) * (i + .5) / N, cs + (cn - cs) * (j + .5) / N) for i in range(N) for j in range(N)) / N / N
+            if share >= wi.get("min_share", 0.1): ids.append(c["id"])
+        print(f"boundary: {wi['name']} covers enough of {len(ids)} of {len(chunks)} chunks", file=sys.stderr)
+    if ids is None: return chunks
+    kept = [c for c in chunks if c["id"] in ids]
+    if not kept: sys.exit("no chunk left after the keep/within filter")
+    return kept
+
+
+# ---------------------------------------------------------------- joining chunks into one world
+def hav(dlat, dlon, lat):
+    a = math.sin(math.radians(dlat) / 2) ** 2 + math.cos(math.radians(lat)) ** 2 * math.sin(math.radians(dlon) / 2) ** 2
+    return EARTH * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def projection(bbox):
+    """Arnis's own projection for a bbox: the world's block size, and lon/lat -> block coordinates.
+
+    It is linear inside one bbox, so a chunk's blocks differ from the parent area's by a
+    translation - but the metres per degree of longitude depend on the bbox's mean latitude, so the
+    scale of a chunk row is not exactly the parent's. chunk_offset() measures what that costs."""
+    s, w, n, e = bbox
+    sx = math.floor(hav(0, e - w, (s + n) / 2)); sz = math.floor(hav(n - s, 0, 0))
+    return sx, sz, lambda lon, lat: ((lon - w) / (e - w) * sx, (1 - (lat - s) / (n - s)) * sz)
+
+
+def chunk_offset(parent_bbox, bbox):
+    """Where a chunk's block (0, 0) sits in the parent area's blocks, and the worst corner error.
+
+    Returns (dx, dz, error in blocks). The error includes rounding the offset to whole blocks."""
+    _, _, pxz = projection(parent_bbox)
+    cx1, cz1, _ = projection(bbox)
+    s, w, n, e = bbox
+    dx, dz = (round(v) for v in pxz(w, n))
+    err = 0.0
+    for lon, lat, x, z in ((w, n, 0, 0), (e, n, cx1, 0), (w, s, 0, cz1), (e, s, cx1, cz1)):
+        px, pz = pxz(lon, lat)
+        err = max(err, abs(px - (dx + x)), abs(pz - (dz + z)))
+    return dx, dz, err
+
+
+def read_gz_array(path_bin, path_json):
+    """A gzipped int16 file (a height tile, or the whole-area height.bin of older converters), or its --b64 .json."""
+    import numpy as np
+    if path_bin.exists():
+        raw = gzip.decompress(path_bin.read_bytes())
+    else:
+        raw = gzip.decompress(base64.b64decode(json.loads(path_json.read_text())["base64"]))
+    return np.frombuffer(raw, dtype="<i2")
+
+
+def join_roads(parts, area_size, seam_tol, log=print):
+    """One road graph for the whole area out of one graph per chunk.
+
+    parts: (id, dx, dz, graph) per chunk, dx/dz being chunk_offset(). Node coordinates are
+    translated, the name tables merged, and the nodes that two chunks share on their seam are
+    merged into one junction - by OSM id where the chunk graphs carry one, otherwise by distance.
+    Then nodes outside the area are dropped and the largest connected component is kept."""
+    names = [""]; nidx = {"": 0}
+    nodes = []; owner = []; osm = []; edges = []
+    for ci, (cid, dx, dz, g) in enumerate(parts):
+        remap = []
+        for nm in g["names"]:
+            if nm not in nidx: nidx[nm] = len(names); names.append(nm)
+            remap.append(nidx[nm])
+        base = len(nodes)
+        ids = g.get("osm") or [None] * len(g["nodes"])
+        for (x, z), oid in zip(g["nodes"], ids):
+            nodes.append([x + dx, z + dz]); owner.append(ci); osm.append(oid)
+        for a, b, nm, cl, ow, ln, dk in g["edges"]:
+            edges.append((base + a, base + b, remap[nm], cl, ow, ln, dk))
+
+    par = list(range(len(nodes)))
+
+    def find(i):
+        while par[i] != i: par[i] = par[par[i]]; i = par[i]
+        return i
+
+    def union(a, b):
+        a, b = find(a), find(b)
+        if a == b: return False
+        par[b] = a; return True
+
+    by_osm = defaultdict(list)
+    for i, oid in enumerate(osm):
+        if oid is not None: by_osm[oid].append(i)
+    by_id = sum(union(g[0], j) for g in by_osm.values() for j in g[1:])
+
+    # Nodes that sit near the edge of their own chunk are the only candidates for a distance match.
+    band = OVERHANG + seam_tol + 4
+    edge_of = []
+    for ci, (cid, dx, dz, g) in enumerate(parts):
+        sx, sz = g["size"]
+        edge_of.append((dx, dz, dx + sx, dz + sz))
+    cand = [i for i, (x, z) in enumerate(nodes)
+            if min(x - edge_of[owner[i]][0], edge_of[owner[i]][2] - x,
+                   z - edge_of[owner[i]][1], edge_of[owner[i]][3] - z) <= band]
+    cell = max(1.0, float(seam_tol))
+    grid = defaultdict(list)
+    for i in cand: grid[(int(nodes[i][0] // cell), int(nodes[i][1] // cell))].append(i)
+    by_dist = 0
+    for i in cand:
+        gx, gz = int(nodes[i][0] // cell), int(nodes[i][1] // cell)
+        for a in (-1, 0, 1):
+            for b in (-1, 0, 1):
+                for j in grid.get((gx + a, gz + b), ()):
+                    if j <= i or owner[j] == owner[i] or osm[i] is not None and osm[i] == osm[j]: continue
+                    if (nodes[i][0] - nodes[j][0]) ** 2 + (nodes[i][1] - nodes[j][1]) ** 2 <= cell * cell:
+                        by_dist += union(i, j)
+    log(f"  seams: merged {by_id} nodes on shared OSM ids, {by_dist} more within {seam_tol} blocks")
+
+    # one node per group, at the mean of its members
+    group = defaultdict(list)
+    for i in range(len(nodes)): group[find(i)].append(i)
+    pos = {}
+    for r, members in group.items():
+        pos[r] = [sum(nodes[i][0] for i in members) / len(members), sum(nodes[i][1] for i in members) / len(members)]
+    # drop anything outside the area (the overhang, and the 4-block margin kept by roadgraph.py)
+    asx, asz = area_size
+    keep = {r for r, p in pos.items() if 4 < p[0] < asx - 4 and 4 < p[1] < asz - 4}
+    link = defaultdict(set)
+    kept_edges = set()
+    for a, b, nm, cl, ow, ln, dk in edges:
+        ra, rb = find(a), find(b)
+        if ra == rb or ra not in keep or rb not in keep: continue
+        kept_edges.add((ra, rb, nm, cl, ow, ln, dk))
+        link[ra].add(rb); link[rb].add(ra)
+    seen = set(); best = []
+    for s in link:
+        if s in seen: continue
+        comp = [s]; seen.add(s); st = [s]
+        while st:
+            u = st.pop()
+            for v in link[u]:
+                if v not in seen: seen.add(v); st.append(v); comp.append(v)
+        if len(comp) > len(best): best = comp
+    big = set(best)
+    order = sorted(big, key=lambda r: pos[r])
+    ids = {r: i for i, r in enumerate(order)}
+    out_nodes = [[round(pos[r][0], 1), round(pos[r][1], 1)] for r in order]
+    out_edges = sorted({(ids[a], ids[b], nm, cl, ow, ln, dk) for a, b, nm, cl, ow, ln, dk in kept_edges
+                        if a in big and b in big})
+    log(f"  roads: {len(nodes)} chunk nodes -> {len(group)} after merging -> {len(out_nodes)} in the "
+        f"largest component, {len(out_edges)} edges, {len(names)} names")
+    return {"size": [asx, asz], "names": names, "nodes": out_nodes, "edges": [list(e) for e in out_edges]}, by_id + by_dist
+
+
+def join(area, chunks, out, seam_tol=6, log=print):
+    """Write one site for the whole area from the per-chunk sites already in out/<id>/site.
+
+    Packs and their height tiles are linked (never re-encoded) and given unique ids plus the offset
+    of their chunk, so nothing holds more than one chunk at a time. Where chunks overlap, the viewer
+    takes a column's height from the last pack in the list that has a surface there, as the merged
+    height field of earlier joins did."""
+    import numpy as np
+    parent = area["bbox"]
+    psx, psz, _ = projection(parent)
+    site = out / "site"; data = site / "data"
+    missing = [c["id"] for c in chunks if not (out / c["id"] / "site" / "data" / "meta.json").exists()]
+    if missing: sys.exit(f"join: no converted chunk at {out}/<id>/site/data for: {', '.join(missing)}")
+
+    info = []
+    for c in chunks:
+        cs = out / c["id"] / "site"
+        cm = json.loads((cs / "data" / "meta.json").read_text())
+        dx, dz, err = chunk_offset(parent, c["bbox"])
+        info.append({"id": c["id"], "bbox": c["bbox"], "dir": cs, "meta": cm, "dx": dx, "dz": dz, "err": round(err, 2)})
+    worst = max(i["err"] for i in info)
+    log(f"join: {len(info)} chunks, projection error at chunk corners at most {worst:.2f} blocks")
+    if worst > 8: log(f"join: WARNING projection error {worst:.1f} blocks is large; chunk seams will not line up")
+
+    ref = json.dumps(info[0]["meta"]["materials"])
+    for i in info[1:]:
+        if json.dumps(i["meta"]["materials"]) != ref:
+            sys.exit(f"join: chunk {i['id']} has a different material table than {info[0]['id']}. "
+                     "Re-run convert for every chunk with the current tools/mca2web.py.")
+    ext = info[0]["meta"]["ext"]
+    if ext != "bin": sys.exit("join: --b64 chunks cannot be joined; re-convert without --b64")
+    minx = min(i["dx"] + i["meta"]["minx"] for i in info)
+    minz = min(i["dz"] + i["meta"]["minz"] for i in info)
+    for i in info:
+        i["sx"] = i["dx"] + i["meta"]["minx"] - minx
+        i["sz"] = i["dz"] + i["meta"]["minz"] - minz
+    # Arnis fits the terrain of each bake to its own base level, so chunks do not share a ground
+    # height. Neighbours overlap by a strip of blocks: the median height difference there is the
+    # step between them, and least squares turns the pairwise steps into one lift per chunk.
+    def rect(i): return i["sx"], i["sz"], i["sx"] + i["meta"]["width"], i["sz"] + i["meta"]["depth"]
+
+    def ground(i, x0, z0, x1, z1):
+        """Layer 0 of chunk i over its own columns [z0:z1, x0:x1], from its height tiles (or an older height.bin)."""
+        cm = i["meta"]; P = cm["pack"]
+        if not all("h" in p for p in cm["packs"]):
+            h0 = read_gz_array(i["dir"] / "data" / "height.bin", i["dir"] / "data" / "height.json")
+            h0 = np.pad(h0[:cm["depth"] * cm["width"]].reshape(cm["depth"], cm["width"]), 16, constant_values=-1)
+            return h0[max(0, z0 + 16):z1 + 16, max(0, x0 + 16):x1 + 16].copy()
+        out = np.full((z1 - z0, x1 - x0), -1, dtype="<i2")
+        for p in cm["packs"]:
+            ax, az, bx, bz = max(x0, p["x"]), max(z0, p["z"]), min(x1, p["x"] + P), min(z1, p["z"] + P)
+            if bx <= ax or bz <= az: continue
+            t = read_gz_array(i["dir"] / "data" / f"{p['h']}.bin", i["dir"] / "data" / f"{p['h']}.json")[:P * P].reshape(P, P)
+            out[az - z0:bz - z0, ax - x0:bx - x0] = t[az - p["z"]:bz - p["z"], ax - p["x"]:bx - p["x"]]
+        return out
+    strips = {}
+    for a, i in enumerate(info):
+        for b, j in enumerate(info):
+            if a == b: continue
+            x0, z0 = (max(p, q) for p, q in zip(rect(i)[:2], rect(j)[:2])); x1 = min(rect(i)[2], rect(j)[2]); z1 = min(rect(i)[3], rect(j)[3])
+            if min(x1 - x0, z1 - z0) < 8 or max(x1 - x0, z1 - z0) < 400: continue   # corner neighbours share too little
+            x0 -= 8; z0 -= 8; x1 += 8; z1 += 8   # bakes may stop just short of each other
+            strips[a, b] = ground(i, x0 - i["sx"], z0 - i["sz"], x1 - i["sx"], z1 - i["sz"]).astype(np.int32)
+    rows, rhs = [], []
+    for (a, b), sa in strips.items():
+        if a > b: continue
+        sb = strips[b, a]; ok = (sa > 2) & (sb > 2)
+        d = (sb - sa)[ok]
+        if d.size < 200:
+            # The bakes barely overlap: compare each chunk's last surface before the seam with the
+            # other's first one after it, line by line across the seam.
+            if sa.shape[0] < sa.shape[1]: sa, sb = sa.T, sb.T
+            va, vb = sa > 2, sb > 2; n = sa.shape[1]; col = np.arange(n); d = []
+            for p, vp, q, vq in ((sa, va, sb, vb), (sb, vb, sa, va)):   # p ends where q begins
+                last = np.where(vp, col, -1).max(axis=1); first = np.where(vq, col, n).min(axis=1)
+                r = np.nonzero((last >= 0) & (first < n) & (np.abs(first - last) <= 6))[0]
+                d.append((q[r, first[r]] - p[r, last[r]]) * (1 if p is sa else -1))
+            d = max(d, key=len)
+        if d.size < 50: continue
+        step = float(np.median(d))
+        r = np.zeros(len(info)); r[a], r[b] = 1, -1; rows.append(r); rhs.append(step)   # lift[a] - lift[b] = h_b - h_a
+        log(f"join: ground step {info[a]['id']} to {info[b]['id']}: {step:+.0f} blocks "
+            f"(middle half of the overlap within {np.percentile(d, 25):+.0f}..{np.percentile(d, 75):+.0f})")
+    lift = np.zeros(len(info))
+    if rows:
+        A = np.vstack(rows + [np.eye(len(info))[0]]); lift = np.linalg.lstsq(A, np.array(rhs + [0.0]), rcond=None)[0]
+        res = np.abs(A[:-1] @ lift - np.array(rhs)).max()
+        log(f"join: ground lifts {[int(round(v)) for v in lift]}, worst disagreement between neighbours {res:.1f} blocks")
+        if res > 2: log("join: WARNING chunks disagree about ground height by more than 2 blocks; seams will show a step")
+    for i, v in zip(info, lift): i["lift"] = int(round(v))
+    miny = min(i["meta"]["miny"] + i["lift"] for i in info)
+    width = max(i["dx"] + i["meta"]["minx"] + i["meta"]["width"] for i in info) - minx
+    depth = max(i["dz"] + i["meta"]["minz"] + i["meta"]["depth"] for i in info) - minz
+    height = max(i["meta"]["miny"] + i["lift"] + i["meta"]["height"] for i in info) - miny
+    for i in info: i["sy"] = i["meta"]["miny"] + i["lift"] - miny
+    log(f"join: {width} x {depth} x {height} blocks, origin ({minx}, {minz}, {miny})")
+
+    shutil.rmtree(site, ignore_errors=True); data.mkdir(parents=True)
+    # ---- packs and height tiles: link the bytes, translate the ids and the placement
+    packs = []; used = set(); total = 0; hbytes = 0; quads = 0
+
+    def put(src, dst):
+        try: os.link(src, dst)
+        except OSError: shutil.copy(src, dst)
+        return dst.stat().st_size
+    for i in info:
+        cm, P = i["meta"], i["meta"]["pack"]
+        old = None   # a chunk converted before height tiles existed: cut its height.bin into tiles here
+        if not all("h" in p for p in cm["packs"]):
+            old = read_gz_array(i["dir"] / "data" / "height.bin", i["dir"] / "data" / "height.json")
+            old = old.reshape(-1, cm["depth"], cm["width"])[[0, -1]]
+        for p in cm["packs"]:
+            pid = p["id"] if p["id"] not in used else f"{i['id']}_{p['id']}"
+            while pid in used: pid += "_"
+            hid = "h" + pid[1:] if pid.startswith("p_") else "h_" + pid
+            used.add(pid)
+            total += put(i["dir"] / "data" / f"{p['id']}.{ext}", data / f"{pid}.{ext}"); quads += p["quads"]
+            if old is None: hbytes += put(i["dir"] / "data" / f"{p['h']}.{ext}", data / f"{hid}.{ext}")
+            else:
+                t = np.full((2, P, P), -1, dtype="<i2")
+                src = old[:, p["z"]:p["z"] + P, p["x"]:p["x"] + P]
+                t[:, :src.shape[1], :src.shape[2]] = src
+                (data / f"{hid}.{ext}").write_bytes(gzip.compress(t.tobytes(), 6)); hbytes += (data / f"{hid}.{ext}").stat().st_size
+            packs.append({"id": pid, "h": hid, "x": p["x"] + i["sx"], "z": p["z"] + i["sz"], "quads": p["quads"],
+                          "dx": i["sx"], "dz": i["sz"], "dy": i["sy"], "tiles": p["tiles"]})
+        del old
+    log(f"join: {len(packs)} packs, {total/1e6:.1f} MB, {quads:,} quads; height tiles {hbytes/1e6:.1f} MB")
+
+    # ---- roads
+    parts = []
+    for i in info:
+        rp = i["dir"] / "roads.json"
+        if not rp.exists(): sys.exit(f"join: chunk {i['id']} has no roads.json")
+        parts.append((i["id"], i["dx"], i["dz"], json.loads(rp.read_text())))
+    roads, merged = join_roads(parts, (psx, psz), seam_tol, log)
+    (site / "roads.json").write_text(json.dumps(roads, separators=(",", ":")))
+
+    meta = {"tile": info[0]["meta"]["tile"], "pack": info[0]["meta"]["pack"], "ext": ext,
+            "width": width, "depth": depth, "height": height, "minx": minx, "minz": minz, "miny": miny,
+            "quads": quads, "bytes": total, "packs": packs, "materials": info[0]["meta"]["materials"],
+            "name": area["name"], "bbox": parent,
+            "chunks": [{"id": i["id"], "dx": i["sx"], "dz": i["sz"], "dy": i["sy"], "err": i["err"]} for i in info]}
+    (data / "meta.json").write_text(json.dumps(meta))
+    shutil.copy(ROOT / "web" / "index.html", site / "index.html")
+    shutil.copytree(ROOT / "web" / "vendor", site / "vendor", dirs_exist_ok=True)
+    size = sum(f.stat().st_size for f in site.rglob("*") if f.is_file())
+    return {"chunks": len(info), "blocks": [width, depth, height], "packs": len(packs), "quads": quads,
+            "nodes": len(roads["nodes"]), "edges": len(roads["edges"]), "seam_nodes_merged": merged,
+            "projection_error_blocks": round(worst, 2), "site_mb": round(size / 1e6, 2)}
 
 
 def find_arnis(arg):
@@ -76,7 +413,7 @@ def token_env(area, chunk_km2):
     return env
 
 
-def build_chunk(area, chunk, args, work):
+def build_chunk(area, chunk, args, work, overhang=0):
     bbox = chunk["bbox"]
     bstr = ",".join(f"{v:.6f}" for v in bbox)
     h, w = km(bbox)
@@ -115,7 +452,9 @@ def build_chunk(area, chunk, args, work):
         times["convert"] = time.time() - times["convert"]
 
     if step("roads", lambda: (site / "roads.json").exists()):
-        run([sys.executable, ROOT / "tools" / "roadgraph.py", bstr, osm, site / "roads.json"], log)
+        cmd = [sys.executable, ROOT / "tools" / "roadgraph.py", bstr, osm, site / "roads.json"]
+        if overhang: cmd += ["--overhang", overhang]   # reach past the bbox so the join can sew seams
+        run(cmd, log)
         times["roads"] = time.time() - times["roads"]
 
     if step("site", lambda: (site / "index.html").exists()):
@@ -133,6 +472,19 @@ def build_chunk(area, chunk, args, work):
             "site_mb": round(size / 1e6, 2), "seconds": {k: round(v, 1) for k, v in times.items() if v < 1e6}}
 
 
+def chunk_summary(area, chunk, work):
+    """The report entry for a chunk that is already built, without running or checking any step.
+    Used by --join-only, where the chunk outputs were built elsewhere (one CI job each)."""
+    site = work / "site"
+    if not (site / "data" / "meta.json").exists(): return None
+    meta = json.loads((site / "data" / "meta.json").read_text())
+    h, w = km(chunk["bbox"])
+    size = sum(f.stat().st_size for f in site.rglob("*") if f.is_file())
+    return {"id": chunk["id"], "row": chunk["row"], "col": chunk["col"], "bbox": chunk["bbox"], "km2": round(h * w, 3),
+            "blocks": [meta["width"], meta["depth"], meta["height"]], "quads": meta["quads"],
+            "packs": len(meta["packs"]), "site_mb": round(size / 1e6, 2), "seconds": {}}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("area", help="area config, e.g. areas/spectrum.json")
@@ -142,33 +494,75 @@ def main():
     ap.add_argument("--out", default=str(ROOT / "build"), help="output root (default: build/)")
     ap.add_argument("--b64", action="store_true", help="write packs as base64 JSON, for hosts that refuse .bin files")
     ap.add_argument("--plan", action="store_true", help="print the chunk plan and exit")
+    ap.add_argument("--plan-ids", action="store_true", help="print the chunk ids as a JSON list and exit (for CI matrices)")
     ap.add_argument("--only", help="build just these chunk ids, comma-separated")
     ap.add_argument("--force", action="store_true", help="redo every step")
     ap.add_argument("--from", dest="from_step", choices=STEPS, help="redo from this step onward")
+    ap.add_argument("--join-only", action="store_true",
+                    help="skip the chunk builds and only join the chunk outputs already in the output folder")
+    ap.add_argument("--no-join", action="store_true", help="build the chunks but do not join them")
+    ap.add_argument("--seam-tol", type=int, default=6, metavar="BLOCKS",
+                    help="how far apart two chunks' road nodes may be and still be the same junction (default 6)")
     ap.add_argument("--serve", action="store_true", help="serve the result on http://localhost:8765 when done")
     args = ap.parse_args()
 
     area = json.loads(Path(args.area).read_text())
     chunks, rows, cols = split(area["bbox"], area.get("max_chunk_km2", 4))
+    chunks = keep_chunks(area, chunks)
     h, w = km(area["bbox"])
+    if args.plan_ids:
+        print(json.dumps([c["id"] for c in chunks])); return
     print(f"{area['name']}: {h:.2f} x {w:.2f} km = {h*w:.2f} km2 in {len(chunks)} chunk(s) ({rows} x {cols})")
     if args.plan:
-        for c in chunks: print(" ", c["id"], ",".join(f"{v:.6f}" for v in c["bbox"]))
+        for c in chunks:
+            dx, dz, err = chunk_offset(area["bbox"], c["bbox"])
+            print(" ", c["id"], ",".join(f"{v:.6f}" for v in c["bbox"]), f"at block ({dx}, {dz}), error {err:.2f}")
         return
-    if (args.world or args.osm) and len(chunks) > 1: sys.exit("--world/--osm only work for single-chunk areas")
-    if args.only: chunks = [c for c in chunks if c["id"] in args.only.split(",")]
-
+    overhang = OVERHANG if len(chunks) > 1 else 0
     out = Path(args.out) / area["slug"]
+    if args.only: chunks = [c for c in chunks if c["id"] in args.only.split(",")]
+    if not chunks: sys.exit(f"--only {args.only} matched no chunk")
+    if (args.world or args.osm) and len(chunks) > 1:
+        sys.exit("--world/--osm cover one bake, so use them with --only <chunk id> on a multi-chunk area")
+
+    # Chunks may be built one at a time, or on separate machines, so the report keeps what is
+    # already there and replaces only the chunks this run rebuilt.
     report = {"name": area["name"], "bbox": area["bbox"], "rows": rows, "cols": cols, "chunks": []}
+    if (out / "report.json").exists():
+        try: report.update(json.loads((out / "report.json").read_text()))
+        except ValueError: pass
     t0 = time.time()
-    for c in chunks:
-        report["chunks"].append(build_chunk(area, c, args, out / c["id"]))
-        (out / "report.json").write_text(json.dumps(report, indent=1))
-    done = report["chunks"]
-    print(f"\ndone in {time.time()-t0:.0f}s: {sum(c['km2'] for c in done):.2f} km2, "
-          f"{sum(c['quads'] for c in done):,} quads, {sum(c['site_mb'] for c in done):.1f} MB. Report: {out/'report.json'}")
+    done = []
+    if not args.join_only:
+        for c in chunks:
+            done.append(build_chunk(area, c, args, out / c["id"], overhang))
+            report["chunks"] = [r for r in report["chunks"] if r["id"] not in {d["id"] for d in done}] + done
+            report["chunks"].sort(key=lambda r: (r["row"], r["col"]))
+            (out / "report.json").write_text(json.dumps(report, indent=1))
+        print(f"\nchunks done in {time.time()-t0:.0f}s: {sum(c['km2'] for c in done):.2f} km2, "
+              f"{sum(c['quads'] for c in done):,} quads, {sum(c['site_mb'] for c in done):.1f} MB")
+
+    # Chunks built elsewhere (one CI job each) have no report entry here, so fill them in.
+    full, _, _ = split(area["bbox"], area.get("max_chunk_km2", 4))
+    full = keep_chunks(area, full)
+    have = {r["id"] for r in report["chunks"]}
+    report["chunks"] += [s for s in (chunk_summary(area, c, out / c["id"]) for c in full if c["id"] not in have) if s]
+    report["chunks"].sort(key=lambda r: (r["row"], r["col"]))
+
+    # One site for the whole area. A single-chunk area is already one world, so it is left alone.
+    site = out / chunks[0]["id"] / "site" if rows * cols == 1 else out / "site"
+    missing = [c["id"] for c in full if not (out / c["id"] / "site" / "data" / "meta.json").exists()]
+    if rows * cols > 1 and not args.no_join and not missing:
+        tj = time.time()
+        report["join"] = join(area, full, out, args.seam_tol)
+        report["join"]["seconds"] = round(time.time() - tj, 1)
+    elif rows * cols > 1:
+        why = "--no-join" if args.no_join else f"{len(missing)} chunk(s) not built yet: {', '.join(missing[:6])}"
+        print(f"not joining ({why}); run `python build.py {args.area} --join-only` when every chunk is there")
+        site = out / chunks[0]["id"] / "site"
+    (out / "report.json").write_text(json.dumps(report, indent=1))
+    print(f"\ndone in {time.time()-t0:.0f}s. Site: {site}  Report: {out/'report.json'}")
     if args.serve:
-        site = out / done[0]["id"] / "site"
         print(f"serving {site} at http://localhost:8765  (Ctrl+C to stop)")
         subprocess.run([sys.executable, "-m", "http.server", "8765", "--directory", str(site)])
 

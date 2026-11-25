@@ -53,12 +53,59 @@ async function loadBin(name) {
 async function gunzip(buf) {
   return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
 }
-const heights = new Int16Array(await gunzip(await loadBin('height')));
-// Two height layers: [0] the lowest drivable surface, [1] the highest (bridge decks). Older data has one.
-const LAYER = meta.width * meta.depth, twoLayers = heights.length >= 2 * LAYER;
+// Heights come in one tile per pack (pack.h): int16 [2, pack, pack], [0] the lowest drivable surface, [1] the
+// highest (bridge decks), -1 for none. A tile loads with its pack's meshes, for every pack a route crosses when a
+// trip starts, and stays in a small LRU after. Older data has one whole-area height.bin (one or two layers).
+const packs = meta.packs.map(p => ({ ...p, state: 0, meshes: [], hgt: null, hp: null, hused: 0 }));
+const PK = meta.pack, HMAX = +(params.get('htiles') ?? 48);
+const whole = packs.some(p => p.h) ? null : new Int16Array(await gunzip(await loadBin('height')));
+const WLAYER = meta.width * meta.depth, twoLayers = whole && whole.length >= 2 * WLAYER;
+// packs by 512-block cell of the world; where joined chunks overlap the later pack comes first, and wins
+const CX = Math.ceil(meta.width / PK), cells = Array.from({ length: CX * Math.ceil(meta.depth / PK) }, () => []);
+for (const p of [...packs].reverse())
+  for (let cz = Math.floor(p.z / PK); cz * PK < p.z + PK; cz++) for (let cx = Math.floor(p.x / PK); cx * PK < p.x + PK; cx++)
+    if (cx >= 0 && cx < CX && cells[cz * CX + cx]) cells[cz * CX + cx].push(p);
+// packs whose columns reach within r of (x, z)
+const packsNear = (x, z, r = 0) => {
+  const out = [];
+  for (let cz = Math.floor((z - r) / PK); cz <= Math.floor((z + r) / PK); cz++) for (let cx = Math.floor((x - r) / PK); cx <= Math.floor((x + r) / PK); cx++)
+    for (const p of (cx >= 0 && cx < CX && cells[cz * CX + cx]) || [])
+      if (!out.includes(p) && x + r >= p.x && x - r < p.x + PK && z + r >= p.z && z - r < p.z + PK) out.push(p);
+  return out;
+};
+let hclock = 0;
+const hHeld = () => packs.reduce((n, p) => n + !!p.hgt, 0);
+function hload(p) {
+  if (p.hgt || !p.h) return null;
+  return p.hp ??= loadBin(p.h).then(gunzip).then(b => { p.hgt = new Int16Array(b); p.hused = ++hclock; htrim(); },
+    e => console.error('heights', p.h, e)).finally(() => { p.hp = null; });
+}
+// keep at most HMAX tiles, dropping the least recently used whose pack has no meshes up
+function htrim() {
+  let n = hHeld() - HMAX; if (n <= 0) return;
+  for (const p of packs.filter(p => p.hgt && p.state === 0).sort((a, b) => a.hused - b.hused)) { if (n-- <= 0) break; p.hgt = null; }
+}
+// whether every tile that decides heights within r of (x, z) is loaded
+const hReady = (x, z, r = 2) => !!whole || packsNear(x, z, r).every(p => p.hgt || !p.h);
+// world y of the surface; 0 (unknown) where there is none or its tile is not loaded
 const groundY = (x, z, deck = false) => {
-  const ix = Math.max(0, Math.min(meta.width - 1, Math.floor(x))), iz = Math.max(0, Math.min(meta.depth - 1, Math.floor(z)));
-  return heights[(deck && twoLayers ? LAYER : 0) + iz * meta.width + ix] + 1;
+  if (whole) {
+    const ix = Math.max(0, Math.min(meta.width - 1, Math.floor(x))), iz = Math.max(0, Math.min(meta.depth - 1, Math.floor(z)));
+    return whole[(deck && twoLayers ? WLAYER : 0) + iz * meta.width + ix] + 1;
+  }
+  x = Math.floor(x); z = Math.floor(z);
+  if (x < 0 || z < 0 || x >= meta.width || z >= meta.depth) return 0;
+  for (const p of cells[Math.floor(z / PK) * CX + Math.floor(x / PK)]) {
+    const lx = x - p.x, lz = z - p.z; if (lx < 0 || lz < 0 || lx >= PK || lz >= PK) continue;
+    if (!p.hgt) return 0;
+    // a lowest surface on the world floor means sky leaked under the terrain there: use the top surface
+    // (only where the leak is wide: under a bridge the floor is a short gap that the trip profile fills)
+    let v = p.hgt[(deck ? PK * PK : 0) + lz * PK + lx];
+    if (!deck && v >= 0 && v <= 1) { const f = (ax, az) => p.hgt[Math.max(0, Math.min(PK - 1, az)) * PK + Math.max(0, Math.min(PK - 1, ax))] <= 1;
+      if (f(lx - 40, lz) && f(lx + 40, lz) && f(lx, lz - 40) && f(lx, lz + 40)) v = p.hgt[PK * PK + lz * PK + lx]; }
+    if (v > 1) return v + (p.dy ?? 0) + 1;
+  }
+  return 0;
 };
 // median of five nearby columns, so a lamp post or kerb under the sample point does not move the car
 // (columns with no drivable surface, or only the world floor, are ignored; NaN when all five are empty)
@@ -146,7 +193,7 @@ const faceMaterial = (data, clear) => {
 let quadCount = 0;
 // Tile layout: u32 quad count, then 8-byte greedy quads (x u8, z u8, y u16, w u8, h u8, dir u8, mat u8),
 // then 12-byte boxes for partial blocks (x u8, z u8, y u16, mat u8, x0 y0 z0 x1 y1 z1 in 1/16 block, pad).
-function buildTile(buf, tx, tz) {
+function buildTile(buf, tx, tz, pk) {
   const made = [];
   const v = new DataView(buf); const nq = v.getUint32(0, true); const nb = (buf.byteLength - 4 - nq * 8) / 12;
   let ns = 0, nt = 0;
@@ -156,7 +203,8 @@ function buildTile(buf, tx, tz) {
   const mk = c => { const w = Math.max(1, Math.ceil(Math.sqrt(c))), h = Math.max(1, Math.ceil(c / w)), u = new Uint32Array(w * h * 4);
     return { u, a: new Uint16Array(u.buffer), w, h, q: 0, lo: [Infinity, Infinity, Infinity], hi: [-Infinity, -Infinity, -Infinity] }; };
   const S = mk(ns), T = mk(nt);
-  const ox = tx * meta.tile, oz = tz * meta.tile;
+  // A pack baked as part of a larger area carries dx/dz/dy: where its own origin sits in this world.
+  const ox = tx * meta.tile + (pk?.dx ?? 0), oz = tz * meta.tile + (pk?.dz ?? 0), oy = pk?.dy ?? 0;
   // One face of the axis-aligned box at tile-local (x, y, z) with extents (ex, ey, ez), all in 1/16 block.
   // (wx, wy, wz) is the block the face belongs to, in world blocks, for the per-face tint hash.
   const put = (b, d, x, y, z, ex, ey, ez, mi, wx, wy, wz) => {
@@ -199,20 +247,19 @@ function buildTile(buf, tx, tz) {
     g.boundingSphere = g.boundingBox.getBoundingSphere(new THREE.Sphere());
     const fm = faceMaterial(data, clear);
     g.addEventListener('dispose', () => { data.dispose(); fm.dispose(); });
-    const mesh = new THREE.Mesh(g, fm); mesh.position.set(ox, 0, oz); mesh.updateMatrix(); mesh.matrixAutoUpdate = false;
+    const mesh = new THREE.Mesh(g, fm); mesh.position.set(ox, oy, oz); mesh.updateMatrix(); mesh.matrixAutoUpdate = false;
     if (clear) mesh.renderOrder = 1; mesh.userData.q = b.q; scene.add(mesh); made.push(mesh);
   }
   return made;
 }
 // ---------- streaming: packs of tiles load around the point of interest and unload behind it
-const packs = meta.packs.map(p => ({ ...p, state: 0, meshes: [] }));
 let loading = 0, streamR = 750, everLoaded = false;
 // Meshes are built a few milliseconds per frame so streaming never stalls the drive.
 const buildQ = [], BUDGET = +(params.get('budget') ?? 6);
 async function loadPack(p) {
   p.state = 1; loading++;
   try {
-    const buf = await loadBin(p.id);
+    const [buf] = await Promise.all([loadBin(p.id), hload(p)]);
     const tiles = await Promise.all(p.tiles.map(([tx, tz, n, off, len]) => gunzip(buf.slice(off, off + len))));
     if (p.state !== 1) { loading--; return; }
     p.left = tiles.length;
@@ -224,14 +271,14 @@ function pumpBuilds() {
   while (buildQ.length && performance.now() - t < BUDGET) {
     const { p, tile, tx, tz } = buildQ.shift();
     if (p.state !== 1) continue;
-    p.meshes.push(...buildTile(tile, tx, tz));
+    p.meshes.push(...buildTile(tile, tx, tz, p));
     if (--p.left === 0) { p.state = 2; loading--; if (!everLoaded) { everLoaded = true; $('load').remove(); } }
   }
 }
 function dropPack(p) {
   if (p.state === 1) loading--;
   for (const m of p.meshes) { scene.remove(m); m.geometry.dispose(); quadCount -= m.userData.q; }
-  p.meshes = []; p.state = 0;
+  p.meshes = []; p.state = 0; htrim();
 }
 let lastStats = 0;
 function stream(pos) {
@@ -246,7 +293,7 @@ function stream(pos) {
   const now = performance.now();
   if (now - lastStats > 500) { lastStats = now; $('stats').textContent = `(${(quadCount / 1e6).toFixed(2)}M faces loaded${loading ? ', streaming…' : ''})`; }
 }
-window.__stats = () => ({ quadCount, loaded: packs.filter(p => p.state === 2).length, packs: packs.length });
+window.__stats = () => ({ quadCount, loaded: packs.filter(p => p.state === 2).length, packs: packs.length, heightTiles: hHeld() });
 window.__idle = () => loading === 0 && everLoaded && !packs.some(p => p.state === 0 && Math.hypot(Math.max(p.x - focus.x, 0, focus.x - p.x - meta.pack), Math.max(p.z - focus.z, 0, focus.z - p.z - meta.pack)) < streamR);
 const focus = new THREE.Vector3();
 
@@ -282,7 +329,7 @@ const dests = [...byName].map(([nm, set]) => {
 for (const [i, d] of dests.entries()) $('dest').add(new Option(d.name, i));
 
 // ---------- trip state
-let trip = null, dist = 0, curNode = dests.find(d => d.name === 'Entertainment Way')?.node ?? 0, paused = false, speed = 0, snap = true;
+let trip = null, tripSeq = 0, dist = 0, curNode = dests.find(d => d.name === 'Entertainment Way')?.node ?? 0, paused = false, speed = 0, snap = true;
 const ribbon = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
 ribbon.frustumCulled = false; scene.add(ribbon);
 // faint copy drawn through everything, so the route stays readable under trees and behind buildings
@@ -297,14 +344,17 @@ const turnMark = new THREE.Group();
   turnMark.add(shaft, head); turnMark.traverse(o => o.renderOrder = 4); turnMark.visible = false; scene.add(turnMark);
 }
 const pin = new THREE.Mesh(new THREE.ConeGeometry(4, 14, 4), new THREE.MeshLambertMaterial({ color: 0xe53935 })); pin.rotation.x = Math.PI; scene.add(pin); pin.visible = false;
-function along(d) {
-  d = Math.max(0, Math.min(trip.L, d));
-  let k = 1; while (k < trip.cum.length - 1 && trip.cum[k] < d) k++;
-  const a = trip.pts[k - 1], b = trip.pts[k], l = trip.cum[k] - trip.cum[k - 1] || 1;
-  return { p: a.clone().lerp(b, (d - trip.cum[k - 1]) / l), dir: b.clone().sub(a).normalize(), k };
+function along(d, T = trip) {
+  d = Math.max(0, Math.min(T.L, d));
+  let k = 1; while (k < T.cum.length - 1 && T.cum[k] < d) k++;
+  const a = T.pts[k - 1], b = T.pts[k], l = T.cum[k] - T.cum[k - 1] || 1;
+  return { p: a.clone().lerp(b, (d - T.cum[k - 1]) / l), dir: b.clone().sub(a).normalize(), k };
 }
-function yAt(d) { const t = Math.max(0, Math.min(trip.prof.length - 1.001, d / 2)), i = Math.floor(t); return trip.prof[i] + (trip.prof[i + 1] - trip.prof[i]) * (t - i); }
-function startTrip(toNode) {
+function yAt(d, T = trip) { const t = Math.max(0, Math.min(T.prof.length - 1.001, d / 2)), i = Math.floor(t); return T.prof[i] + (T.prof[i + 1] - T.prof[i]) * (t - i); }
+// Resolves false when there is no route. The new trip goes live once the heights along it are in;
+// a later call made before then supersedes it.
+async function startTrip(toNode) {
+  const seq = ++tripSeq;
   const r = route(curNode, toNode); if (!r || r.nodes.length < 2) return false;
   const pts = r.nodes.map(i => N[i]); const cum = [0];
   for (let k = 1; k < pts.length; k++) cum.push(cum[k - 1] + pts[k].distanceTo(pts[k - 1]));
@@ -320,11 +370,24 @@ function startTrip(toNode) {
     steps.push({ at: cum[k], kind, name: G.names[r.edges[k].nm] || 'the road ahead' });
   }
   steps.push({ at: cum[cum.length - 1], kind: 'arrive', name: $('dest').selectedOptions[0]?.text ?? '' });
-  trip = { pts, cum, L: cum[cum.length - 1], edges: r.edges, steps, toNode }; dist = 0; speed = 0;
+  const T = { pts, cum, L: cum[cum.length - 1], edges: r.edges, steps, toNode };
   // Height profile every 2 m: the deck layer on bridge edges, the ground layer elsewhere, then smoothed
   // so the car rides the road's slope instead of stepping block by block.
-  const raw = [];
-  for (let d = 0; d <= trip.L + 2; d += 2) { const q = along(d); raw.push(smoothY(q.p.x, q.p.z, !!trip.edges[Math.min(q.k - 1, trip.edges.length - 1)].dk)); }
+  const S = [], raw = [];
+  for (let d = 0; d <= T.L + 2; d += 2) { const q = along(d, T); S.push([q.p.x, q.p.z, !!T.edges[Math.min(q.k - 1, T.edges.length - 1)].dk]); }
+  // height tiles are fetched in route order a few ahead of the sample being read, so a long route
+  // never holds more than the LRU allows
+  const need = [...new Set(S.flatMap(([x, z]) => packsNear(x, z, 2)))], order = new Map(need.map((p, i) => [p, i]));
+  let ahead = 0;
+  for (const [x, z, dk] of S) {
+    const ps = packsNear(x, z, 2);
+    for (const last = Math.max(-1, ...ps.map(p => order.get(p))); ahead < need.length && ahead <= last + 3; ahead++) hload(need[ahead]);
+    for (const p of ps) p.hused = ++hclock;
+    if (!ps.every(p => p.hgt || !p.h)) await Promise.all(ps.map(hload));
+    raw.push(smoothY(x, z, dk));
+  }
+  if (seq !== tripSeq) return true;
+  trip = T; dist = 0; speed = 0;
   // fill stretches with no surface under the route from the nearest good samples on either side
   for (let i = 0, last = NaN; i < raw.length; i++) { if (isNaN(raw[i])) { let j = i; while (j < raw.length && isNaN(raw[j])) j++; const nxt = j < raw.length ? raw[j] : last, a = isNaN(last) ? nxt : last; for (let k = i; k < j; k++) raw[k] = a + ((isNaN(nxt) ? a : nxt) - a) * (k - i + 1) / (j - i + 1); i = j - 1; } else last = raw[i]; }
   for (let i = 0; i < raw.length; i++) if (isNaN(raw[i])) raw[i] = 1;
@@ -340,11 +403,12 @@ function startTrip(toNode) {
   const end = pts[pts.length - 1]; pin.position.set(end.x, yAt(trip.L) + 9, end.z); pin.visible = true;
   snap = true; return true;
 }
-function randomTrip() {
+async function randomTrip() {
   for (let tries = 0; tries < 50; tries++) {
     const i = Math.floor(Math.random() * dests.length);
-    if (N[dests[i].node].distanceTo(N[curNode]) > 500) { $('dest').value = i; if (startTrip(dests[i].node)) return; }
+    if (N[dests[i].node].distanceTo(N[curNode]) > 500) { $('dest').value = i; if (await startTrip(dests[i].node)) return true; }
   }
+  return false;
 }
 $('dest').onchange = e => startTrip(dests[+e.target.value].node);
 $('random').onclick = randomTrip;
@@ -369,8 +433,8 @@ const labels = [], LABEL_H = 0.032; // sprite height as a fraction of the view h
     placed.push({ nm, mid });
     // sit on the kerb side of the road, not on its centre line
     const side = new THREE.Vector3(-(N[b].z - N[a].z) / len, 0, (N[b].x - N[a].x) / len).multiplyScalar(cl <= 3 ? 14 : 9);
-    const pos = mid.clone().add(side); pos.y = (smoothY(pos.x, pos.z) || smoothY(mid.x, mid.z) || 1) + 5;
-    labels.push({ nm, name, pos, plain: null, hot: null }); // sprites are made the first time a label is shown
+    // its height is read the first time it comes in range with its height tiles loaded, and the sprites made when first shown
+    labels.push({ nm, name, pos: mid.clone().add(side), mid, placed: false, plain: null, hot: null });
   }
 }
 const _v = new THREE.Vector3();
@@ -385,6 +449,7 @@ function updateLabels(focus, curNm, nextNm) {
   for (const { l } of cands) {
     if (shown.length >= (mode === 'orbit' ? 14 : 7)) break;
     if (mode === 'nav' && l.nm === curNm && l.nm !== nextNm) continue; // the road you are on is named in the trip bar
+    if (!l.placed) { if (!hReady(l.pos.x, l.pos.z) || !hReady(l.mid.x, l.mid.z)) continue; l.pos.y = (smoothY(l.pos.x, l.pos.z) || smoothY(l.mid.x, l.mid.z) || 1) + 5; l.placed = true; }
     _v.copy(l.pos).project(camera); if (_v.z > 1 || Math.abs(_v.x) > 0.96 || Math.abs(_v.y) > 0.96) continue;
     const hot = l.nm === nextNm && mode === 'nav', key = hot ? 'hot' : 'plain', k = hot ? 1.25 : 1;
     if (!l[key]) { l[key] = label(l.name, hot); l[key].position.copy(l.pos); scene.add(l[key]); }
@@ -495,9 +560,9 @@ function frame() {
 }
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 const wanted = dests.findIndex(d => d.name === (params.get('to') ?? 'Alton Parkway'));
-if (wanted >= 0) { $('dest').value = wanted; if (!startTrip(dests[wanted].node)) randomTrip(); } else randomTrip();
+if (wanted >= 0) { $('dest').value = wanted; if (!await startTrip(dests[wanted].node)) await randomTrip(); } else await randomTrip();
 setMode(params.get('mode') ?? 'nav');
-window.__api = { startTrip, randomTrip, along, groundY, smoothY, yAt, dests, trip: () => trip, setStart: n => { curNode = n; }, nodes: N, names: G.names };
+window.__api = { startTrip, randomTrip, along, groundY, smoothY, yAt, loadHeights: (x, z, r = 0) => Promise.all(packsNear(x, z, r).map(hload)), dests, trip: () => trip, setStart: n => { curNode = n; }, nodes: N, names: G.names };
 window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
 frame();
 </script>
