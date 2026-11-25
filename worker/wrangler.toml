@@ -1,0 +1,7 @@
+# MC MAP live traffic Worker. Deployed by .github/workflows/traffic-worker.yml (secrets: CLOUDFLARE_API_TOKEN,
+# TOMTOM_KEY). Lives at https://mcmaps-traffic.<account subdomain>.workers.dev
+name = "mcmaps-traffic"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+account_id = "605419df56f382e24ff5b0e9f69da85f"
+workers_dev = true
