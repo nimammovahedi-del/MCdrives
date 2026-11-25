@@ -129,7 +129,8 @@ export function createSky(scene, { hemi, sun, clearMat, ribbon, car, animateClou
       for (const d of [sunDisc, moonDisc]) { d.position.copy(dir).multiplyScalar(2400); d.lookAt(cb.set(0, 0, 0)); }
       if (animateClouds) drift += dt * 2.2;
       const ox = Math.floor((cam.position.x - drift) / SPAN) * SPAN + drift, oz = Math.floor(cam.position.z / SPAN) * SPAN;
-      clouds.position.set(ox + SPAN / 2, 210, oz + SPAN / 2);
+      // 210 m up, but always well above the camera: a high overview must not look down through the cloud deck
+      clouds.position.set(ox + SPAN / 2, Math.max(210, cam.position.y + 140), oz + SPAN / 2);
     },
   };
 }
