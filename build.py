@@ -235,7 +235,8 @@ def join(area, chunks, out, seam_tol=6, log=print):
         cm = i["meta"]; P = cm["pack"]
         if not all("h" in p for p in cm["packs"]):
             h0 = read_gz_array(i["dir"] / "data" / "height.bin", i["dir"] / "data" / "height.json")
-            return h0[:cm["depth"] * cm["width"]].reshape(cm["depth"], cm["width"])[z0:z1, x0:x1].copy()
+            h0 = np.pad(h0[:cm["depth"] * cm["width"]].reshape(cm["depth"], cm["width"]), 16, constant_values=-1)
+            return h0[max(0, z0 + 16):z1 + 16, max(0, x0 + 16):x1 + 16].copy()
         out = np.full((z1 - z0, x1 - x0), -1, dtype="<i2")
         for p in cm["packs"]:
             ax, az, bx, bz = max(x0, p["x"]), max(z0, p["z"]), min(x1, p["x"] + P), min(z1, p["z"] + P)
@@ -248,7 +249,8 @@ def join(area, chunks, out, seam_tol=6, log=print):
         for b, j in enumerate(info):
             if a == b: continue
             x0, z0 = (max(p, q) for p, q in zip(rect(i)[:2], rect(j)[:2])); x1 = min(rect(i)[2], rect(j)[2]); z1 = min(rect(i)[3], rect(j)[3])
-            if x1 - x0 < 8 or z1 - z0 < 8: continue
+            if min(x1 - x0, z1 - z0) < 8 or max(x1 - x0, z1 - z0) < 400: continue   # corner neighbours share too little
+            x0 -= 8; z0 -= 8; x1 += 8; z1 += 8   # bakes may stop just short of each other
             strips[a, b] = ground(i, x0 - i["sx"], z0 - i["sz"], x1 - i["sx"], z1 - i["sz"]).astype(np.int32)
     rows, rhs = [], []
     for (a, b), sa in strips.items():
