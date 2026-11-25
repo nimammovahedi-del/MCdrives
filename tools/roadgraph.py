@@ -1,8 +1,18 @@
-"""Build a compact drivable road graph in Arnis block coordinates from the OSM-style JSON used for the bake."""
+"""Build a compact drivable road graph in Arnis block coordinates from the OSM-style JSON used for the bake.
+
+    roadgraph.py S,W,N,E src.json out.json [--overhang N]
+
+--overhang lets the graph run N blocks past the bbox on every side instead of stopping 4 blocks
+inside it. That is for one chunk of a larger area: neighbouring chunks then hold the same OSM
+nodes either side of their shared edge, and `build.py` joins the chunks on those shared nodes.
+With --overhang the output also carries "osm", the OSM node id of each node, so the join can
+match them by identity rather than by distance. Default 0 keeps the single-bake behaviour.
+"""
 import sys, json, math
 from collections import defaultdict
 S, W, N, E = map(float, sys.argv[1].split(","))
 src, out = sys.argv[2], sys.argv[3]
+OVER = int(sys.argv[sys.argv.index("--overhang") + 1]) if "--overhang" in sys.argv else 0
 R = 6371000.0
 def hav(dlat, dlon, lat):
     a = math.sin(math.radians(dlat)/2)**2 + math.cos(math.radians(lat))**2 * math.sin(math.radians(dlon)/2)**2
@@ -31,8 +41,9 @@ for e in d["elements"]:
         if a == b or a not in ll or b not in ll: continue
         edges.append((a, b, nidx[nm], CLS.index(base), 1 if oneway else 0, lanes, deck))
         adj[a].append(b); adj[b].append(a)
-# keep the largest connected component, inside the world
-inside = lambda n: 4 < xz(*ll[n])[0] < sx - 4 and 4 < xz(*ll[n])[1] < sz - 4
+# keep the largest connected component, inside the world (or inside the world plus the overhang)
+marg = -OVER if OVER else 4
+inside = lambda n: marg < xz(*ll[n])[0] < sx - marg and marg < xz(*ll[n])[1] < sz - marg
 seen = {}; comps = []
 for s in adj:
     if s in seen or not inside(s): continue
@@ -42,9 +53,14 @@ for s in adj:
         for v in adj[u]:
             if v not in seen and inside(v): seen[v] = len(comps); st.append(v); c.append(v)
     comps.append(c)
-big = set(max(comps, key=len))
+# With an overhang this is one chunk of a bigger area: a road that looks like an island here may
+# well be joined up by a neighbouring chunk, so every component is kept and build.py picks the
+# largest once the chunks are sewn together.
+big = set(seen) if OVER else set(max(comps, key=len))
 ids = {n: i for i, n in enumerate(sorted(big))}
 nodes = [[round(c, 1) for c in xz(*ll[n])] for n in sorted(big)]
 E2 = [[ids[a], ids[b], nm, cl, ow, ln, dk] for a, b, nm, cl, ow, ln, dk in edges if a in big and b in big]
-json.dump({"size": [sx, sz], "names": names, "nodes": nodes, "edges": E2}, open(out, "w"), separators=(",", ":"))
+g = {"size": [sx, sz], "names": names, "nodes": nodes, "edges": E2}
+if OVER: g["osm"] = [n for n in sorted(big)]   # OSM node ids, so chunks can be joined on shared nodes
+json.dump(g, open(out, "w"), separators=(",", ":"))
 print(f"{len(nodes)} nodes, {len(E2)} edges, {len(names)} names, {len(comps)} components; kept {len(big)}")

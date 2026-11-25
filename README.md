@@ -16,18 +16,25 @@ That runs these steps and skips any whose output already exists:
 | convert | World files into greedy-meshed tiles with our own block palette, grouped into one streamable pack per 512 x 512 blocks | `tools/mca2web.py` |
 | roads | Drivable road graph, in block coordinates, from the same OSM data the bake used | `tools/roadgraph.py` |
 | site | Copy the viewer next to the data in `build/<area>/<chunk>/site/` | `build.py` |
+| join | Place every chunk in one world and write `build/<area>/site/` | `build.py` |
 
-Useful flags: `--plan` (show the chunk grid only), `--only r0c0,r0c1`, `--from convert`, `--force`,
-`--world DIR --osm FILE` (reuse a bake you already have), `--arnis PATH`.
+Useful flags: `--plan` (show the chunk grid, each chunk's offset and its projection error),
+`--plan-ids` (just the ids, as JSON), `--only r0c0,r0c1`, `--from convert`, `--force`,
+`--world DIR --osm FILE` (reuse a bake you already have; with `--only` on one chunk of a big area),
+`--join-only` (join chunk outputs that are already there), `--no-join`, `--seam-tol`, `--arnis PATH`.
 
 On Windows the Arnis release binary is downloaded into `bin/` on first use. Elsewhere, build it
 with `cargo build --release --no-default-features` and pass `--arnis` or set `ARNIS_BIN`.
 
 ## Building in GitHub Actions
 
-`.github/workflows/build.yml` does the same build on a GitHub runner and publishes the viewer to
-GitHub Pages. It runs when the `irvine-core` config, the tools or the viewer change, or by hand from
-the Actions tab with any area name. Enable it once under Settings, Pages, Source: GitHub Actions. Each build also force-pushes the finished site to a `built/<area>` branch, so the output can be fetched with git.
+`.github/workflows/build.yml` does the same build on a GitHub runner and publishes the viewer. It runs when the `irvine-core` config, the tools or the viewer change, or by hand from
+the Actions tab with any area name. The site is served from Cloudflare Pages (project `mcdrives-<area>`) once the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set; GitHub Pages caps a site at 1 GB, and all of Irvine is larger. Each build also force-pushes the finished site to a `built/<area>` branch, so the output can be fetched with git.
+
+A big area is built in parallel: one job plans the chunk grid, one matrix job bakes and converts
+each chunk and uploads its site as an artifact, and a last job downloads them all, joins them and
+publishes. `areas/irvine.json` is 25 jobs, well inside GitHub's 256 per matrix, and each chunk job
+has its own 6 hour budget instead of sharing one.
 
 ## Areas and scale
 
@@ -39,7 +46,9 @@ Three things keep cost flat as the area grows:
 - The converter decodes one 512 x 512 region at a time and meshes it with a margin borrowed from
   its neighbours, so memory does not depend on the size of the world.
 - The viewer streams packs in around the car and drops them behind it, so the browser only ever
-  holds about a kilometre of world in each direction.
+  holds about a kilometre of world in each direction. Heights come in one 1 MB tile per pack
+  (`h_<i>_<j>.bin`), loaded with the pack and, when a trip starts, along the route; at most 48
+  are kept beyond the ones under loaded packs.
 - `build/<area>/report.json` records size, quad count and seconds per step, which is the data for
   estimating a bigger build.
 
@@ -47,8 +56,28 @@ One Arnis run covers up to 16 km2 with LiDAR (`areas/irvine-core.json` is 15 km2
 drive). Areas larger than `max_chunk_km2` are cut into a grid of separate bakes;
 `areas/irvine.json` is the whole city, about 343 km2.
 
-Not done yet: separate bakes are separate worlds. Joining them (placing each bake at its offset
-in one pack grid and one road graph) is the next piece of work for going past 16 km2.
+## Joining the chunks
+
+Each chunk is its own Arnis bake, starting at block (0, 0) with its own ground level. The join step
+puts them back together into one world at `build/<area>/site/`:
+
+- Arnis's projection is linear inside a bbox, so a chunk's blocks differ from the area's by a
+  translation. `build.py --plan` prints each chunk's offset and the error at its corners: the
+  metres per degree of longitude depend on a bbox's mean latitude, so a chunk row's scale is
+  slightly off the area's. Over the 343 km2 of `areas/irvine.json` the worst corner is 4.2 blocks out.
+- Pack files are copied, never re-encoded: each keeps its bytes and gains a unique id and the
+  offset of its chunk, which the viewer applies when it places the tile meshes. Material ids are
+  the same in every world (`tools/mca2web.py` registers the whole palette up front), so one
+  palette covers the area.
+- Height tiles (one per pack, the surface under every column) are linked the same way and carry
+  their chunk's vertical offset with the pack. Where two chunks' packs overlap, the viewer reads a
+  column from the later chunk when it has a surface there, else from the earlier one.
+- Road graphs are merged. A chunk's graph reaches 32 blocks past its bbox (`roadgraph.py
+  --overhang`), so neighbours hold the same OSM nodes either side of their seam; the join merges
+  those nodes, then any remaining pair within `--seam-tol` blocks, and keeps the largest connected
+  component of the result. Routes cross chunk edges as if the area had been baked in one go.
+
+A single-chunk area is already one world, so nothing is joined and the site stays where it was.
 
 ## Optional street photos
 
