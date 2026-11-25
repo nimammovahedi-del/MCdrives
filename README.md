@@ -28,8 +28,7 @@ with `cargo build --release --no-default-features` and pass `--arnis` or set `AR
 
 ## Building in GitHub Actions
 
-`.github/workflows/build.yml` does the same build on a GitHub runner and publishes the viewer to
-GitHub Pages. It runs when the `irvine-core` config, the tools or the viewer change, or by hand from
+`.github/workflows/build.yml` does the same build on a GitHub runner and publishes the viewer. It runs when the `irvine-core` config, the tools or the viewer change, or by hand from
 the Actions tab with any area name. The site is served from Cloudflare Pages (project `mcdrives-<area>`) once the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are set; GitHub Pages caps a site at 1 GB, and all of Irvine is larger. Each build also force-pushes the finished site to a `built/<area>` branch, so the output can be fetched with git.
 
 A big area is built in parallel: one job plans the chunk grid, one matrix job bakes and converts
