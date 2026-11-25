@@ -4,37 +4,42 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Blockville</title>
+<link rel="stylesheet" href="drive/hud.css">
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #8ec5ff; font-family: system-ui, sans-serif; }
   #ui { position: absolute; top: 12px; left: 12px; background: rgba(20,24,32,.85); color: #f2f2f2; padding: 10px 12px;
         border-radius: 8px; font-size: 13px; line-height: 1.5; max-width: 300px; }
   #ui button, #ui select { font: inherit; margin: 2px 2px 2px 0; padding: 4px 9px; border-radius: 5px; border: 0; max-width: 100%; }
   #ui button.on { background: #f1c232; }
-  #banner { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: #14633a; color: #fff; padding: 10px 18px;
-            border-radius: 10px; display: none; align-items: center; gap: 14px; box-shadow: 0 3px 10px rgba(0,0,0,.35); max-width: 60vw; }
-  #arrow { font-size: 44px; line-height: 1; font-weight: 700; }
-  #bdist { font-size: 24px; font-weight: 700; } #bname { font-size: 15px; opacity: .92; }
-  #trip { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); background: rgba(20,24,32,.88); color: #fff;
-          padding: 8px 18px; border-radius: 10px; font-size: 17px; font-weight: 600; display: none; white-space: nowrap; }
+  #stage { position: absolute; inset: 0; overflow: hidden; }
+  body.L-car #stage { inset: auto; width: 800px; height: 480px; left: 50%; top: 50%; transform: translate(-50%, -50%); outline: 2px solid #333; }
   #credit { position: absolute; bottom: 4px; right: 8px; font-size: 11px; color: #123; background: rgba(255,255,255,.7); padding: 1px 5px; border-radius: 3px; }
   #load { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #123; }
 </style>
 </head>
 <body>
+<div id="stage">
 <div id="load">Loading blocks…</div>
-<div id="ui">
+<button id="menuBtn" title="Menu">≡</button>
+<div id="ui" class="drawer">
   <b id="areaname">Blockville</b> <span id="stats"></span><br>
   <button id="mNav" class="on">Navigate</button><button id="mOrbit">Overview</button><button id="mWalk">Street view</button><br>
   Drive to <select id="dest"></select><br>
   <button id="random">Random trip</button><button id="pause">Pause</button>
+  <div class="row">Camera</div><select id="camSel"></select>
+  <div class="row">Sky</div><button id="skyAuto">Auto</button><button id="skyDay">Day</button><button id="skyNight">Night</button>
+  <div class="row">Screen</div><select id="laySel"><option value="auto">Auto</option><option value="phone">Phone (portrait)</option><option value="phoneland">Phone (landscape)</option><option value="desktop">Desktop</option><option value="car">Car screen preview</option></select>
+  <select id="unitSel"><option value="imperial">mi / ft</option><option value="metric">km / m</option></select>
   <div id="help" style="opacity:.8"></div>
 </div>
-<div id="banner"><div id="arrow">↑</div><div><div id="bdist"></div><div id="bname"></div></div></div>
-<div id="trip"></div>
 <div id="credit">Map data © OpenStreetMap contributors, Overture Maps Foundation (ODbL). World generated with Arnis (Apache-2.0). Not an official Minecraft product. Not for use while driving.</div>
+</div>
 <script type="module">
 import * as THREE from './vendor/three.module.js';
 import { OrbitControls } from './vendor/OrbitControls.js';
+import { createHud, pickLayout } from './drive/hud.js';
+import { DriveCamera, CAMERAS } from './drive/camera.js';
+import { createSky } from './drive/sky.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -64,15 +69,19 @@ const groundY = (x, z, deck = false) => {
 const smoothY = (x, z, deck = false) => [[0,0],[2,0],[-2,0],[0,2],[0,-2]].map(([dx, dz]) => groundY(x + dx, z + dz, deck)).sort((a, b) => a - b)[2];
 
 // ---------- scene
-const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-document.body.appendChild(renderer.domElement);
+// Device load: phones get a 1.5 pixel-ratio cap and no MSAA (the blocky look needs neither), and frames are capped
+// at 30 fps. ?fps=60 / ?dpr=2 / ?aa=1 override for comparisons.
+const phoneLike = matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 600;
+const renderer = new THREE.WebGLRenderer({ antialias: params.has('aa') ? params.get('aa') === '1' : !phoneLike, powerPreference: 'low-power' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, +(params.get('dpr') ?? (phoneLike ? 1.5 : 2))));
+const FPS = +(params.get('fps') ?? 30);
+const stageEl = $('stage');
+stageEl.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x8ec5ff);
 scene.fog = new THREE.Fog(0x8ec5ff, 250, 850);
 const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.5, 4000);
-scene.add(new THREE.HemisphereLight(0xe8f2ff, 0x6a6f55, 1.7));
+const hemi = new THREE.HemisphereLight(0xe8f2ff, 0x6a6f55, 1.7); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff4e0, 1.5); sun.position.set(0.5, 1, 0.3); scene.add(sun);
 
 // Original 16x16 grain texture multiplied over each block colour.
@@ -211,13 +220,15 @@ for (const [a, b, nm, cl, ow, ln, dk] of G.edges) {
   adj[a].push({ to: b, nm, cl, len, dk }); if (!ow) adj[b].push({ to: a, nm, cl, len, dk });
 }
 function route(from, to) {
-  const dist = new Float64Array(N.length).fill(Infinity), prev = new Int32Array(N.length).fill(-1), pe = new Array(N.length), done = new Uint8Array(N.length);
-  dist[from] = 0;
-  for (;;) {
-    let u = -1, best = Infinity;
-    for (let i = 0; i < N.length; i++) if (!done[i] && dist[i] < best) { best = dist[i]; u = i; }
-    if (u < 0 || u === to) break; done[u] = 1;
-    for (const e of adj[u]) { const d = dist[u] + e.len / SPEED[e.cl]; if (d < dist[e.to]) { dist[e.to] = d; prev[e.to] = u; pe[e.to] = e; } }
+  // Dijkstra with a binary heap (about 90x faster than scanning every node, which stalled reroutes for 40-80 ms)
+  const n = N.length, dist = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), pe = new Array(n);
+  const hk = new Float64Array(n * 4 + 16), hv = new Int32Array(n * 4 + 16); let hn = 0;
+  const push = (k, v) => { let i = hn++; while (i > 0) { const q = (i - 1) >> 1; if (hk[q] <= k) break; hk[i] = hk[q]; hv[i] = hv[q]; i = q; } hk[i] = k; hv[i] = v; };
+  const pop = () => { const v = hv[0], k = hk[--hn], vv = hv[hn]; let i = 0; for (;;) { let c = 2 * i + 1; if (c >= hn) break; if (c + 1 < hn && hk[c + 1] < hk[c]) c++; if (hk[c] >= k) break; hk[i] = hk[c]; hv[i] = hv[c]; i = c; } hk[i] = k; hv[i] = vv; return v; };
+  dist[from] = 0; push(0, from);
+  while (hn) {
+    const du = hk[0], u = pop(); if (du > dist[u]) continue; if (u === to) break;
+    for (const e of adj[u]) { const d = du + e.len / SPEED[e.cl]; if (d < dist[e.to]) { dist[e.to] = d; prev[e.to] = u; pe[e.to] = e; push(d, e.to); } }
   }
   if (!isFinite(dist[to])) return null;
   const nodes = [], edges = [];
@@ -258,8 +269,8 @@ function along(d) {
 function yAt(d) { const t = Math.max(0, Math.min(trip.prof.length - 1.001, d / 2)), i = Math.floor(t); return trip.prof[i] + (trip.prof[i + 1] - trip.prof[i]) * (t - i); }
 function startTrip(toNode) {
   const r = route(curNode, toNode); if (!r || r.nodes.length < 2) return false;
-  const pts = r.nodes.map(i => N[i]); const cum = [0];
-  for (let k = 1; k < pts.length; k++) cum.push(cum[k - 1] + pts[k].distanceTo(pts[k - 1]));
+  const pts = r.nodes.map(i => N[i]); const cum = [0], tcum = [0];
+  for (let k = 1; k < pts.length; k++) { const l = pts[k].distanceTo(pts[k - 1]); cum.push(cum[k - 1] + l); tcum.push(tcum[k - 1] + l / SPEED[r.edges[k - 1].cl]); }
   // manoeuvres: a named-road change or a bend sharper than 35 degrees
   const steps = [];
   for (let k = 1; k < r.edges.length; k++) {
@@ -269,10 +280,10 @@ function startTrip(toNode) {
     if (abs < 35 && !changed) continue;
     if (abs < 20 && adj[r.nodes[k]].length <= 2) continue;
     const kind = abs > 150 ? 'uturn' : abs > 50 ? (ang > 0 ? 'right' : 'left') : abs > 20 ? (ang > 0 ? 'slight right' : 'slight left') : 'straight';
-    steps.push({ at: cum[k], kind, name: G.names[r.edges[k].nm] || 'the road ahead' });
+    steps.push({ at: cum[k], kind, name: G.names[r.edges[k].nm] || 'the road ahead', point: pts[k], out: b.clone().normalize() });
   }
-  steps.push({ at: cum[cum.length - 1], kind: 'arrive', name: $('dest').selectedOptions[0]?.text ?? '' });
-  trip = { pts, cum, L: cum[cum.length - 1], edges: r.edges, steps, toNode }; dist = 0; speed = 0;
+  steps.push({ at: cum[cum.length - 1], kind: 'arrive', name: $('dest').selectedOptions[0]?.text ?? '', point: pts[pts.length - 1], out: null });
+  trip = { pts, cum, tcum, L: cum[cum.length - 1], T: tcum[tcum.length - 1], edges: r.edges, steps, toNode }; dist = 0; speed = 0;
   // Height profile every 2 m: the deck layer on bridge edges, the ground layer elsewhere, then smoothed
   // so the car rides the road's slope instead of stepping block by block.
   const raw = [];
@@ -326,9 +337,10 @@ const labels = [], LABEL_H = 0.032; // sprite height as a fraction of the view h
 }
 const _v = new THREE.Vector3();
 function updateLabels(focus, curNm, nextNm) {
-  const W = innerWidth, Hh = innerHeight, shown = [];
+  const W = stageEl.clientWidth, Hh = stageEl.clientHeight, shown = [];
   // screen areas that must stay clear: the control panel, the turn banner, the trip bar, and the car itself
-  const keep = [[0, 0, 350, 200], [W / 2 - 190, 0, W / 2 + 190, 95], [W / 2 - 150, Hh - 80, W / 2 + 150, Hh], [W / 2 - 70, Hh * 0.55, W / 2 + 70, Hh * 0.9]];
+  const cy0 = (dcam.carScreen?.y ?? 0.7) * Hh, cx0 = (dcam.carScreen?.x ?? 0.5) * W;
+  const keep = [...hudRects, [cx0 - 70, cy0 - 90, cx0 + 70, cy0 + 60]];
   const range = mode === 'orbit' ? 900 : 380;
   const cands = labels.map(l => ({ l, d: l.pos.distanceTo(focus) })).filter(c => c.d < range)
     .sort((a, b) => (b.l.nm === nextNm) - (a.l.nm === nextNm) || a.d - b.d);
@@ -354,6 +366,57 @@ for (const [x, z] of [[-1.1, 1.4], [1.1, 1.4], [-1.1, -1.4], [1.1, -1.4]]) box(0
 car.traverse(o => { if (o.material) { o.material.transparent = true; o.renderOrder = 6; } }); // drawn after the see-through route copy
 scene.add(car);
 
+// ---------- driving HUD, camera, sky and screen layout
+let units = params.get('units') ?? 'imperial';
+let hud;
+const dcam = new DriveCamera(camera); dcam.setPreset(params.get('cam') ?? 'smart');
+const sky = createSky(scene, { hemi, sun, clearMat, ribbon, car });
+sky.setMode(params.get('sky') ?? 'auto');
+let prevLayout = '', hudRects = [], navFov = 45, layout = 'desktop', layoutParam = params.get('layout') ?? 'auto';
+function makeHud() {
+  hud?.el.card.remove(); hud?.el.bar.remove();
+  hud = createHud({ units, onMenu: toggleMenu, onEnd: () => { paused = true; $('pause').textContent = 'Resume'; setMode('orbit'); } });
+  hud.show(mode === 'nav');
+}
+function toggleMenu(open) { document.body.classList.toggle('menu-closed', open === undefined ? !document.body.classList.contains('menu-closed') : !open); if (open === undefined) applyLayout(); }
+$('menuBtn').onclick = () => toggleMenu();
+function applyLayout() {
+  layout = pickLayout(layoutParam === 'auto' ? null : layoutParam);
+  document.body.className = document.body.className.replace(/\bL-\S+/g, '').trim();
+  document.body.classList.add('L-' + layout);
+  const car = layout === 'car';
+  for (const id of ['card', 'bar']) document.getElementById(id)?.classList.toggle('sys', car);
+  let note = $('carNote');
+  if (car && !note) { note = document.createElement('div'); note.id = 'carNote'; note.textContent = 'Car screen preview: on CarPlay and Android Auto the guidance card and trip info are drawn by the car system; the app only draws the map.'; document.body.append(note); }
+  if (!car && note) note.remove();
+  sky.setAnimate(!car); // car platforms forbid decorative animation while driving
+  if (layout !== prevLayout && (layout === 'phone' || layout === 'phoneland')) toggleMenu(false);
+  prevLayout = layout;
+  const w = stageEl.clientWidth, h = stageEl.clientHeight;
+  renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+  // share of the screen hidden by the HUD, so the camera keeps the car and the road ahead in the clear part
+  const r = el => { const b = el?.getBoundingClientRect(), sb = stageEl.getBoundingClientRect(); return b && b.height ? b : null; };
+  const sb = stageEl.getBoundingClientRect(), c = r($('card')), b = r($('bar'));
+  const side = layout === 'phoneland' || layout === 'car';
+  const padTop = layout === 'phone' && c ? (c.bottom - sb.top) / h : 0.05, padBottom = b && !side ? (sb.bottom - b.top) / h : 0.05;
+  const padLeft = side && c ? (c.right - sb.left) / w : 0;
+  // keep at least ~50 degrees of horizontal view so a portrait phone still sees both kerbs and the cross street
+  navFov = Math.min(72, Math.max(45, 2 * Math.atan(Math.tan(25 * Math.PI / 180) / camera.aspect) * 180 / Math.PI));
+  if (mode === 'nav') { camera.fov = navFov; camera.updateProjectionMatrix(); }
+  dcam.setViewport({ w, h, padTop, padBottom, padLeft });
+  // HUD boxes in stage pixels, so street labels never land under the card, the bar or the menu button
+  hudRects = ['card', 'bar', 'menuBtn', 'ui'].map(id => document.getElementById(id)).filter(e => e && e.offsetParent)
+    .map(e => { const q = e.getBoundingClientRect(); return [q.left - sb.left - 6, q.top - sb.top - 6, q.right - sb.left + 6, q.bottom - sb.top + 6]; });
+}
+for (const [k, v] of Object.entries(CAMERAS)) $('camSel').add(new Option(v.label, k));
+$('camSel').value = dcam.preset; $('camSel').onchange = e => { dcam.setPreset(e.target.value); dcam.setViewport({}); };
+const skyBtns = { auto: 'skyAuto', day: 'skyDay', night: 'skyNight' };
+const markSky = () => { for (const [m, id] of Object.entries(skyBtns)) $(id).classList.toggle('on', sky.mode === m); };
+for (const [m, id] of Object.entries(skyBtns)) $(id).onclick = () => { sky.setMode(m); markSky(); };
+markSky();
+$('laySel').value = layoutParam; $('laySel').onchange = e => { layoutParam = e.target.value; applyLayout(); };
+$('unitSel').value = units; $('unitSel').onchange = e => { units = e.target.value; makeHud(); applyLayout(); };
+
 // ---------- modes
 const orbit = new OrbitControls(camera, renderer.domElement);
 let mode = 'nav', heading = 0, camH = 40, camBack = 50;
@@ -364,20 +427,23 @@ renderer.domElement.addEventListener('pointerdown', e => { dragging = true; lx =
 addEventListener('pointerup', () => dragging = false);
 addEventListener('pointermove', e => { if (!dragging || mode !== 'walk') return; yaw -= (e.clientX - lx) * 0.004; pitch = Math.max(-1.2, Math.min(1.2, pitch - (e.clientY - ly) * 0.004)); lx = e.clientX; ly = e.clientY; });
 function setMode(m) {
-  mode = m; orbit.enabled = m === 'orbit'; snap = true;
+  mode = m; orbit.enabled = m === 'orbit'; snap = true; if (m !== 'nav') { camera.clearViewOffset(); }
   for (const [id, mm] of [['mNav', 'nav'], ['mOrbit', 'orbit'], ['mWalk', 'walk']]) $(id).classList.toggle('on', mm === m);
-  $('banner').style.display = m === 'nav' ? 'flex' : 'none'; $('trip').style.display = m === 'nav' ? 'block' : 'none';
+  hud.show(m === 'nav');
   scene.fog.near = m === 'orbit' ? 700 : 250; scene.fog.far = m === 'orbit' ? 1500 : 850; streamR = m === 'orbit' ? 1300 : 750;
-  camera.fov = m === 'walk' ? 70 : 45; camera.updateProjectionMatrix();
+  camera.fov = m === 'walk' ? 70 : m === 'nav' ? navFov : 45; camera.updateProjectionMatrix();
   $('help').textContent = m === 'nav' ? 'The car follows the blue route. Pick a destination or try a random trip.' : m === 'orbit' ? 'Drag to rotate, scroll to zoom.' : 'Drag to look, WASD to walk, Shift to run.';
   if (m === 'orbit') { orbit.target.copy(car.position); camera.position.set(car.position.x - 250, car.position.y + 380, car.position.z + 420); orbit.update(); }
   if (m === 'walk') { walkPos.copy(car.position); yaw = heading; pitch = 0; }
 }
 $('mNav').onclick = () => setMode('nav'); $('mOrbit').onclick = () => setMode('orbit'); $('mWalk').onclick = () => setMode('walk');
-const ARROW = { left: '↰', right: '↱', 'slight left': '↖', 'slight right': '↗', straight: '↑', uturn: '↶', arrive: '⚑' };
-const TEXT = { left: 'Turn left onto', right: 'Turn right onto', 'slight left': 'Keep left onto', 'slight right': 'Keep right onto', straight: 'Continue onto', uturn: 'Make a U-turn onto', arrive: 'Arrive at' };
 const clock = new THREE.Clock();
-function frame() {
+let lastFrame = 0, stillFrames = 0, lastCam = new THREE.Matrix4(), dirty = true;
+addEventListener('pointerdown', () => dirty = true); addEventListener('wheel', () => dirty = true); addEventListener('keydown', () => dirty = true);
+function frame(now = performance.now()) {
+  requestAnimationFrame(frame);
+  if (FPS < 60 && now - lastFrame < 1000 / FPS - 2) return;   // frame cap
+  lastFrame = now;
   const dt = Math.min(clock.getDelta(), 0.1);
   if (trip) {
     const here = along(dist), next = trip.steps.find(s => s.at > dist + 0.5) ?? trip.steps[trip.steps.length - 1];
@@ -388,6 +454,7 @@ function frame() {
     if (paused || dist >= trip.L) target = 0;
     speed += Math.max(-9 * dt, Math.min(4 * dt, target - speed));
     dist = Math.min(trip.L, dist + speed * dt);
+    ribbon.geometry.setDrawRange(Math.max(0, Math.floor((dist - 6) / 2)) * 6, Infinity); // trim the part already driven
     const { p } = along(dist), ahead = along(dist + 8).p;
     p.y = yAt(dist); car.position.copy(p);
     if (ahead.distanceTo(new THREE.Vector3(p.x, 0, p.z)) > 0.5) {
@@ -398,20 +465,20 @@ function frame() {
     }
     if (dist >= trip.L - 0.5 && speed < 0.2) curNode = trip.toNode;
     if (mode === 'nav') {
-      // tilted heading-up camera; drops and tightens near a manoeuvre
-      // approaching a manoeuvre the camera lifts and looks down, so the junction is seen over trees and buildings
-      const near = next.kind !== 'straight' && next.kind !== 'arrive' && toNext < 180;
-      camH += ((near ? 62 : 42) - camH) * (1 - Math.exp(-dt * 1.5)); camBack += ((near ? 44 : 52) - camBack) * (1 - Math.exp(-dt * 1.5));
-      const f = new THREE.Vector3(-Math.sin(heading), 0, -Math.cos(heading));
-      const camPos = p.clone().addScaledVector(f, -camBack).setY(p.y + camH);
-      if (snap) { camera.position.copy(camPos); snap = false; } else camera.position.lerp(camPos, 1 - Math.exp(-dt * 5));
-      camera.lookAt(p.x + f.x * 30, p.y, p.z + f.z * 30);
-      $('arrow').textContent = ARROW[next.kind];
-      $('bdist').textContent = toNext > 950 ? (toNext / 1000).toFixed(1) + ' km' : Math.round(toNext / 10) * 10 + ' m';
-      $('bname').textContent = `${TEXT[next.kind]} ${next.name}`;
-      const left = trip.L - dist, mins = Math.max(1, Math.round(left / 13 / 60));
-      const onName = G.names[trip.edges[Math.min(here.k - 1, trip.edges.length - 1)].nm];
-      $('trip').textContent = dist >= trip.L - 0.5 ? 'You have arrived' : `${onName && onName !== 'ramp' ? onName + ' · ' : ''}${Math.round(speed * 3.6)} km/h · ${left > 950 ? (left / 1000).toFixed(1) + ' km' : Math.round(left) + ' m'} · ${mins} min`;
+      const ahead2 = along(dist + 20); const dir = ahead2.p.clone().sub(p).setY(0);
+      if (dir.lengthSq() < 0.01) dir.set(-Math.sin(heading), 0, -Math.cos(heading)); else dir.normalize();
+      if (snap) { dcam.snap = true; snap = false; }
+      dcam.update(dt, { p, dir, speed, toNext, nextKind: next.kind, turnPoint: next.point, outDir: next.out });
+      const i = trip.steps.indexOf(next), after = trip.steps[i + 1];
+      const arrived = dist >= trip.L - 0.5;
+      const k = here.k, frac = (dist - trip.cum[k - 1]) / ((trip.cum[k] - trip.cum[k - 1]) || 1);
+      const tNow = trip.tcum[k - 1] + (trip.tcum[k] - trip.tcum[k - 1]) * Math.min(1, Math.max(0, frac));
+      const lim = trip.edges[Math.min(k - 1, trip.edges.length - 1)][6];
+      hud.update({
+        kind: next.kind, name: next.name, toNext,
+        then: after && after.at - next.at < 260 && next.kind !== 'arrive' ? { kind: after.kind, name: after.name } : null,
+        speed, limit: lim || null, left: trip.L - dist, leftSec: trip.T - tNow, progress: dist / trip.L, arrived, rerouting: false,
+      });
     }
   }
   if (mode === 'walk') {
@@ -423,6 +490,7 @@ function frame() {
     camera.position.copy(walkPos); camera.rotation.set(pitch, yaw, 0, 'YXZ');
   } else if (mode === 'orbit') orbit.update();
   focus.copy(mode === 'walk' ? walkPos : mode === 'orbit' ? orbit.target : car.position); stream(focus);
+  sky.update(dt, camera);
   {
     let curNm = -1, nextNm = -1; turnMark.visible = false;
     if (trip) {
@@ -439,13 +507,17 @@ function frame() {
     }
     updateLabels(focus, curNm, nextNm);
   }
-  renderer.render(scene, camera);
-  requestAnimationFrame(frame);
+  // render on demand: skip drawing when the camera has not moved and nothing is streaming in
+  camera.updateMatrixWorld();
+  const moved = !lastCam.equals(camera.matrixWorld) || loading > 0 || buildQ.length > 0 || dirty || mode === 'orbit' || (sky.animating && layout !== 'car');
+  lastCam.copy(camera.matrixWorld); dirty = false;
+  if (moved) { stillFrames = 0; renderer.render(scene, camera); window.__frames = (window.__frames ?? 0) + 1; }
+  else if (++stillFrames % 30 === 0) { renderer.render(scene, camera); }  // keep the clock and HUD honest about once a second
 }
-addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+addEventListener('resize', () => applyLayout());
 const wanted = dests.findIndex(d => d.name === (params.get('to') ?? 'Alton Parkway'));
 if (wanted >= 0) { $('dest').value = wanted; if (!startTrip(dests[wanted].node)) randomTrip(); } else randomTrip();
-setMode(params.get('mode') ?? 'nav');
+makeHud(); setMode(params.get('mode') ?? 'nav'); applyLayout();
 window.__api = { startTrip, randomTrip, along, groundY, smoothY, yAt, dests, trip: () => trip, setStart: n => { curNode = n; }, nodes: N, names: G.names };
 window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
 frame();

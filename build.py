@@ -124,6 +124,7 @@ def build_chunk(area, chunk, args, work):
         (data / "meta.json").write_text(json.dumps(meta))
         shutil.copy(ROOT / "web" / "index.html", site / "index.html")
         shutil.copytree(ROOT / "web" / "vendor", site / "vendor", dirs_exist_ok=True)
+        shutil.copytree(ROOT / "web" / "drive", site / "drive", dirs_exist_ok=True)
         times["site"] = time.time() - times["site"]
 
     meta = json.loads((data / "meta.json").read_text())

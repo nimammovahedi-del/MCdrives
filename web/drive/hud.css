@@ -1,0 +1,121 @@
+/* Driving HUD: an original blocky look (bevelled stone panels, pixel type, hard text shadows).
+   Sizes follow glance rules: one big number, one big name, few elements. */
+@font-face { font-family: 'Pixelify'; src: url('../vendor/fonts/pixelify-sans-latin-500-normal.woff2') format('woff2'); font-weight: 500; font-display: block; }
+@font-face { font-family: 'Pixelify'; src: url('../vendor/fonts/pixelify-sans-latin-700-normal.woff2') format('woff2'); font-weight: 700; font-display: block; }
+
+:root {
+  --px: 3px;                         /* one "pixel" of the bevel */
+  --panel: rgba(38, 38, 42, .92);
+  --hi: #6d6d74; --lo: #121214; --edge: #000;
+  --ink: #fff; --shadow: #3a3a3a;
+  --go: #3f8f2a; --go-hi: #6cc34b; --go-lo: #24561a;
+  --warn: #c98a1b; --warn-hi: #f3c14b; --warn-lo: #6e4a0b;
+  --big: 46px; --name: 26px; --small: 18px;
+}
+.hud, .hud * { box-sizing: border-box; font-family: 'Pixelify', ui-monospace, monospace; -webkit-font-smoothing: none; }
+.hud { position: absolute; z-index: 5; color: var(--ink); user-select: none; pointer-events: none; }
+.hud .t { text-shadow: var(--px) var(--px) 0 var(--shadow); letter-spacing: .02em; }
+
+/* bevelled panel: black outline, light top-left inner edge, dark bottom-right inner edge */
+.panel { background: var(--panel); border: var(--px) solid var(--edge);
+  box-shadow: inset var(--px) var(--px) 0 var(--hi), inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 var(--lo); }
+.slot { background: var(--go); border: var(--px) solid var(--edge); display: flex; align-items: center; justify-content: center;
+  box-shadow: inset var(--px) var(--px) 0 var(--go-hi), inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 var(--go-lo); }
+.slot canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+.slot.grey { background: #8b8b8b; box-shadow: inset var(--px) var(--px) 0 #373737, inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 #fff; }
+
+/* ---------- maneuver card */
+#card { display: flex; flex-direction: column; gap: 0; }
+#card .main { display: flex; align-items: center; gap: 14px; padding: 12px 16px 12px 12px; }
+#card .arrow { width: 92px; height: 92px; flex: none; }
+#card .arrow canvas { width: 72px; height: 72px; }
+#card .dist { font-size: var(--big); font-weight: 700; line-height: 1; }
+#card .dist small { font-size: .55em; margin-left: .15em; }
+#card .name { font-size: var(--name); font-weight: 500; line-height: 1.12; margin-top: 6px;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+#card .then { display: flex; align-items: center; gap: 10px; padding: 6px 12px; margin-top: calc(-1 * var(--px));
+  font-size: var(--small); font-weight: 500; width: max-content; max-width: 100%; }
+#card .then .slot { width: 40px; height: 40px; }
+#card .then canvas { width: 28px; height: 28px; }
+#card.warn .slot { background: var(--warn); box-shadow: inset var(--px) var(--px) 0 var(--warn-hi), inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 var(--warn-lo); }
+#card.soon .dist { color: #fff27a; }
+
+/* ---------- bottom bar */
+#bar { display: flex; align-items: stretch; gap: 0; }
+#bar .speed { width: 84px; flex: none; flex-direction: column; margin: 8px 0 8px 8px; }
+#bar .speed b { font-size: 34px; line-height: 1; font-weight: 700; }
+#bar .speed i { font-style: normal; font-size: 14px; margin-top: 2px; }
+#bar .limit { width: 58px; height: 70px; flex: none; margin: 8px 0 8px 8px; background: #f4f4f4; color: #111; border: var(--px) solid #000;
+  display: none; flex-direction: column; align-items: center; justify-content: center; box-shadow: inset 0 0 0 var(--px) #f4f4f4, inset 0 0 0 calc(2 * var(--px)) #111; }
+#bar .limit.on { display: flex; }
+#bar .limit i { font-style: normal; font-size: 10px; line-height: 1; } #bar .limit b { font-size: 26px; line-height: 1; }
+#bar .mid { flex: 1; padding: 8px 14px; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+#bar .eta { font-size: 34px; font-weight: 700; line-height: 1; white-space: nowrap; }
+#bar .rest { font-size: var(--small); margin-top: 4px; white-space: nowrap; opacity: .95; }
+#bar .xp { height: 12px; margin-top: 8px; border: var(--px) solid #000; background: #2a2a2a; position: relative; }
+#bar .xp span { position: absolute; inset: 0 auto 0 0; background: repeating-linear-gradient(90deg, #7fd650 0 10px, #5aa636 10px 12px); }
+#bar .btn { pointer-events: auto; width: 64px; flex: none; margin: 8px 8px 8px 0; font-size: 15px; font-weight: 700; cursor: pointer;
+  background: #6f6f6f; border: var(--px) solid #000; color: #fff; display: flex; align-items: center; justify-content: center; text-align: center;
+  box-shadow: inset var(--px) var(--px) 0 #a8a8a8, inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 #3a3a3a; }
+#bar .btn:active { box-shadow: inset var(--px) var(--px) 0 #3a3a3a, inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 #a8a8a8; }
+
+/* ---------- menu button + drawer for the demo controls */
+#menuBtn { position: absolute; z-index: 6; width: 52px; height: 52px; pointer-events: auto; cursor: pointer; font-size: 26px; font-weight: 700; color: #fff;
+  background: #6f6f6f; border: var(--px) solid #000; box-shadow: inset var(--px) var(--px) 0 #a8a8a8, inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 #3a3a3a;
+  font-family: 'Pixelify', monospace; text-shadow: 2px 2px 0 #3a3a3a; }
+body.menu-closed #ui { display: none; }
+#ui.drawer { font-family: 'Pixelify', monospace; font-size: 15px; border-radius: 0; border: var(--px) solid #000; z-index: 6;
+  box-shadow: inset var(--px) var(--px) 0 #6d6d74, inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 #121214; background: rgba(38,38,42,.95); }
+#ui.drawer button, #ui.drawer select { font-family: 'Pixelify', monospace; border-radius: 0; border: 2px solid #000; background: #8b8b8b; color: #fff;
+  text-shadow: 2px 2px 0 #3a3a3a; padding: 5px 9px; box-shadow: inset 2px 2px 0 #b9b9b9, inset -2px -2px 0 #4a4a4a; }
+#ui.drawer select { background: #4a4a4a; text-shadow: none; }
+#ui.drawer button.on { background: #3f8f2a; box-shadow: inset 2px 2px 0 #6cc34b, inset -2px -2px 0 #24561a; }
+#ui.drawer .row { margin: 6px 0 2px; opacity: .8; font-size: 13px; }
+
+/* ---------- layouts */
+/* phone portrait: card across the top, bar across the bottom (safe areas respected) */
+body.L-phone #card { left: 8px; right: 8px; top: calc(8px + env(safe-area-inset-top)); }
+body.L-phone #bar { left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); }
+body.L-phone #menuBtn { right: 8px; top: calc(8px + env(safe-area-inset-top)); display: none; }
+body.L-phone #bar .btn.menu { display: flex; }
+body.L-phone #bar .btn { width: 54px; font-size: 14px; } body.L-phone #bar .eta { font-size: 30px; } body.L-phone #bar .speed { width: 72px; }
+body.L-phone #ui { left: 8px; right: 8px; top: auto; bottom: calc(110px + env(safe-area-inset-bottom)); max-width: none; }
+body.L-phone #credit { bottom: auto; top: 0; font-size: 9px; opacity: .7; display: none; }
+/* phone landscape: card and bar stacked in a left column, map gets the right side */
+body.L-phoneland { --big: 38px; --name: 22px; --small: 16px; }
+body.L-phoneland #card { left: calc(8px + env(safe-area-inset-left)); top: 8px; width: 330px; }
+body.L-phoneland #card .arrow { width: 76px; height: 76px; } body.L-phoneland #card .arrow canvas { width: 60px; height: 60px; }
+body.L-phoneland #bar { left: calc(8px + env(safe-area-inset-left)); bottom: 8px; width: 330px; }
+body.L-phoneland #bar .speed { width: 70px; } body.L-phoneland #bar .eta { font-size: 28px; }
+body.L-phoneland #menuBtn { right: calc(8px + env(safe-area-inset-right)); top: 8px; } body.L-phoneland #bar .btn.menu { display: none; }
+body.L-phoneland #bar .btn { width: 56px; }
+body.L-phoneland #ui { left: 350px; top: 8px; bottom: auto; max-width: 320px; }
+body.L-phoneland #credit { display: none; }
+/* desktop demo: card top-left, bar bottom-centre, controls drawer top-right */
+body.L-desktop { --big: 52px; --name: 28px; --small: 19px; }
+body.L-desktop #card { left: 16px; top: 16px; width: 440px; }
+body.L-desktop #bar { left: 50%; transform: translateX(-50%); bottom: 28px; width: 560px; }
+body.L-desktop #menuBtn { right: 16px; top: 16px; }
+body.L-desktop #bar .btn.menu { display: none; }
+body.L-desktop #ui { left: auto; right: 16px; top: 80px; }
+/* car screen preview (CarPlay / Android Auto). On a real car screen the guidance card and trip estimates
+   are drawn by the car system's own templates, not by us; this layout only shows where they sit. */
+body.L-car { background: #000; }
+body.L-car canvas { position: absolute; }
+body.L-car .sys { font-family: -apple-system, system-ui, sans-serif !important; -webkit-font-smoothing: antialiased; }
+body.L-car .sys * { font-family: inherit !important; }
+body.L-car #card.sys { border-radius: 14px; border: 0; box-shadow: none; background: rgba(28,28,30,.94); }
+body.L-car #card.sys .main { padding: 10px 14px; } body.L-car #card.sys .arrow { width: 64px; height: 64px; background: none; border: 0; box-shadow: none; }
+body.L-car #card.sys .arrow canvas { width: 56px; height: 56px; }
+body.L-car #card.sys .t { text-shadow: none; } body.L-car #card.sys .then { background: rgba(44,44,46,.96); border-radius: 0 0 14px 14px; border: 0; box-shadow: none; }
+body.L-car #card.sys .then .slot { background: none; border: 0; box-shadow: none; }
+body.L-car #bar.sys { border-radius: 14px; border: 0; box-shadow: none; background: rgba(28,28,30,.94); }
+body.L-car #bar.sys .t { text-shadow: none; } body.L-car #bar.sys .speed, body.L-car #bar.sys .btn, body.L-car #bar.sys .xp { display: none; }
+body.L-car #menuBtn { right: 8px; top: 8px; }
+body.L-car { --big: 34px; --name: 20px; --small: 15px; }
+body.L-car #card { left: 8px; top: 8px; width: 290px; }
+body.L-car #bar { left: 8px; bottom: 8px; width: 290px; }
+body.L-car #bar .mid { padding: 10px 14px; } body.L-car #bar .eta { font-size: 28px; }
+body.L-car #ui { right: 70px; left: auto; top: 8px; }
+body.L-car #credit { font-size: 9px; }
+body.L-car #carNote { position: absolute; z-index: 7; left: 0; right: 0; bottom: 4px; text-align: center; color: #bbb; font: 12px system-ui, sans-serif; }
