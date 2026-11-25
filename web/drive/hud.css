@@ -251,16 +251,26 @@ body.searching #whereTo { visibility: hidden; }
 body.L-phone.chip-open #mapBtns { bottom: calc(150px + env(safe-area-inset-bottom)); }
 body.L-phone.chip-open #recenter { display: none; }
 
-/* block map: crisp blocks, a paper frame, pixel overlay, names in the pixel font */
-body.mapmode #stage > canvas:first-child { image-rendering: pixelated; image-rendering: crisp-edges; }
-body.mapmode #card, body.mapmode #bar, body.mapmode #whereTo { display: none !important; }
-#mapOverlay { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; cursor: grab; }
+/* block map: a chunky 2D canvas over everything, a paper frame, names in the pixel font */
+body.mapmode #card, body.mapmode #bar, body.mapmode #whereTo, body.mapmode #minimap { display: none !important; }
+#mapCanvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; cursor: grab; }
 #mapNames { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
 .maplabel { position: absolute; left: 0; top: 0; padding: 1px 4px; font: 600 13px 'Pixelify', ui-monospace, monospace; color: #3b2a12;
-  background: rgba(240,226,186,.88); border: 1px solid #6b4f22; white-space: nowrap; }
+  background: rgba(240,226,186,.9); border: 1px solid #6b4f22; white-space: nowrap; }
 #mapFrame { position: absolute; inset: 0; z-index: 4; pointer-events: none;
   box-shadow: inset 0 0 0 6px #6b4f22, inset 0 0 0 12px #d9c99a, inset 0 0 0 15px #6b4f22, inset 0 0 40px 18px rgba(80,55,20,.35); }
 #mapCtl { position: absolute; z-index: 6; display: flex; flex-direction: column; gap: 6px; }
 body.L-phone #mapCtl { right: 10px; top: calc(24px + env(safe-area-inset-top)); }
 body:not(.L-phone) #mapCtl { left: 24px; top: 50%; transform: translateY(-50%); }
 #mapCtl .mb { width: 48px; height: 48px; }
+/* minimap while driving: tap to open the full map */
+#minimap { position: absolute; z-index: 5; padding: 0; cursor: pointer; overflow: hidden; display: none; }
+#minimap canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+body.L-phone #minimap { left: 10px; bottom: calc(118px + env(safe-area-inset-bottom)); width: 112px; height: 112px; }
+body.L-phone.no-bar #minimap { bottom: calc(20px + env(safe-area-inset-bottom)); }
+body.L-phoneland #minimap { right: 74px; top: 8px; width: 110px; height: 110px; }
+body.L-desktop #minimap { left: 16px; bottom: 28px; width: 180px; height: 180px; }
+body.L-car #minimap { display: none !important; }
+body.chip-open #minimap { display: none !important; }
+/* with the minimap bottom-left, Re-center sits in the middle above the trip bar */
+body.L-phone #recenter { left: 50%; transform: translateX(-50%); }

@@ -1,134 +1,183 @@
-// Top-down block map: the world seen straight down (north up), drawn at no more pixels than there are
-// blocks so it stays crisp and blocky, framed like a paper map. The route, the car, the destination and a
-// dropped pin are painted on a chunky pixel overlay; street names are DOM text. Drag to pan, pinch or
-// scroll to zoom, tap to drop a pin.
-import * as THREE from '../vendor/three.module.js';
+// The block map: a flat, chunky 2D map of the whole area. No 3D is drawn while it is open, so it costs
+// far less than the driving view, and zooming out shows the entire city.
+//   base:  a baked colour layer when the build provides one (meta.map: per-pack PNGs at 4 blocks per pixel
+//          and an overview at 16), otherwise parchment
+//   roads: roads.json, drawn as pixel lines, minor roads fading out as you zoom out
+//   top:   the route, stops, destination, a dropped pin and the car, as pixel sprites; street names in DOM
+// The same painter draws the minimap shown while driving.
 
-const OV = 3; // CSS px per overlay pixel
 const PIN = ['..####..', '.#++++#.', '#++##++#', '#++##++#', '.#++++#.', '..#++#..', '...##...', '...##...'];
+const FLAG = ['#.......', '#####...', '#++++#..', '#+++++#.', '#++++#..', '#####...', '#.......', '#.......'];
+const ROAD = [ // by road class: [fill, outline, width in map pixels when close]
+  ['#f2b84b', '#7a4a12', 3], ['#f2c65e', '#7a4a12', 3], ['#fbf3dc', '#6b5a3a', 2], ['#fbf3dc', '#6b5a3a', 2],
+  ['#f4ecd6', '#8a7a5a', 1], ['#efe6cf', '#8a7a5a', 1], ['#ebe1c8', null, 1], ['#e3d8bd', null, 1]];
 
-export function createMapView({ renderer, scene, stage, sky, labels, onTap }) {
-  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2000); cam.up.set(0, 0, -1);
-  const center = new THREE.Vector3(), st = { on: false, mpp: 2.2, w: 1, h: 1, pr: 1, dirty: true };
-  const frame = document.createElement('div'); frame.id = 'mapFrame';
-  const ov = document.createElement('canvas'); ov.id = 'mapOverlay'; const g = ov.getContext('2d');
+export function createPainter({ G, N, meta, base = '' }) {
+  // roads bucketed by 256-block cell so a view only walks what it can see
+  const CELL = 256, cells = new Map(), nameClass = new Map();
+  let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+  for (const p of N) { if (p.x < minX) minX = p.x; if (p.z < minZ) minZ = p.z; if (p.x > maxX) maxX = p.x; if (p.z > maxZ) maxZ = p.z; }
+  for (const [i, [a, b, nm, cl]] of G.edges.entries()) {
+    const A = N[a], B = N[b];
+    for (let cx = Math.floor(Math.min(A.x, B.x) / CELL); cx <= Math.floor(Math.max(A.x, B.x) / CELL); cx++)
+      for (let cz = Math.floor(Math.min(A.z, B.z) / CELL); cz <= Math.floor(Math.max(A.z, B.z) / CELL); cz++) {
+        const k = cx * 65536 + cz; if (!cells.has(k)) cells.set(k, []); cells.get(k).push(i);
+      }
+    if (G.names[nm]) nameClass.set(nm, Math.min(nameClass.get(nm) ?? 9, cl));
+  }
+  // baked colour layer (optional)
+  const M = meta.map, imgs = new Map();
+  const img = file => {
+    let e = imgs.get(file);
+    if (!e) { e = { im: new Image(), ok: false, used: 0 }; e.im.onload = () => { e.ok = true; painter.onload?.(); }; e.im.src = base + 'data/' + file; imgs.set(file, e); }
+    e.used = performance.now(); return e;
+  };
+  function trim() { if (imgs.size < 160) return; const old = [...imgs].sort((a, b) => a[1].used - b[1].used).slice(0, imgs.size - 120); for (const [k] of old) imgs.delete(k); }
+
+  const painter = {
+    bounds: { minX, minZ, maxX, maxZ }, nameClass, onload: null,
+    /** v: { cx, cz, mpp (blocks per map pixel), w, h (map pixels) }; data: { route?, stops?, dest?, pin?, car?, heading? } */
+    paint(ctx, v, data) {
+      const { cx, cz, mpp, w, h } = v, X = x => (x - cx) / mpp + w / 2, Z = z => (z - cz) / mpp + h / 2;
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = '#d9c99a'; ctx.fillRect(0, 0, w, h);
+      const x0 = cx - w / 2 * mpp, x1 = cx + w / 2 * mpp, z0 = cz - h / 2 * mpp, z1 = cz + h / 2 * mpp;
+      if (M) {
+        if (mpp >= 10 && M.overview) { const o = M.overview, e = img(o.file); if (e.ok) ctx.drawImage(e.im, X(o.x), Z(o.z), e.im.width * o.scale / mpp, e.im.height * o.scale / mpp); }
+        else for (const [file, tx, tz] of M.tiles) {
+          const size = 512; if (tx > x1 || tz > z1 || tx + size < x0 || tz + size < z0) continue;
+          const e = img(file); if (e.ok) ctx.drawImage(e.im, Math.round(X(tx)), Math.round(Z(tz)), Math.ceil(size / mpp), Math.ceil(size / mpp));
+        }
+        trim();
+      } else {
+        // no colour layer: parchment with a faint block grid every 64 blocks when close
+        if (mpp < 4) { ctx.fillStyle = 'rgba(120,95,50,.12)'; const s = 64; for (let gx = Math.ceil(x0 / s) * s; gx < x1; gx += s) ctx.fillRect(Math.round(X(gx)), 0, 1, h); for (let gz = Math.ceil(z0 / s) * s; gz < z1; gz += s) ctx.fillRect(0, Math.round(Z(gz)), w, 1); }
+      }
+      // roads: which classes show depends on zoom; outlines first, then fills
+      const maxCl = mpp > 24 ? 1 : mpp > 12 ? 3 : mpp > 6 ? 5 : 7, seen = new Set(), list = [];
+      for (let gx = Math.floor(x0 / CELL); gx <= Math.floor(x1 / CELL); gx++) for (let gz = Math.floor(z0 / CELL); gz <= Math.floor(z1 / CELL); gz++)
+        for (const i of cells.get(gx * 65536 + gz) ?? []) { if (seen.has(i)) continue; seen.add(i); if (G.edges[i][3] <= maxCl) list.push(i); }
+      const width = cl => Math.max(1, Math.round(ROAD[cl][2] * Math.min(1.6, 4 / mpp)));
+      ctx.lineCap = 'square';
+      for (const pass of [0, 1]) for (let cl = maxCl; cl >= 0; cl--) {
+        const [fill, edge] = ROAD[cl]; if (pass === 0 && !edge) continue;
+        ctx.strokeStyle = pass ? fill : edge; ctx.lineWidth = width(cl) + (pass ? 0 : 2); ctx.beginPath();
+        for (const i of list) { const e = G.edges[i]; if (e[3] !== cl) continue; const A = N[e[0]], B = N[e[1]]; ctx.moveTo(X(A.x), Z(A.z)); ctx.lineTo(X(B.x), Z(B.z)); }
+        ctx.stroke();
+      }
+      const px = (x, y, c, s = 1) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x) - (s >> 1), Math.round(y) - (s >> 1), s, s); };
+      const sprite = (rows, x, y, ink, light) => { const ox = Math.round(x) - (rows[0].length >> 1), oy = Math.round(y) - rows.length + 1; rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch !== '.') px(ox + i, oy + j, ch === '#' ? ink : light); })); };
+      if (data.route?.length) {
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for (const [c, lw] of [['#0b2a66', 5], ['#4aa3ff', 3]]) { ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.beginPath(); data.route.forEach((p, i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, X(p.x), Z(p.z))); ctx.stroke(); }
+      }
+      for (const s of data.stops ?? []) sprite(FLAG, X(s.x) + 3, Z(s.z), '#3b2a12', '#ffd84a');
+      if (data.dest) sprite(FLAG, X(data.dest.x) + 3, Z(data.dest.z), '#14361a', '#5fd35b');
+      if (data.pin) sprite(PIN, X(data.pin.x), Z(data.pin.z), '#8e1b1b', '#ff6b5e');
+      if (data.car) {
+        const x = X(data.car.x), y = Z(data.car.z), a = data.heading ?? 0, f = [-Math.sin(a), -Math.cos(a)], r = [-f[1], f[0]];
+        for (let i = -4; i <= 4; i++) for (let j = -4; j <= 4; j++) {
+          const u = i * f[0] + j * f[1], s = i * r[0] + j * r[1], half = (3.4 - u) * 0.6;
+          if (u >= -2.6 && u <= 3.4 && Math.abs(s) <= half) px(x + i, y + j, Math.abs(s) > half - 1 || u < -1.6 ? '#000' : '#ffd84a');
+        }
+      }
+    },
+  };
+  return painter;
+}
+
+export function createMapView({ stage, painter, labels, onTap }) {
+  const PX = 3; // CSS pixels per map pixel: chunky on purpose
+  const cv = document.createElement('canvas'); cv.id = 'mapCanvas'; const g = cv.getContext('2d');
   const names = document.createElement('div'); names.id = 'mapNames';
+  const frame = document.createElement('div'); frame.id = 'mapFrame';
   const ctl = document.createElement('div'); ctl.id = 'mapCtl';
+  const st = { on: false, mpp: 4, w: 1, h: 1, dirty: true };
+  const center = { x: 0, z: 0, set(x, _y, z) { this.x = x; this.z = z; st.dirty = true; } };
   const mk = (txt, label, fn) => { const b = document.createElement('button'); b.className = 'mb'; b.textContent = txt; b.title = label; b.setAttribute('aria-label', label); b.onclick = e => { e.stopPropagation(); fn(); }; ctl.append(b); return b; };
-  mk('+', 'Zoom in', () => zoomAt(1 / 1.5)); mk('−', 'Zoom out', () => zoomAt(1.5));
-  const meBtn = mk('◎', 'Center on car', () => { if (api.car) { center.set(api.car.x, 0, api.car.z); st.dirty = true; } });
-  stage.append(ov, names, frame, ctl);
-  for (const e of [ov, names, frame, ctl]) e.style.display = 'none';
-  const pool = Array.from({ length: 16 }, () => { const d = document.createElement('div'); d.className = 'maplabel'; names.append(d); return d; });
-  let saved = null;
+  mk('+', 'Zoom in', () => zoomAt(1 / 1.6)); mk('−', 'Zoom out', () => zoomAt(1.6));
+  mk('◎', 'Center on car', () => { if (api.car) center.set(api.car.x, 0, api.car.z); });
+  mk('▣', 'Whole map', () => fitAll());
+  stage.append(cv, names, frame, ctl);
+  for (const e of [cv, names, frame, ctl]) e.style.display = 'none';
+  const pool = Array.from({ length: 18 }, () => { const d = document.createElement('div'); d.className = 'maplabel'; names.append(d); return d; });
+  const B = painter.bounds, MAXMPP = Math.max(8, Math.max(B.maxX - B.minX, B.maxZ - B.minZ) / 60);
 
-  function fit() {
-    st.w = stage.clientWidth; st.h = stage.clientHeight;
-    const hw = st.w / 2 * st.mpp, hh = st.h / 2 * st.mpp;
-    cam.left = -hw; cam.right = hw; cam.top = hh; cam.bottom = -hh; cam.updateProjectionMatrix();
-    // one render pixel per CSS pixel at most: a CSS pixel already spans more than a block at normal zoom,
-    // so this keeps the blocky map look and costs well under the 3D view (which runs at 1.5 to 2)
-    const pr = Math.min(saved?.pr ?? 1, 1);
-    if (Math.abs(pr - st.pr) > 0.02 || renderer.getPixelRatio() !== pr) { st.pr = pr; renderer.setPixelRatio(pr); renderer.setSize(st.w, st.h); }
-    ov.width = Math.ceil(st.w / OV); ov.height = Math.ceil(st.h / OV);
-    st.dirty = true;
-  }
+  function fit() { st.w = stage.clientWidth; st.h = stage.clientHeight; cv.width = Math.ceil(st.w / PX); cv.height = Math.ceil(st.h / PX); st.dirty = true; }
+  function fitAll() { st.mpp = Math.min(MAXMPP, Math.max((B.maxX - B.minX) / (st.w / PX - 10), (B.maxZ - B.minZ) / (st.h / PX - 30))); center.set((B.minX + B.maxX) / 2, 0, (B.minZ + B.maxZ) / 2); }
+  // sx, sy in CSS pixels
+  const toWorld = (sx, sy) => ({ x: center.x + (sx - st.w / 2) / PX * st.mpp, z: center.z + (sy - st.h / 2) / PX * st.mpp });
+  const toScreen = (x, z) => [(x - center.x) / st.mpp * PX + st.w / 2, (z - center.z) / st.mpp * PX + st.h / 2];
   function zoomAt(f, sx = st.w / 2, sy = st.h / 2) {
-    const before = toWorld(sx, sy), m = Math.max(0.5, Math.min(4, st.mpp * f));
-    if (m === st.mpp) return; st.mpp = m; fit();
-    const after = toWorld(sx, sy); center.x += before.x - after.x; center.z += before.z - after.z; st.dirty = true;
+    const before = toWorld(sx, sy); st.mpp = Math.max(0.5, Math.min(MAXMPP, st.mpp * f));
+    const after = toWorld(sx, sy); center.set(center.x + before.x - after.x, 0, center.z + before.z - after.z);
   }
-  const toWorld = (sx, sy) => ({ x: center.x + (sx - st.w / 2) * st.mpp, z: center.z + (sy - st.h / 2) * st.mpp });
-  const toScreen = (x, z) => [(x - center.x) / st.mpp + st.w / 2, (z - center.z) / st.mpp + st.h / 2];
 
-  // gestures
-  const ptr = new Map(); let tap = null, pinch = null;
-  ov.addEventListener('pointerdown', e => {
-    ov.setPointerCapture(e.pointerId); ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    tap = ptr.size === 1 ? { x: e.clientX, y: e.clientY, t: performance.now() } : null; pinch = null;
-  });
-  ov.addEventListener('pointermove', e => {
+  const ptr = new Map(); let tap = null, pinch = null, lastTap = 0;
+  cv.addEventListener('pointerdown', e => { try { cv.setPointerCapture(e.pointerId); } catch {} ptr.set(e.pointerId, { x: e.clientX, y: e.clientY }); tap = ptr.size === 1 ? { x: e.clientX, y: e.clientY, t: performance.now() } : null; pinch = null; });
+  cv.addEventListener('pointermove', e => {
     const p = ptr.get(e.pointerId); if (!p) return;
-    if (ptr.size === 1) { center.x -= (e.clientX - p.x) * st.mpp; center.z -= (e.clientY - p.y) * st.mpp; st.dirty = true; }
+    if (ptr.size === 1) center.set(center.x - (e.clientX - p.x) / PX * st.mpp, 0, center.z - (e.clientY - p.y) / PX * st.mpp);
     p.x = e.clientX; p.y = e.clientY;
-    if (ptr.size === 2) {
-      const [a, b] = [...ptr.values()], d = Math.hypot(a.x - b.x, a.y - b.y), r = stage.getBoundingClientRect();
-      if (pinch) zoomAt(pinch / d, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
-      pinch = d;
-    }
+    if (ptr.size === 2) { const [a, b] = [...ptr.values()], d = Math.hypot(a.x - b.x, a.y - b.y), r = stage.getBoundingClientRect(); if (pinch) zoomAt(pinch / d, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top); pinch = d; }
     if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) > 8) tap = null;
   });
-  const up = e => {
+  cv.addEventListener('pointerup', e => {
     ptr.delete(e.pointerId); pinch = null;
-    if (tap && performance.now() - tap.t < 500) { const r = stage.getBoundingClientRect(), w = toWorld(e.clientX - r.left, e.clientY - r.top); onTap?.(w.x, w.z); }
+    if (tap && performance.now() - tap.t < 450) {
+      const r = stage.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top, now = performance.now();
+      if (now - lastTap < 300) { zoomAt(1 / 2, sx, sy); lastTap = 0; } else { lastTap = now; const w = toWorld(sx, sy); onTap?.(w.x, w.z); }
+    }
     tap = null;
-  };
-  ov.addEventListener('pointerup', up); ov.addEventListener('pointercancel', e => { ptr.delete(e.pointerId); tap = null; pinch = null; });
-  ov.addEventListener('wheel', e => { e.preventDefault(); const r = stage.getBoundingClientRect(); zoomAt(Math.exp(e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  });
+  cv.addEventListener('pointercancel', e => { ptr.delete(e.pointerId); tap = null; pinch = null; });
+  cv.addEventListener('wheel', e => { e.preventDefault(); const r = stage.getBoundingClientRect(); zoomAt(Math.exp(e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  painter.onload = () => { st.dirty = true; mini?.markDirty(); };
 
-  // overlay painting, in overlay pixels
-  const px = (x, y, c, s = 1) => { g.fillStyle = c; g.fillRect(Math.round(x) - (s >> 1), Math.round(y) - (s >> 1), s, s); };
-  function line(pts, c, s) { for (let i = 1; i < pts.length; i++) { const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0))); for (let k = 0; k <= n; k++) px(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, c, s); } }
-  function sprite(rows, x, y, ink, light) { const ox = Math.round(x) - (rows[0].length >> 1), oy = Math.round(y) - rows.length + 1; rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch !== '.') px(ox + i, oy + j, ch === '#' ? ink : light); })); }
-  function paint() {
-    g.clearRect(0, 0, ov.width, ov.height);
-    const S = (x, z) => { const [a, b] = toScreen(x, z); return [a / OV, b / OV]; };
-    const t = api.trip;
-    if (t) {
-      const pts = []; for (let d = Math.max(0, t.dist); d <= t.L; d += Math.max(2, st.mpp * 2)) { const p = t.along(d).p; pts.push(S(p.x, p.z)); }
-      pts.push(S(t.end.x, t.end.z)); line(pts, '#0b2a66', 4); line(pts, '#4aa3ff', 2);
-      const [ex, ey] = S(t.end.x, t.end.z); sprite(PIN, ex, ey, '#1b5e20', '#7cd96b');
-    }
-    if (api.pin) { const [x, y] = S(api.pin.x, api.pin.z); sprite(PIN, x, y, '#8e1b1b', '#ff6b5e'); }
-    if (api.car) {
-      // the car: a 7-pixel arrow turned to its heading
-      const [x, y] = S(api.car.x, api.car.z), a = api.heading ?? 0, f = [-Math.sin(a), -Math.cos(a)], r = [f[1] * -1, f[0]];
-      for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) {
-        const along = -(i * f[0] + j * f[1]) * 0, u = i * f[0] + j * f[1], v = i * r[0] + j * r[1];
-        if (u >= -2.6 && u <= 3.2 && Math.abs(v) <= (3.2 - u) * 0.62) px(x + i, y + j, Math.abs(v) > (3.2 - u) * 0.62 - 1 || u < -1.6 ? '#000' : '#ffd84a');
-      }
-    }
-    // street names: nearest the centre first, no overlaps
+  function paintNames() {
     const used = [], seen = new Set(); let n = 0;
-    const cands = labels.map(l => ({ l, s: toScreen(l.pos.x, l.pos.z) })).filter(({ s }) => s[0] > 30 && s[0] < st.w - 30 && s[1] > 60 && s[1] < st.h - 40)
-      .sort((a, b) => Math.hypot(a.s[0] - st.w / 2, a.s[1] - st.h / 2) - Math.hypot(b.s[0] - st.w / 2, b.s[1] - st.h / 2));
+    const maxCl = st.mpp > 24 ? 1 : st.mpp > 12 ? 3 : st.mpp > 6 ? 5 : 7;
+    const cands = labels.filter(l => (painter.nameClass.get(l.nm) ?? 9) <= maxCl).map(l => ({ l, s: toScreen(l.pos.x, l.pos.z) }))
+      .filter(({ s }) => s[0] > 30 && s[0] < st.w - 30 && s[1] > 60 && s[1] < st.h - 40)
+      .sort((a, b) => (painter.nameClass.get(a.l.nm) - painter.nameClass.get(b.l.nm)) || Math.hypot(a.s[0] - st.w / 2, a.s[1] - st.h / 2) - Math.hypot(b.s[0] - st.w / 2, b.s[1] - st.h / 2));
     for (const { l, s } of cands) {
       if (n >= pool.length || seen.has(l.name)) continue;
       const w = l.name.length * 7 + 10, r = [s[0] - w / 2, s[1] - 9, s[0] + w / 2, s[1] + 9];
-      if (used.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1])) continue;
+      if (used.some(q => r[0] < q[2] + 6 && r[2] > q[0] - 6 && r[1] < q[3] + 4 && r[3] > q[1] - 4)) continue;
       used.push(r); seen.add(l.name); const d = pool[n++]; d.textContent = l.name; d.style.transform = `translate(${Math.round(r[0])}px, ${Math.round(r[1])}px)`; d.style.display = '';
     }
     for (; n < pool.length; n++) pool[n].style.display = 'none';
   }
 
+  let mini = null;
   const api = {
-    cam, center, trip: null, car: null, heading: 0, pin: null,
+    center, car: null, heading: 0, pin: null, data: null,
     get active() { return st.on; },
-    get extent() { return Math.hypot(st.w, st.h) / 2 * st.mpp; },
-    enter(at) {
-      if (st.on) return; st.on = true;
-      saved = { pr: renderer.getPixelRatio(), near: scene.fog.near, far: scene.fog.far, bg: null };
-      center.set(at.x, 0, at.z); sky.force('day'); sky.setClouds(false);
-      saved.bg = scene.background; scene.background = new THREE.Color(0xd9c99a); // unexplored parchment
-      scene.fog.near = 1e6; scene.fog.far = 2e6;
-      for (const e of [ov, names, frame, ctl]) e.style.display = '';
-      document.body.classList.add('mapmode'); fit();
-    },
-    exit() {
-      if (!st.on) return; st.on = false;
-      scene.fog.near = saved.near; scene.fog.far = saved.far; sky.setClouds(true); sky.force(null); scene.background = sky.now ? scene.background : saved.bg;
-      renderer.setPixelRatio(saved.pr); st.pr = saved.pr;
-      for (const e of [ov, names, frame, ctl]) e.style.display = 'none';
-      document.body.classList.remove('mapmode'); api.pin = null;
-    },
+    enter(at) { if (st.on) return; st.on = true; for (const e of [cv, names, frame, ctl]) e.style.display = ''; document.body.classList.add('mapmode'); fit(); center.set(at.x, 0, at.z); },
+    exit() { if (!st.on) return; st.on = false; for (const e of [cv, names, frame, ctl]) e.style.display = 'none'; document.body.classList.remove('mapmode'); api.pin = null; },
     resize() { if (st.on) fit(); },
     markDirty() { st.dirty = true; },
-    /** call every frame in map mode; returns true when the map needs a redraw */
+    /** call every frame while open; repaints only when something changed */
     update() {
-      if (!st.on) return false;
-      cam.position.set(center.x, 1200, center.z); cam.lookAt(center.x, 0, center.z); cam.updateMatrixWorld();
-      meBtn.classList.toggle('on', !!api.car && Math.hypot(api.car.x - center.x, api.car.z - center.z) < 5);
-      const was = st.dirty; paint(); st.dirty = false; return was;
+      if (!st.on || !st.dirty) return false; st.dirty = false;
+      painter.paint(g, { cx: center.x, cz: center.z, mpp: st.mpp, w: cv.width, h: cv.height }, { ...api.data, pin: api.pin, car: api.car, heading: api.heading });
+      paintNames(); return true;
+    },
+    /** a small always-on map while driving; tap opens the full map */
+    minimap(el, onOpen) {
+      const c = document.createElement('canvas'), x = c.getContext('2d'); el.append(c); el.onclick = onOpen;
+      let dirty = true, last = 0;
+      mini = {
+        markDirty() { dirty = true; },
+        update(now, show) {
+          el.style.display = show ? 'block' : 'none'; if (!show) return;
+          const w = Math.ceil(el.clientWidth / 2), h = Math.ceil(el.clientHeight / 2);
+          if (c.width !== w || c.height !== h) { c.width = w; c.height = h; dirty = true; }
+          if (!dirty && now - last < 250) return; dirty = false; last = now;   // 4 times a second is plenty
+          if (api.car) painter.paint(x, { cx: api.car.x, cz: api.car.z, mpp: 5, w, h }, { ...api.data, car: api.car, heading: api.heading });
+        },
+      };
+      return mini;
     },
   };
   return api;

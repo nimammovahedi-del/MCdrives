@@ -44,7 +44,7 @@ export class DriveCamera {
     const sp = Math.min(1, Math.max(0, (s.speed - 8) / 22));            // 0 in town, 1 at ~30 m/s
     // turn weight: time-based, so the camera starts preparing ~8 s before a turn at any speed
     const tt = s.toNext / Math.max(s.speed, 6);
-    const wantTurn = s.nextKind && s.nextKind !== 'straight' && s.nextKind !== 'arrive' && s.toNext < 360 ? Math.min(1, Math.max(0, (16 - tt) / 10)) : 0;
+    const wantTurn = s.nextKind && s.nextKind !== 'straight' && s.nextKind !== 'arrive' && s.nextKind !== 'stop' && s.toNext < 360 ? Math.min(1, Math.max(0, (16 - tt) / 10)) : 0;
     this.turnW += (wantTurn - this.turnW) * ease(0, 1.6, dt);
     const tw = this.turnW;
     const wantH = lerp(lerp(P.h[0], P.h[1], sp), P.turnH, tw), wantB = lerp(lerp(P.back[0], P.back[1], sp), P.turnBack, tw);

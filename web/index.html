@@ -37,7 +37,7 @@ import { createSky } from './drive/sky.js';
 import { createRoute, voxelArrow, ROUTE_STYLES } from './drive/route.js';
 import { VEHICLES, buildVehicle, animateVehicle, vehicleIcon } from './drive/vehicles.js';
 import { icon, createMapButtons, createSheet, createSearch, createChip, addressIndex } from './drive/menu.js';
-import { createMapView } from './drive/mapview.js';
+import { createPainter, createMapView } from './drive/mapview.js';
 import { fmtDist } from './drive/hud.js';
 
 const $ = id => document.getElementById(id);
@@ -358,9 +358,17 @@ function along(d, T = trip) {
 function yAt(d, T = trip) { const t = Math.max(0, Math.min(T.prof.length - 1.001, d / 2)), i = Math.floor(t); return T.prof[i] + (T.prof[i + 1] - T.prof[i]) * (t - i); }
 // Resolves false when there is no route. The new trip goes live once the heights along it are in;
 // a later call made before then supersedes it.
-async function startTrip(toNode, name) {
+// vias: stops on the way, [{ node, name }], driven in order before toNode
+async function startTrip(toNode, name, vias = []) {
   const seq = ++tripSeq;
-  const r = route(curNode, toNode); if (!r || r.nodes.length < 2) return false;
+  // one leg per stop, joined end to start; viaAt remembers where in the node list each stop falls
+  const r = { nodes: [curNode], edges: [] }, viaAt = [];
+  for (const [i, to] of [...vias.map(v => v.node), toNode].entries()) {
+    const from = r.nodes[r.nodes.length - 1]; if (from === to) { if (i < vias.length) viaAt.push(r.nodes.length - 1); continue; }
+    const leg = route(from, to); if (!leg) return false;
+    r.nodes.push(...leg.nodes.slice(1)); r.edges.push(...leg.edges); if (i < vias.length) viaAt.push(r.nodes.length - 1);
+  }
+  if (r.nodes.length < 2) return false;
   const pts = r.nodes.map(i => N[i]); const cum = [0], tcum = [0];
   for (let k = 1; k < pts.length; k++) { const l = pts[k].distanceTo(pts[k - 1]); cum.push(cum[k - 1] + l); tcum.push(tcum[k - 1] + l / SPEED[r.edges[k - 1].cl]); }
   // manoeuvres: a named-road change or a bend sharper than 35 degrees
@@ -374,8 +382,12 @@ async function startTrip(toNode, name) {
     const kind = abs > 150 ? 'uturn' : abs > 50 ? (ang > 0 ? 'right' : 'left') : abs > 20 ? (ang > 0 ? 'slight right' : 'slight left') : 'straight';
     steps.push({ at: cum[k], kind, name: G.names[r.edges[k].nm] || 'the road ahead', point: pts[k], out: b.clone().normalize() });
   }
-  steps.push({ at: cum[cum.length - 1], kind: 'arrive', name: name ?? $('dest').selectedOptions[0]?.text ?? '', point: pts[pts.length - 1], out: null });
-  const T = { pts, nodes: r.nodes, cum, tcum, L: cum[cum.length - 1], T: tcum[tcum.length - 1], edges: r.edges, steps, toNode };
+  const stops = vias.map((v, i) => ({ ...v, k: viaAt[i], at: cum[viaAt[i]] }));
+  for (const v of stops) if (v.k > 0 && v.k < pts.length - 1) steps.push({ at: v.at, kind: 'stop', name: v.name, point: pts[v.k], out: pts[v.k + 1].clone().sub(pts[v.k]).normalize() });
+  steps.sort((a, b) => a.at - b.at);
+  const destName = name ?? $('dest').selectedOptions[0]?.text ?? '';
+  steps.push({ at: cum[cum.length - 1], kind: 'arrive', name: destName, point: pts[pts.length - 1], out: null });
+  const T = { pts, nodes: r.nodes, cum, tcum, L: cum[cum.length - 1], T: tcum[tcum.length - 1], edges: r.edges, steps, toNode, destName, stops };
   // Height profile every 2 m: the deck layer on bridge edges, the ground layer elsewhere, then smoothed
   // so the car rides the road's slope instead of stepping block by block.
   const S = [], raw = [];
@@ -554,6 +566,7 @@ function setMode(m) {
   }
   if (m === 'walk') { walkPos.copy(car.position); yaw = heading; pitch = 0; }
   if (m === 'map') mapView.enter(prev === 'orbit' ? orbit.target : car.position);
+  if (prev === 'map' && m !== 'map') lastCam.identity(); // force a 3D redraw on the way back
   if (m === 'nav') { dcam.recenter(); }
   if (m !== 'orbit' && m !== 'map') { chip.hide(); dropPin.visible = false; mapView.pin = null; }
   if (prev === 'map' || m === 'map') applyLayout();
@@ -614,7 +627,7 @@ function placeAt(x, z, title) {
   mapView.pin = { x, z }; mapView.markDirty();
   const gy = smoothY(x, z); dropPin.position.set(x, isNaN(gy) ? car.position.y : gy, z); dropPin.visible = mode === 'orbit';
   chip.show({ title: name, sub: `${fmtD(far)} away` + (street && title && street !== title ? ` · on ${street}` : ''),
-    actions: [{ label: 'Drive here', primary: true, fn: () => go(node, name) },
+    actions: [{ label: trip ? 'Go now' : 'Drive here', primary: true, fn: () => go(node, name) }, ...(trip ? [{ label: 'Add stop', primary: true, fn: () => addStop(node, name) }] : []),
       ...(mode === 'map' ? [] : [{ label: 'Show on map', fn: () => { setMode('map'); mapView.center.set(x, 0, z); placeAt(x, z, title); } }]),
       { label: 'Close', fn: () => { chip.hide(); dropPin.visible = false; mapView.pin = null; mapView.markDirty(); dirty = true; } }] });
   dirty = true;
@@ -626,10 +639,19 @@ function pickAt(cx, cy) {
   for (let i = 0; i < 3; i++) { groundPlane.constant = -y; if (!ray.ray.intersectPlane(groundPlane, hitV)) return; const g = smoothY(hitV.x, hitV.z); if (isNaN(g)) break; y = g; }
   placeAt(hitV.x, hitV.z);
 }
-async function go(node, name) {
+// a new route starts where the car is now, not where the last trip began
+function hereNode() { if (trip) { const k = along(dist).k; curNode = trip.nodes[Math.min(k, trip.nodes.length - 1)]; } }
+async function go(node, name, vias = []) {
   chip.hide(); search.close(); sheet.toggle(false); dropPin.visible = false; mapView.pin = null;
   const i = dests.findIndex(d => d.node === node); if (i >= 0) $('dest').value = i;
-  if (await startTrip(node, name)) { paused = false; $('pause').firstChild.textContent = 'Pause'; setMode('nav'); }
+  hereNode();
+  if (await startTrip(node, name, vias)) { paused = false; $('pause').firstChild.textContent = 'Pause'; setMode('nav'); }
+}
+// add a stop before the destination (stops already passed are dropped)
+function addStop(node, name) {
+  if (!trip) return go(node, name);
+  const left = trip.stops.filter(v => v.at > dist + 5).map(({ node, name }) => ({ node, name }));
+  return go(trip.toNode, trip.destName, [...left, { node, name }]);
 }
 function endTrip() {
   if (!trip) return;
@@ -650,7 +672,10 @@ const mapBtns = createMapButtons(stageEl, {
   onRecenter: () => { if (mode !== 'nav') setMode('nav'); else dcam.recenter(); },
 });
 const chip = createChip(stageEl);
-const mapView = createMapView({ renderer, scene, stage: stageEl, sky, labels, onTap: (x, z) => placeAt(x, z) });
+const painter = createPainter({ G, N, meta });
+const mapView = createMapView({ stage: stageEl, painter, labels, onTap: (x, z) => placeAt(x, z) });
+const miniEl = document.createElement('div'); miniEl.id = 'minimap'; miniEl.className = 'panel'; miniEl.title = 'Open the map'; stageEl.append(miniEl);
+const mini = mapView.minimap(miniEl, () => setMode('map'));
 const searchItems = dests.map(d => ({ name: roadName(d.name), pos: N[d.node], node: d.node, kind: 'Street' }));
 const hallDest = dests.find(d => d.name === 'Civic Center Plaza');
 if (hallDest) searchItems.unshift({ name: 'Irvine City Hall', aliases: ['city hall', 'civic center', 'irvine civic center', 'town hall'], pos: N[hallDest.node], node: hallDest.node, kind: 'Place' });
@@ -677,7 +702,7 @@ const sheet = createSheet(stageEl, { sections: [
 ], footer: $('about') });
 $('menuBtn').onclick = () => toggleMenu();
 const clock = new THREE.Clock();
-let lastFrame = 0, stillFrames = 0, lastCam = new THREE.Matrix4(), dirty = true, btnKey = '';
+let lastFrame = 0, stillFrames = 0, lastCam = new THREE.Matrix4(), dirty = true, btnKey = '', mapTrip, mapStamp = 0;
 const parkDir = new THREE.Vector3(0, 0, -1);
 let layoutTimer = 0; const applyLayoutSoon = () => { clearTimeout(layoutTimer); layoutTimer = setTimeout(applyLayout, 0); };
 addEventListener('pointerdown', () => dirty = true); addEventListener('wheel', () => dirty = true); addEventListener('keydown', () => dirty = true);
@@ -736,14 +761,17 @@ function frame(now = performance.now()) {
     { const gy = smoothY(walkPos.x, walkPos.z); if (!isNaN(gy)) walkPos.y = gy + 1.7; }
     camera.position.copy(walkPos); camera.rotation.set(pitch, yaw, 0, 'YXZ');
   } else if (mode === 'orbit') { if (orbit.update()) dirty = true; }
-  if (mode === 'map') {
-    mapView.car = car.position; mapView.heading = car.rotation.y;
-    mapView.trip = trip ? { dist, L: trip.L, along: d => along(d), end: trip.pts[trip.pts.length - 1] } : null;
-    if (trip && speed > 0.1) mapView.markDirty();
-    streamR = Math.min(1300, mapView.extent + 150);
+  // what the 2D map and the minimap draw: the rest of the route, stops, destination and the car
+  mapView.car = car.position; mapView.heading = car.rotation.y;
+  if (trip !== mapTrip || (trip && now - mapStamp > 250 && speed > 0.1)) {
+    mapTrip = trip; mapStamp = now;
+    if (trip) { const h = along(dist); mapView.data = { route: [h.p, ...trip.pts.slice(h.k)], stops: trip.stops.filter(v => v.at > dist).map(v => trip.pts[v.k]), dest: trip.pts[trip.pts.length - 1] }; }
+    else mapView.data = null;
+    mapView.markDirty(); mini.markDirty();
   }
-  focus.copy(mode === 'walk' ? walkPos : mode === 'orbit' ? orbit.target : mode === 'map' ? mapView.center : car.position); stream(focus);
-  sky.update(dt, mode === 'map' ? mapView.cam : camera);
+  mini.update(now, mode === 'nav' && !chip.open);
+  focus.copy(mode === 'walk' ? walkPos : mode === 'orbit' ? orbit.target : car.position); stream(focus);
+  sky.update(dt, camera);
   animateVehicle(vehicle, now / 1000);
   { const k = mode + (dcam.lookingAround ? 1 : 0); if (k !== btnKey) { btnKey = k; mapBtns.set({ mode, looking: dcam.lookingAround }); applyLayoutSoon(); } }
   {
@@ -764,10 +792,11 @@ function frame(now = performance.now()) {
     else updateLabels(focus, curNm, nextNm);
   }
   // render on demand: skip drawing when the camera has not moved and nothing is streaming in
-  const rc = mode === 'map' ? mapView.cam : camera;
+  // the block map is a 2D canvas: nothing in 3D is drawn while it is open
+  if (mode === 'map') { mapView.update(); dirty = false; return; }
+  const rc = camera;
   rc.updateMatrixWorld();
-  const mapMoved = mode === 'map' && mapView.update();
-  const moved = !lastCam.equals(rc.matrixWorld) || loading > 0 || buildQ.length > 0 || dirty || mapMoved;  // clouds only drift on frames that are drawn anyway
+  const moved = !lastCam.equals(rc.matrixWorld) || loading > 0 || buildQ.length > 0 || dirty;  // clouds only drift on frames that are drawn anyway
   lastCam.copy(rc.matrixWorld); dirty = false;
   if (moved) { stillFrames = 0; renderer.render(scene, rc); window.__frames = (window.__frames ?? 0) + 1; }
   else if (++stillFrames % 30 === 0) { renderer.render(scene, rc); }  // keep the clock and HUD honest about once a second

@@ -15,7 +15,7 @@ const SHAPES = {               // polyline in grid units, the head points along 
 function cells(kind) {
   const on = new Uint8Array(GRID * GRID);
   const set = (x, y) => { if (x >= 0 && y >= 0 && x < GRID && y < GRID) on[y * GRID + x] = 1; };
-  if (kind === 'arrive') {               // chequered flag on a pole
+  if (kind === 'arrive' || kind === 'stop') { // chequered flag on a pole
     for (let y = 2; y < 19; y++) { set(5, y); set(6, y); }
     for (let y = 2; y < 10; y++) for (let x = 7; x < 16; x++) set(x, y);
     return { on, chk: (x, y) => x >= 7 && y < 10 && ((Math.floor((x - 7) / 2) + Math.floor((y - 2) / 2)) % 2 === 0) };
@@ -70,7 +70,7 @@ export function fmtDist(m, units) {
 }
 export const roadName = n => (n || '').replace(/^(I|SR|US|CA)\s+(\d+)/, '$1-$2').replace(/^[a-z]/, c => c.toUpperCase());
 const fmtClock = d => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-const VERB = { left: 'Turn left', right: 'Turn right', 'slight left': 'Keep left', 'slight right': 'Keep right', straight: 'Continue', uturn: 'U-turn', arrive: 'Arrive' };
+const VERB = { left: 'Turn left', right: 'Turn right', 'slight left': 'Keep left', 'slight right': 'Keep right', straight: 'Continue', uturn: 'U-turn', arrive: 'Arrive', stop: 'Stop at' };
 
 // ---------- build
 export function createHud({ units = 'imperial', onMenu, onEnd } = {}) {

@@ -225,6 +225,22 @@ def join_roads(parts, area_size, seam_tol, log=print):
     return {"size": [asx, asz], "names": names, "nodes": out_nodes, "edges": [list(e) for e in out_edges]}, by_id + by_dist
 
 
+def join_addresses(parts, area_size, log=print):
+    """One address list for the area: per-chunk data/addresses.json (tools/addresses.py, in the chunk's
+    roads.json frame) shifted by the chunk offset like the roads, clipped to the area, overlap de-duplicated."""
+    asx, asz = area_size
+    streets, sidx, seen, out = [], {}, set(), []
+    for cid, dx, dz, d in parts:
+        a = d["a"]
+        for k in range(0, len(a), 4):
+            st, num, x, z = d["streets"][a[k]], a[k + 1], a[k + 2] + dx, a[k + 3] + dz
+            if not (0 <= x < asx and 0 <= z < asz) or (num, st) in seen: continue
+            seen.add((num, st))
+            if st not in sidx: sidx[st] = len(streets); streets.append(st)
+            out += [sidx[st], num, round(x), round(z)]
+    log(f"  addresses: {len(out) // 4:,} on {len(streets):,} streets")
+    return {"v": 1, "streets": streets, "a": out}
+
 def join(area, chunks, out, seam_tol=6, log=print):
     """Write one site for the whole area from the per-chunk sites already in out/<id>/site.
 
@@ -361,6 +377,10 @@ def join(area, chunks, out, seam_tol=6, log=print):
         parts.append((i["id"], i["dx"], i["dz"], json.loads(rp.read_text())))
     roads, merged = join_roads(parts, (psx, psz), seam_tol, log)
     (site / "roads.json").write_text(json.dumps(roads, separators=(",", ":")))
+    # ---- addresses for search (optional: a chunk without them is skipped)
+    aparts = [(i["id"], i["dx"], i["dz"], json.loads((i["dir"] / "data" / "addresses.json").read_text()))
+              for i in info if (i["dir"] / "data" / "addresses.json").exists()]
+    if aparts: (data / "addresses.json").write_text(json.dumps(join_addresses(aparts, (psx, psz), log), separators=(",", ":")))
 
     meta = {"tile": info[0]["meta"]["tile"], "pack": info[0]["meta"]["pack"], "ext": ext,
             "width": width, "depth": depth, "height": height, "minx": minx, "minz": minz, "miny": miny,
@@ -370,6 +390,7 @@ def join(area, chunks, out, seam_tol=6, log=print):
     (data / "meta.json").write_text(json.dumps(meta))
     shutil.copy(ROOT / "web" / "index.html", site / "index.html")
     shutil.copytree(ROOT / "web" / "vendor", site / "vendor", dirs_exist_ok=True)
+    shutil.copytree(ROOT / "web" / "drive", site / "drive", dirs_exist_ok=True)
     size = sum(f.stat().st_size for f in site.rglob("*") if f.is_file())
     return {"chunks": len(info), "blocks": [width, depth, height], "packs": len(packs), "quads": quads,
             "nodes": len(roads["nodes"]), "edges": len(roads["edges"]), "seam_nodes_merged": merged,
@@ -456,6 +477,10 @@ def build_chunk(area, chunk, args, work, overhang=0):
         if overhang: cmd += ["--overhang", overhang]   # reach past the bbox so the join can sew seams
         run(cmd, log)
         times["roads"] = time.time() - times["roads"]
+    # street addresses for search, in the same frame as roads.json; optional, so a network hiccup never fails a build
+    if not (data / "addresses.json").exists() or (STEPS.index("roads") >= redo):
+        try: run([sys.executable, ROOT / "tools" / "addresses.py", bstr, data / "addresses.json"], log)
+        except BaseException as e: print(f"[{chunk['id']}] addresses skipped: {e}")
 
     if step("site", lambda: (site / "index.html").exists()):
         meta = json.loads((data / "meta.json").read_text())
