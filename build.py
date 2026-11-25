@@ -221,14 +221,46 @@ def join(area, chunks, out, seam_tol=6, log=print):
     if ext != "bin": sys.exit("join: --b64 chunks cannot be joined; re-convert without --b64")
     minx = min(i["dx"] + i["meta"]["minx"] for i in info)
     minz = min(i["dz"] + i["meta"]["minz"] for i in info)
-    miny = min(i["meta"]["miny"] for i in info)
-    width = max(i["dx"] + i["meta"]["minx"] + i["meta"]["width"] for i in info) - minx
-    depth = max(i["dz"] + i["meta"]["minz"] + i["meta"]["depth"] for i in info) - minz
-    height = max(i["meta"]["miny"] + i["meta"]["height"] for i in info) - miny
     for i in info:
         i["sx"] = i["dx"] + i["meta"]["minx"] - minx
         i["sz"] = i["dz"] + i["meta"]["minz"] - minz
-        i["sy"] = i["meta"]["miny"] - miny
+    # Arnis fits the terrain of each bake to its own base level, so chunks do not share a ground
+    # height. Neighbours overlap by a strip of blocks: the median height difference there is the
+    # step between them, and least squares turns the pairwise steps into one lift per chunk.
+    def rect(i): return i["sx"], i["sz"], i["sx"] + i["meta"]["width"], i["sz"] + i["meta"]["depth"]
+    strips = {}
+    for a, i in enumerate(info):
+        cm = i["meta"]; h0 = None
+        for b, j in enumerate(info):
+            if a == b: continue
+            x0, z0 = (max(p, q) for p, q in zip(rect(i)[:2], rect(j)[:2])); x1 = min(rect(i)[2], rect(j)[2]); z1 = min(rect(i)[3], rect(j)[3])
+            if x1 - x0 < 8 or z1 - z0 < 8: continue
+            if h0 is None:
+                h0 = read_gz_array(i["dir"] / "data" / "height.bin", i["dir"] / "data" / "height.json")
+                h0 = h0[:cm["depth"] * cm["width"]].reshape(cm["depth"], cm["width"])
+            strips[a, b] = h0[z0 - i["sz"]:z1 - i["sz"], x0 - i["sx"]:x1 - i["sx"]].astype(np.int32)
+        del h0
+    rows, rhs = [], []
+    for (a, b), sa in strips.items():
+        if a > b: continue
+        sb = strips[b, a]; ok = (sa > 2) & (sb > 2)
+        if ok.sum() < 200: continue
+        d = (sb - sa)[ok]; step = float(np.median(d))
+        r = np.zeros(len(info)); r[a], r[b] = 1, -1; rows.append(r); rhs.append(step)   # lift[a] - lift[b] = h_b - h_a
+        log(f"join: ground step {info[a]['id']} to {info[b]['id']}: {step:+.0f} blocks "
+            f"(middle half of the overlap within {np.percentile(d, 25):+.0f}..{np.percentile(d, 75):+.0f})")
+    lift = np.zeros(len(info))
+    if rows:
+        A = np.vstack(rows + [np.eye(len(info))[0]]); lift = np.linalg.lstsq(A, np.array(rhs + [0.0]), rcond=None)[0]
+        res = np.abs(A[:-1] @ lift - np.array(rhs)).max()
+        log(f"join: ground lifts {[int(round(v)) for v in lift]}, worst disagreement between neighbours {res:.1f} blocks")
+        if res > 2: log("join: WARNING chunks disagree about ground height by more than 2 blocks; seams will show a step")
+    for i, v in zip(info, lift): i["lift"] = int(round(v))
+    miny = min(i["meta"]["miny"] + i["lift"] for i in info)
+    width = max(i["dx"] + i["meta"]["minx"] + i["meta"]["width"] for i in info) - minx
+    depth = max(i["dz"] + i["meta"]["minz"] + i["meta"]["depth"] for i in info) - minz
+    height = max(i["meta"]["miny"] + i["lift"] + i["meta"]["height"] for i in info) - miny
+    for i in info: i["sy"] = i["meta"]["miny"] + i["lift"] - miny
     log(f"join: {width} x {depth} x {height} blocks, origin ({minx}, {minz}, {miny})")
 
     shutil.rmtree(site, ignore_errors=True); data.mkdir(parents=True)
