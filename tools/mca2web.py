@@ -336,22 +336,30 @@ for (rx, rz) in sorted(REG):
     reach[1:H+1, 1:S+1, 1:S+1] = lab[:H] == lab[H, 0, 0]
     reach[H + 1] = True
     del lab, passable
+    # A sealing partial block (roof slab, stair, path) is itself seen when open air touches any of its
+    # sides. Without this every slab roof and slab-built detail was dropped and the block under it lost its top.
+    near = np.zeros((H, PACK, PACK), dtype=bool)
+    for (dy, dz, dx), _ in dirs:
+        near |= reach[1+dy:H+1+dy, 1+M+dz:1+M+PACK+dz, 1+M+dx:1+M+PACK+dx]
+    seen = reach.copy()
+    seen[1:H+1, 1+M:1+M+PACK, 1+M:1+M+PACK] |= cover & near
+    del near
     pad = np.pad(wg, 1, constant_values=0)
     c = pad[1:-1, 1:-1, 1:-1]
     wmask = np.zeros(wg.shape, dtype=np.uint8)
     for (dy, dz, dx), bit in dirs:
         sl = (slice(1+dy, H+1+dy), slice(1+dz, S+1+dz), slice(1+dx, S+1+dx))
         nb = pad[sl]
-        wmask |= ((see[nb] & (nb != c) & reach[sl]).astype(np.uint8) << bit)
+        wmask |= ((see[nb] & (nb != c) & seen[sl]).astype(np.uint8) << bit)
     wmask[c == 0] = 0
     del pad
     grid = wg[:, M:M+PACK, M:M+PACK]; mask = wmask[:, M:M+PACK, M:M+PACK]
-    dmat[~reach[1:H+1, 1+M:1+M+PACK, 1+M:1+M+PACK]] = 0
+    dmat[~seen[1:H+1, 1+M:1+M+PACK, 1+M:1+M+PACK]] = 0
     faces += sum(int(np.count_nonzero(mask & (1 << b))) for b in range(6))
     ox, oz = (rx - rx0) * PACK, (rz - rz0) * PACK
     # Surfaces a car can stand on: a solid block (not leaves or water) with open sky-connected space and
     # three blocks of headroom above it. Tree canopies and roofs over the road no longer lift the car.
-    hard = (kinds[grid] == 1) | (kinds[grid] == 3) | (cover & (kinds[dmat] == 1))  # slabs and paths count as surface too
+    hard = (kinds[grid] == 1) | (kinds[grid] == 3)   # full blocks only: a slab roof is not somewhere to drive
     up = np.zeros((H + 3,) + hard.shape[1:], dtype=bool); up[:H] = hard
     surf = hard & reach[2:H+2, 1+M:1+M+PACK, 1+M:1+M+PACK] & ~up[1:H+1] & ~up[2:H+2] & ~up[3:H+3]
     anys = surf.any(axis=0)

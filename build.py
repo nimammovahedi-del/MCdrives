@@ -87,6 +87,9 @@ def keep_chunks(area, chunks):
     return kept
 
 
+NO_CARS = ("boat,crane,excavator,fountain,helicopter,jetbridge,landmark,lighthouse,plane,playground,"
+           "starship,tombstone,tractor,windturbine")   # every Arnis prop family except car
+
 # ---------------------------------------------------------------- joining chunks into one world
 def hav(dlat, dlon, lat):
     a = math.sin(math.radians(dlat) / 2) ** 2 + math.cos(math.radians(lat)) ** 2 * math.sin(math.radians(dlon) / 2) ** 2
@@ -464,6 +467,9 @@ def build_chunk(area, chunk, args, work, overhang=0):
         cmd = [find_arnis(args.arnis), f"--bbox={bstr}", f"--output-dir={world_parent}",
                f"--save-json-file={osm}", "--no-update-check"]
         if area.get("lidar", True) and h * w <= 16: cmd.append("--lidar")
+        # Parked cars are left out: a blocky car on every other parking space reads as clutter from the
+        # driver's seat. An area can set "props" to "all" or its own list to change that.
+        cmd.append("--props=" + area.get("props", NO_CARS))
         cmd += area.get("arnis_args", [])
         run(cmd, log, token_env(area, h * w))
         if not world_dir(): sys.exit(f"Arnis finished but wrote no world; see {log}")
