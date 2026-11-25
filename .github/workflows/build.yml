@@ -101,7 +101,7 @@ jobs:
       - name: Keep the raw world on a branch
         if: inputs.world == 'true'
         run: |
-          cd "build/$AREA/${{ matrix.id }}" && mkdir keep && cp -r world osm.json keep/ && cd keep
+          cd "build/$AREA/${{ matrix.id }}" && mkdir keep && cp -r world osm.json keep/ && (cp osm_enriched.json enrich.json keep/ 2>/dev/null || true) && cd keep
           git init -q -b "world/$AREA-${{ matrix.id }}" && git add -A
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "World of $AREA ${{ matrix.id }} from ${GITHUB_SHA::7}"
           git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "world/$AREA-${{ matrix.id }}"

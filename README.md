@@ -102,6 +102,17 @@ Arnis can colour facades from Mapillary photos, only for areas up to 0.10 km2. S
 in the area file and point `MAPILLARY_TOKEN_FILE` at a text file holding the token. Keep that file
 outside this repository. The token is never printed or written by the build.
 
+## Optional building enrichment
+
+`"enrich": true` in an area file (or a list of `"roof_colour"` and `"heights"`) fills building tags
+OpenStreetMap leaves empty before each chunk is baked, with `tools/enrich_osm.py`: `roof:colour`
+from USDA NAIP aerial photos (the USGS NAIP Plus service Arnis reads for its yard detail), and
+`building:levels` or `height` from Overture Maps. OSM values are never overwritten. Arnis first
+fetches the chunk's OSM data in a `--prewarm` run (which also caches every other input), the tool
+writes `osm_enriched.json` and `enrich.json` (counts and which sources answered) next to `osm.json`,
+and the bake reads the enriched file with `--file`. Any failure falls back to the plain bake. Off
+unless set; `areas/irvine-enrich.json` is the city with it on, for trying one chunk.
+
 ## Credits
 
 Map data © OpenStreetMap contributors (ODbL). Buildings from Overture Maps. Elevation and LiDAR

@@ -481,6 +481,52 @@ def token_env(area, chunk_km2):
     return env
 
 
+def enrich_osm(arnis, bstr, opts, osm, work, log, env, cid, what=True):
+    """Area option "enrich": more building tags before the bake (tools/enrich_osm.py): true for all, or a
+    list of "roof_colour" (from NAIP aerial photos) and "heights" (storeys and heights from Overture).
+    Returns the file to bake from with --file, or None to bake as usual; nothing here can fail the build.
+
+    The OSM data has to exist before the bake, so Arnis fetches it first in a --prewarm run with the
+    bake's own --bbox and options: the same data source (tile archive, Overpass as fallback) writes the
+    same osm.json --save-json-file always wrote, and every other input the bake reads (terrain, laser,
+    aerial photos, Overture, canopy, land cover) lands in Arnis's cache on the way, so the bake that
+    follows downloads nothing twice. osm.json stays the unenriched file: roadgraph.py and places.py
+    read it afterwards, and enrichment changes no road, name or place tag."""
+    osm.unlink(missing_ok=True)
+    pre = [arnis, f"--bbox={bstr}", f"--output-dir={work / 'world'}", f"--save-json-file={osm}",
+           "--no-update-check", "--prewarm"] + opts
+    print("  $", " ".join(str(c) for c in pre))
+    with open(log, "ab") as f:
+        r = subprocess.run([str(c) for c in pre], stdout=f, stderr=subprocess.STDOUT, env=env)
+    # A prewarm exits 1 when anything could not be cached (the laser index, say), after osm.json is written.
+    try:
+        ok = osm.exists() and json.loads(osm.read_text()).get("elements") is not None
+    except ValueError:
+        ok = False
+    if not ok:
+        print(f"[{cid}] enrich: skipped, the prewarm run wrote no OSM data (exit {r.returncode}); baking as usual")
+        osm.unlink(missing_ok=True)
+        return None
+    out, stats = work / "osm_enriched.json", work / "enrich.json"
+    cmd = [sys.executable, ROOT / "tools" / "enrich_osm.py", osm, bstr, out, "--stats", stats, "--cache", work / "enrich_cache"]
+    if what is not True:
+        if "roof_colour" not in what: cmd.append("--no-naip")
+        if "heights" not in what: cmd.append("--no-overture")
+    print("  $", " ".join(str(c) for c in cmd))
+    try:
+        with open(log, "ab") as f:
+            r = subprocess.run([str(c) for c in cmd], stdout=f, stderr=subprocess.STDOUT, timeout=1800)
+        if r.returncode or not out.exists(): raise RuntimeError(f"exit {r.returncode}")
+        st = json.loads(stats.read_text())
+        print(f"[{cid}] enrich: {st.get('buildings', 0)} buildings, {st.get('roof_colours_written', 0)} roof colours, "
+              f"{st.get('levels_filled', 0)} storey counts and {st.get('heights_filled', 0)} heights filled; sources "
+              + ", ".join(f"{k} {'ok' if v.get('ok') else 'failed'}" for k, v in st.get("sources", {}).items()))
+        return out
+    except Exception as e:
+        print(f"[{cid}] enrich: skipped ({e}); baking from the unenriched osm.json")
+        return osm
+
+
 def build_chunk(area, chunk, args, work, overhang=0):
     bbox = chunk["bbox"]
     bstr = ",".join(f"{v:.6f}" for v in bbox)
@@ -505,13 +551,18 @@ def build_chunk(area, chunk, args, work, overhang=0):
     if step("bake", lambda: world_dir() and osm.exists()):
         if args.world: sys.exit(f"--world {args.world} has no region files")
         shutil.rmtree(world_parent, ignore_errors=True); world_parent.mkdir(parents=True)
-        cmd = [find_arnis(args.arnis), f"--bbox={bstr}", f"--output-dir={world_parent}",
-               f"--save-json-file={osm}", "--no-update-check"]
-        if area.get("lidar", True) and h * w <= 16: cmd.append("--lidar")
+        arnis = find_arnis(args.arnis)
+        opts = []
+        if area.get("lidar", True) and h * w <= 16: opts.append("--lidar")
         # Parked cars are left out: a blocky car on every other parking space reads as clutter from the
         # driver's seat. An area can set "props" to "all" or its own list to change that.
-        cmd.append("--props=" + area.get("props", NO_CARS))
-        cmd += area.get("arnis_args", [])
+        opts.append("--props=" + area.get("props", NO_CARS))
+        opts += area.get("arnis_args", [])
+        source = [f"--save-json-file={osm}"]
+        if area.get("enrich") and not args.osm:
+            enriched = enrich_osm(arnis, bstr, opts, osm, work, log, token_env(area, h * w), chunk["id"], area["enrich"])
+            if enriched: source = [f"--file={enriched}"]
+        cmd = [arnis, f"--bbox={bstr}", f"--output-dir={world_parent}"] + source + ["--no-update-check"] + opts
         run(cmd, log, token_env(area, h * w))
         if not world_dir(): sys.exit(f"Arnis finished but wrote no world; see {log}")
         times["bake"] = time.time() - times["bake"]
