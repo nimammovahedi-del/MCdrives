@@ -28,6 +28,7 @@
   <button id="random">Random trip</button><button id="pause">Pause</button>
   <div class="row">Camera</div><select id="camSel"></select>
   <div class="row">Sky</div><button id="skyAuto">Auto</button><button id="skyDay">Day</button><button id="skyNight">Night</button>
+  <div class="row">Style</div><select id="uiSel"><option value="stone">Stone (light menu panel)</option><option value="slate">Slate (squared text)</option><option value="clean">Clean (plain text)</option><option value="classic">Classic (all pixel)</option></select>
   <div class="row">Screen</div><select id="laySel"><option value="auto">Auto</option><option value="phone">Phone (portrait)</option><option value="phoneland">Phone (landscape)</option><option value="desktop">Desktop</option><option value="car">Car screen preview</option></select>
   <select id="unitSel"><option value="imperial">mi / ft</option><option value="metric">km / m</option></select>
   <div id="help" style="opacity:.8"></div>
@@ -414,6 +415,9 @@ const skyBtns = { auto: 'skyAuto', day: 'skyDay', night: 'skyNight' };
 const markSky = () => { for (const [m, id] of Object.entries(skyBtns)) $(id).classList.toggle('on', sky.mode === m); };
 for (const [m, id] of Object.entries(skyBtns)) $(id).onclick = () => { sky.setMode(m); markSky(); };
 markSky();
+let uiStyle = params.get('ui') ?? 'stone';
+const applyStyle = () => { document.body.className = document.body.className.replace(/\bui-\S+/g, '').trim(); document.body.classList.add('ui-' + uiStyle); };
+applyStyle(); $('uiSel').value = uiStyle; $('uiSel').onchange = e => { uiStyle = e.target.value; applyStyle(); applyLayout(); };
 $('laySel').value = layoutParam; $('laySel').onchange = e => { layoutParam = e.target.value; applyLayout(); };
 $('unitSel').value = units; $('unitSel').onchange = e => { units = e.target.value; makeHud(); applyLayout(); };
 
@@ -454,6 +458,7 @@ function frame(now = performance.now()) {
     if (paused || dist >= trip.L) target = 0;
     speed += Math.max(-9 * dt, Math.min(4 * dt, target - speed));
     dist = Math.min(trip.L, dist + speed * dt);
+    if (frozen) { dist = frozen.d; speed = frozen.v; }   // test hook: hold the car still for screenshots
     ribbon.geometry.setDrawRange(Math.max(0, Math.floor((dist - 6) / 2)) * 6, Infinity); // trim the part already driven
     const { p } = along(dist), ahead = along(dist + 8).p;
     p.y = yAt(dist); car.position.copy(p);
@@ -519,6 +524,7 @@ const wanted = dests.findIndex(d => d.name === (params.get('to') ?? 'Alton Parkw
 if (wanted >= 0) { $('dest').value = wanted; if (!startTrip(dests[wanted].node)) randomTrip(); } else randomTrip();
 makeHud(); setMode(params.get('mode') ?? 'nav'); applyLayout();
 window.__api = { startTrip, randomTrip, along, groundY, smoothY, yAt, dests, trip: () => trip, setStart: n => { curNode = n; }, nodes: N, names: G.names };
+let frozen = null; window.__freeze = (d, v = 13) => { frozen = d == null ? null : { d, v }; snap = true; };
 window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
 frame();
 </script>
