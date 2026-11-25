@@ -1,0 +1,45 @@
+name: Deploy traffic Worker
+
+# Builds the Orange County detector list from Caltrans PeMS, then deploys worker/ to Cloudflare and sets the
+# TomTom key as a Worker secret. Needs repository secrets CLOUDFLARE_API_TOKEN (template "Edit Cloudflare
+# Workers") and TOMTOM_KEY. Does not touch the map build.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["worker/**", ".github/workflows/traffic-worker.yml"]
+
+concurrency:
+  group: traffic-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Orange County detector stations
+        run: |
+          curl -sSfL --retry 3 -o vds_config.xml https://pems.dot.ca.gov/feeds/vds_config.xml || echo "station list unavailable; deploying without positions"
+          if [ -s vds_config.xml ]; then python3 worker/stations.py vds_config.xml worker/src/stations.json; fi
+      - name: Deploy
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx --yes wrangler@4 deploy | tee ../deploy.log
+      - name: TomTom key
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TOMTOM_KEY: ${{ secrets.TOMTOM_KEY }}
+        run: |
+          if [ -n "$TOMTOM_KEY" ]; then printf '%s' "$TOMTOM_KEY" | npx --yes wrangler@4 secret put TOMTOM_KEY; else echo "TOMTOM_KEY not set; TomTom routes stay off"; fi
+      - name: Check
+        run: |
+          sleep 5
+          URL=$(grep -o 'https://[^ ]*workers\.dev' deploy.log | head -1)
+          echo "Worker: ${URL:-see Cloudflare dashboard}"
+          if [ -n "$URL" ]; then curl -sS "$URL/v1/health" | head -c 2000; echo; curl -sS "$URL/v1/incidents.json" | head -c 1500; echo; fi
