@@ -34,7 +34,7 @@ jobs:
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TOMTOM_KEY: ${{ secrets.TOMTOM_KEY }}
+          TOMTOM_KEY: ${{ secrets.TOMTOM_KEY || secrets.TOMKEY_KEY }}   # the repository secret was first saved as TOMKEY_KEY
         run: |
           if [ -n "$TOMTOM_KEY" ]; then printf '%s' "$TOMTOM_KEY" | npx --yes wrangler@4 secret put TOMTOM_KEY; else echo "TOMTOM_KEY not set; TomTom routes stay off"; fi
       - name: Check
