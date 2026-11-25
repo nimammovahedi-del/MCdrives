@@ -146,7 +146,7 @@ const faceMaterial = (data, clear) => {
 let quadCount = 0;
 // Tile layout: u32 quad count, then 8-byte greedy quads (x u8, z u8, y u16, w u8, h u8, dir u8, mat u8),
 // then 12-byte boxes for partial blocks (x u8, z u8, y u16, mat u8, x0 y0 z0 x1 y1 z1 in 1/16 block, pad).
-function buildTile(buf, tx, tz) {
+function buildTile(buf, tx, tz, pk) {
   const made = [];
   const v = new DataView(buf); const nq = v.getUint32(0, true); const nb = (buf.byteLength - 4 - nq * 8) / 12;
   let ns = 0, nt = 0;
@@ -156,7 +156,8 @@ function buildTile(buf, tx, tz) {
   const mk = c => { const w = Math.max(1, Math.ceil(Math.sqrt(c))), h = Math.max(1, Math.ceil(c / w)), u = new Uint32Array(w * h * 4);
     return { u, a: new Uint16Array(u.buffer), w, h, q: 0, lo: [Infinity, Infinity, Infinity], hi: [-Infinity, -Infinity, -Infinity] }; };
   const S = mk(ns), T = mk(nt);
-  const ox = tx * meta.tile, oz = tz * meta.tile;
+  // A pack baked as part of a larger area carries dx/dz/dy: where its own origin sits in this world.
+  const ox = tx * meta.tile + (pk?.dx ?? 0), oz = tz * meta.tile + (pk?.dz ?? 0), oy = pk?.dy ?? 0;
   // One face of the axis-aligned box at tile-local (x, y, z) with extents (ex, ey, ez), all in 1/16 block.
   // (wx, wy, wz) is the block the face belongs to, in world blocks, for the per-face tint hash.
   const put = (b, d, x, y, z, ex, ey, ez, mi, wx, wy, wz) => {
@@ -199,7 +200,7 @@ function buildTile(buf, tx, tz) {
     g.boundingSphere = g.boundingBox.getBoundingSphere(new THREE.Sphere());
     const fm = faceMaterial(data, clear);
     g.addEventListener('dispose', () => { data.dispose(); fm.dispose(); });
-    const mesh = new THREE.Mesh(g, fm); mesh.position.set(ox, 0, oz); mesh.updateMatrix(); mesh.matrixAutoUpdate = false;
+    const mesh = new THREE.Mesh(g, fm); mesh.position.set(ox, oy, oz); mesh.updateMatrix(); mesh.matrixAutoUpdate = false;
     if (clear) mesh.renderOrder = 1; mesh.userData.q = b.q; scene.add(mesh); made.push(mesh);
   }
   return made;
@@ -224,7 +225,7 @@ function pumpBuilds() {
   while (buildQ.length && performance.now() - t < BUDGET) {
     const { p, tile, tx, tz } = buildQ.shift();
     if (p.state !== 1) continue;
-    p.meshes.push(...buildTile(tile, tx, tz));
+    p.meshes.push(...buildTile(tile, tx, tz, p));
     if (--p.left === 0) { p.state = 2; loading--; if (!everLoaded) { everLoaded = true; $('load').remove(); } }
   }
 }

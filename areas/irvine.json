@@ -3,5 +3,9 @@
   "slug": "irvine",
   "bbox": [33.6000, -117.8700, 33.7750, -117.6800],
   "lidar": true,
-  "max_chunk_km2": 4
+  "max_chunk_km2": 16,
+  "arnis_args": [
+    "--lidar-max-mb",
+    "4000"
+  ]
 }

@@ -16,9 +16,12 @@ That runs these steps and skips any whose output already exists:
 | convert | World files into greedy-meshed tiles with our own block palette, grouped into one streamable pack per 512 x 512 blocks | `tools/mca2web.py` |
 | roads | Drivable road graph, in block coordinates, from the same OSM data the bake used | `tools/roadgraph.py` |
 | site | Copy the viewer next to the data in `build/<area>/<chunk>/site/` | `build.py` |
+| join | Place every chunk in one world and write `build/<area>/site/` | `build.py` |
 
-Useful flags: `--plan` (show the chunk grid only), `--only r0c0,r0c1`, `--from convert`, `--force`,
-`--world DIR --osm FILE` (reuse a bake you already have), `--arnis PATH`.
+Useful flags: `--plan` (show the chunk grid, each chunk's offset and its projection error),
+`--plan-ids` (just the ids, as JSON), `--only r0c0,r0c1`, `--from convert`, `--force`,
+`--world DIR --osm FILE` (reuse a bake you already have; with `--only` on one chunk of a big area),
+`--join-only` (join chunk outputs that are already there), `--no-join`, `--seam-tol`, `--arnis PATH`.
 
 On Windows the Arnis release binary is downloaded into `bin/` on first use. Elsewhere, build it
 with `cargo build --release --no-default-features` and pass `--arnis` or set `ARNIS_BIN`.
@@ -28,6 +31,11 @@ with `cargo build --release --no-default-features` and pass `--arnis` or set `AR
 `.github/workflows/build.yml` does the same build on a GitHub runner and publishes the viewer to
 GitHub Pages. It runs when the `irvine-core` config, the tools or the viewer change, or by hand from
 the Actions tab with any area name. Enable it once under Settings, Pages, Source: GitHub Actions. Each build also force-pushes the finished site to a `built/<area>` branch, so the output can be fetched with git.
+
+A big area is built in parallel: one job plans the chunk grid, one matrix job bakes and converts
+each chunk and uploads its site as an artifact, and a last job downloads them all, joins them and
+publishes. `areas/irvine.json` is 25 jobs, well inside GitHub's 256 per matrix, and each chunk job
+has its own 6 hour budget instead of sharing one.
 
 ## Areas and scale
 
@@ -47,8 +55,27 @@ One Arnis run covers up to 16 km2 with LiDAR (`areas/irvine-core.json` is 15 km2
 drive). Areas larger than `max_chunk_km2` are cut into a grid of separate bakes;
 `areas/irvine.json` is the whole city, about 343 km2.
 
-Not done yet: separate bakes are separate worlds. Joining them (placing each bake at its offset
-in one pack grid and one road graph) is the next piece of work for going past 16 km2.
+## Joining the chunks
+
+Each chunk is its own Arnis bake, starting at block (0, 0) with its own ground level. The join step
+puts them back together into one world at `build/<area>/site/`:
+
+- Arnis's projection is linear inside a bbox, so a chunk's blocks differ from the area's by a
+  translation. `build.py --plan` prints each chunk's offset and the error at its corners: the
+  metres per degree of longitude depend on a bbox's mean latitude, so a chunk row's scale is
+  slightly off the area's. Over the 343 km2 of `areas/irvine.json` the worst corner is 4.2 blocks out.
+- Pack files are copied, never re-encoded: each keeps its bytes and gains a unique id and the
+  offset of its chunk, which the viewer applies when it places the tile meshes. Material ids are
+  the same in every world (`tools/mca2web.py` registers the whole palette up front), so one
+  palette covers the area.
+- The height field is pasted together through a memory-mapped file, one chunk at a time, so the
+  area's 1.4 GB of columns never sit in RAM.
+- Road graphs are merged. A chunk's graph reaches 32 blocks past its bbox (`roadgraph.py
+  --overhang`), so neighbours hold the same OSM nodes either side of their seam; the join merges
+  those nodes, then any remaining pair within `--seam-tol` blocks, and keeps the largest connected
+  component of the result. Routes cross chunk edges as if the area had been baked in one go.
+
+A single-chunk area is already one world, so nothing is joined and the site stays where it was.
 
 ## Optional street photos
 

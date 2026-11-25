@@ -27,9 +27,43 @@ env:
   AREA: ${{ inputs.area || 'irvine-core' }}
 
 jobs:
-  build:
+  # An area larger than its max_chunk_km2 is a grid of chunks. Each chunk is its own Arnis bake, so
+  # they run as one matrix job each, and a last job joins their outputs into one world.
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    outputs:
+      ids: ${{ steps.plan.outputs.ids }}
+      joined: ${{ steps.plan.outputs.joined }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - id: plan
+        run: |
+          ONLY="${{ inputs.only }}"
+          ALL=$(python build.py "areas/$AREA.json" --plan-ids)
+          IDS=$(ONLY="$ONLY" ALL="$ALL" python -c '
+          import json, os
+          ids = json.loads(os.environ["ALL"])
+          only = [s for s in os.environ["ONLY"].split(",") if s.strip()]
+          if only: ids = [i for i in ids if i in only]
+          if not ids: raise SystemExit("no chunk matched")
+          print(json.dumps(ids))')
+          echo "ids=$IDS" >> "$GITHUB_OUTPUT"
+          # Joining needs every chunk of a multi-chunk area, so not after a partial "only" run.
+          echo "joined=$([ "$IDS" = "$ALL" ] && [ "$IDS" != '["all"]' ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "building $IDS of $ALL"
+
+  chunk:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 330          # GitHub kills a job at 6 h
+    strategy:
+      fail-fast: false
+      max-parallel: 20            # a matrix may hold up to 256 jobs; this keeps the queue civil
+      matrix:
+        id: ${{ fromJson(needs.plan.outputs.ids) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,26 +87,64 @@ jobs:
           cargo build --release --no-default-features
           mkdir -p ../bin && cp target/release/arnis ../bin/arnis
 
-      - name: Build
-        run: |
-          ONLY="${{ inputs.only }}"
-          python build.py "areas/$AREA.json" --arnis bin/arnis ${ONLY:+--only "$ONLY"}
+      - name: Build chunk ${{ matrix.id }}
+        run: python build.py "areas/$AREA.json" --arnis bin/arnis --only "${{ matrix.id }}" --no-join
       - name: Build log
         if: always()
-        run: tail -n 200 build/*/*/build.log || true
+        run: tail -n 200 "build/$AREA/${{ matrix.id }}/build.log" || true
+
+      # Only the finished site travels to the join job; the raw world and OSM dump stay behind.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.id }}
+          path: build/${{ env.AREA }}/${{ matrix.id }}/site
+          retention-days: 3
+          compression-level: 0    # packs and the height field are already gzipped
+
+  join:
+    needs: [plan, chunk]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Collect the chunks
+        uses: actions/download-artifact@v4
+        with:
+          path: chunks
+      - name: Put them where build.py expects them
+        run: |
+          for d in chunks/*; do id=$(basename "$d"); mkdir -p "build/$AREA/$id"; mv "$d" "build/$AREA/$id/site"; done
+          rmdir chunks
+          ls -R "build/$AREA" | head -n 40
+
+      # For one chunk this only refreshes report.json; for several it writes build/<area>/site.
+      - name: Join the chunks into one world
+        run: python build.py "areas/$AREA.json" --join-only
 
       - name: Assemble site
         run: |
           mkdir -p public
-          first=$(ls -d build/$AREA/*/site | head -n 1)
-          cp -r "$first"/. public/
+          if [ "${{ needs.plan.outputs.joined }}" != "true" ]; then
+            first=$(ls -d build/$AREA/*/site | head -n 1)
+            cp -r "$first"/. public/
+            for d in build/$AREA/*/site; do id=$(basename "$(dirname "$d")"); mkdir -p "public/chunks/$id"; cp -r "$d"/. "public/chunks/$id/"; done
+          else
+            cp -rl "build/$AREA/site"/. public/   # one joined world; hard links, the packs are large
+          fi
           cp build/$AREA/report.json public/report.json
-          for d in build/$AREA/*/site; do id=$(basename "$(dirname "$d")"); mkdir -p "public/chunks/$id"; cp -r "$d"/. "public/chunks/$id/"; done
+          du -sh public
       - uses: actions/upload-artifact@v4
         with:
           name: site-${{ env.AREA }}
           path: public
           retention-days: 14
+          compression-level: 0
       - name: Publish built site to a branch
         run: |
           cd public && git init -q -b "built/$AREA"
@@ -85,7 +157,7 @@ jobs:
           path: public
 
   deploy:
-    needs: build
+    needs: join
     runs-on: ubuntu-latest
     environment:
       name: github-pages

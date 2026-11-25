@@ -86,6 +86,24 @@ def colour(n):
     return 0x8E8E8E, "solid"
 unknown = set()
 
+# Every colour the rules above can produce is registered up front, in a fixed order, so the
+# material table is the same for every world. Chunks of one area can then share pack files and a
+# single palette: a quad's material byte means the same thing whichever bake it came from.
+def register_palette():
+    mat(0x3C7FD6, "water")
+    for c in LEAVES.values(): mat(c, "leaves")
+    mat(0x4A7A2A, "leaves")
+    for c in CONCRETE.values(): mat(lighten(c, 0.25), "glass")
+    mat(0xBFE3F0, "glass"); mat(0x91B7FD, "glass")
+    for table in (TERRACOTTA, CONCRETE, WOOL):
+        for c in table.values(): mat(c, "solid")
+    for c in CONCRETE.values(): mat(lighten(c, 0.12), "solid")
+    mat(0x985E43, "solid")
+    for plank, bark in WOODS.values(): mat(plank, "solid"); mat(bark, "solid")
+    for c in NAMED.values(): mat(c, "solid")
+    mat(0x8E8E8E, "solid")
+register_palette()
+
 FULL = None
 def boxes(n, pr):
     """Returns None for a full cube, [] to skip, or a list of boxes in 1/16 block units for partial shapes."""
