@@ -98,7 +98,12 @@ const groundY = (x, z, deck = false) => {
   for (const p of cells[Math.floor(z / PK) * CX + Math.floor(x / PK)]) {
     const lx = x - p.x, lz = z - p.z; if (lx < 0 || lz < 0 || lx >= PK || lz >= PK) continue;
     if (!p.hgt) return 0;
-    const v = p.hgt[(deck ? PK * PK : 0) + lz * PK + lx]; if (v >= 0) return v + (p.dy ?? 0) + 1;
+    // a lowest surface on the world floor means sky leaked under the terrain there: use the top surface
+    // (only where the leak is wide: under a bridge the floor is a short gap that the trip profile fills)
+    let v = p.hgt[(deck ? PK * PK : 0) + lz * PK + lx];
+    if (!deck && v >= 0 && v <= 1) { const f = (ax, az) => p.hgt[Math.max(0, Math.min(PK - 1, az)) * PK + Math.max(0, Math.min(PK - 1, ax))] <= 1;
+      if (f(lx - 40, lz) && f(lx + 40, lz) && f(lx, lz - 40) && f(lx, lz + 40)) v = p.hgt[PK * PK + lz * PK + lx]; }
+    if (v > 1) return v + (p.dy ?? 0) + 1;
   }
   return 0;
 };
