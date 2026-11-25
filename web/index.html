@@ -638,15 +638,16 @@ function nearestRoad(x, z) {
   }
   return best;
 }
-function placeAt(x, z, title) {
+// at: { node, kind } for a known place: drive to its own access node, and say what it is
+function placeAt(x, z, title, at = {}) {
   const r = nearestRoad(x, z); if (!r) return;
-  const street = G.names[r.nm] && G.names[r.nm] !== 'ramp' ? roadName(G.names[r.nm]) : null, node = r.node;
+  const street = G.names[r.nm] && G.names[r.nm] !== 'ramp' ? roadName(G.names[r.nm]) : null, node = at.node ?? r.node;
   const name = title ?? street ?? 'Dropped pin', far = Math.hypot(x - car.position.x, z - car.position.z);
   mapView.pin = { x, z }; mapView.markDirty();
   const gy = smoothY(x, z); dropPin.position.set(x, isNaN(gy) ? car.position.y : gy, z); dropPin.visible = mode === 'orbit';
-  chip.show({ title: name, sub: `${fmtD(far)} away` + (street && title && street !== title ? ` · on ${street}` : ''),
+  chip.show({ title: name, sub: (at.kind ? at.kind + ' · ' : '') + `${fmtD(far)} away` + (street && title && street !== title ? ` · on ${street}` : ''),
     actions: [{ label: trip ? 'Go now' : 'Drive here', primary: true, fn: () => go(node, name) }, ...(trip ? [{ label: 'Add stop', primary: true, fn: () => addStop(node, name) }] : []),
-      ...(mode === 'map' ? [] : [{ label: 'Show on map', fn: () => { setMode('map'); mapView.center.set(x, 0, z); placeAt(x, z, title); } }]),
+      ...(mode === 'map' ? [] : [{ label: 'Show on map', fn: () => { setMode('map'); mapView.center.set(x, 0, z); placeAt(x, z, title, at); } }]),
       { label: 'Close', fn: () => { chip.hide(); dropPin.visible = false; mapView.pin = null; mapView.markDirty(); dirty = true; } }] });
   dirty = true;
 }
@@ -763,8 +764,27 @@ if (hallDest) searchItems.unshift({ name: 'Irvine City Hall', aliases: ['city ha
 const loadAddresses = async () => { try { const r = await fetch('data/addresses.json'); if (!r.ok) return null; return addressIndex(await r.json(), (x, z) => new THREE.Vector3(x - meta.minx, 0, z - meta.minz)); } catch { return null; } };
 const search = createSearch(stageEl, { items: searchItems, from: () => car.position, fmt: fmtD, addresses: loadAddresses, onPick: it => {
   if (mode === 'map') { mapView.center.set(it.pos.x, 0, it.pos.z); }
-  placeAt(it.pos.x, it.pos.z, it.name);
+  placeAt(it.pos.x, it.pos.z, it.name, it.place ? { node: it.node ?? undefined, kind: it.kind } : {});
 } });
+// named places (tools/places.py; places.json next to roads.json): [name, kind, x, z, node, aliases] in the roads.json
+// frame. Each is found by its name, its other names, and (ranked lower, nearest first) by what it is: "gas", "school".
+const PLACE_KIND = { shop: ['Shop', 'store shopping'], food: ['Food and drink', 'restaurant food cafe eat'], office: ['Office', 'work'],
+  park: ['Park', 'parks playground'], fuel: ['Gas station', 'gas fuel petrol charging'], mall: ['Shopping center', 'mall shopping'],
+  hospital: ['Hospital or clinic', 'hospital clinic doctor medical urgent care'], hotel: ['Hotel', 'hotel motel lodging'],
+  station: ['Station', 'station bus train transit'], school: ['School', 'school'], university: ['College', 'college university campus'],
+  civic: ['Public building', 'library police fire post office government'], worship: ['Place of worship', 'church temple mosque synagogue'],
+  neighbourhood: ['Neighborhood', 'neighborhood village'], other: ['Place', ''] };
+fetch('places.json').then(r => r.ok ? r.json() : []).then(rows => {
+  if (!rows.length) return;
+  const items = rows.map(([name, kind, x, z, node, aliases]) => {
+    const [label, cats] = PLACE_KIND[kind] ?? PLACE_KIND.other;
+    const nm = node != null ? adj[node]?.find(e => G.names[e.nm] && G.names[e.nm] !== 'ramp')?.nm : null;   // the street it is reached from
+    return { name, aliases, cats: cats ? cats.split(' ') : [], pos: new THREE.Vector3(x - meta.minx, 0, z - meta.minz), node, kind: label, where: nm != null ? roadName(G.names[nm]) : null, place: true };
+  });
+  // the built-in City Hall entry gives way to the map's own when it has one
+  const has = new Set(items.map(it => it.name.toLowerCase()));
+  search.setItems([...searchItems.filter(it => !has.has(it.name.toLowerCase())), ...items]);
+}).catch(() => {});
 const tileSet = obj => Object.entries(obj).map(([k, v]) => ({ k, label: v.label ?? v }));
 const sheet = createSheet(stageEl, { sections: [
   { title: 'View', tiles: [{ k: 'nav', label: 'Drive', icon: () => icon('drive') }, { k: 'orbit', label: 'Explore', icon: () => icon('explore') }, { k: 'map', label: 'Map', icon: () => icon('map') }, { k: 'walk', label: 'Street view', icon: () => icon('street') }],
