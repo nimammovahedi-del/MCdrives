@@ -39,6 +39,7 @@ import { VEHICLES, buildVehicle, animateVehicle, vehicleIcon } from './drive/veh
 import { icon, createMapButtons, createSheet, createSearch, createChip, addressIndex } from './drive/menu.js';
 import { createPainter, createMapView } from './drive/mapview.js';
 import { fmtDist } from './drive/hud.js';
+import { createTraffic, incidentIcon } from './drive/traffic.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -313,22 +314,28 @@ const focus = new THREE.Vector3();
 const SPEED = [29, 24, 20, 17, 14, 12, 11, 7]; // m/s by road class
 const N = G.nodes.map(([x, z]) => new THREE.Vector3(x - meta.minx, 0, z - meta.minz));
 const adj = N.map(() => []);
-for (const [a, b, nm, cl, ow, ln, dk] of G.edges) {
-  const len = N[a].distanceTo(N[b]);
-  adj[a].push({ to: b, nm, cl, len, dk }); if (!ow) adj[b].push({ to: a, nm, cl, len, dk });
+for (const [i, [a, b, nm, cl, ow, ln, dk]] of G.edges.entries()) {
+  const len = N[a].distanceTo(N[b]);   // k: directed edge key (edge index * 2, +1 when driven b to a), used by live traffic
+  adj[a].push({ to: b, nm, cl, len, dk, k: i * 2 }); if (!ow) adj[b].push({ to: a, nm, cl, len, dk, k: i * 2 + 1 });
 }
+// live traffic (web/drive/traffic.js) from the mcmaps-traffic Worker (worker/); ?traffic=URL or meta.traffic point
+// elsewhere, ?traffic=off turns it off
+const trafficUrl = (params.get('traffic') ?? meta.traffic ?? 'https://mcmaps-traffic.immigration-605.workers.dev').replace(/\/$/, '');
+let traffic = null;
+// m/s on a directed edge: live speed where there is one, the road class speed otherwise
+const edgeSpeed = e => traffic ? traffic.speed(e, SPEED[e.cl]) : SPEED[e.cl];
 function route(from, to) {
   // A* on travel time with a binary heap: the city has about 90,000 nodes, and scanning them all for
   // every step froze the page for seconds
   const dist = new Float64Array(N.length).fill(Infinity), prev = new Int32Array(N.length).fill(-1), pe = new Array(N.length), done = new Uint8Array(N.length);
-  const T = N[to], h = i => Math.hypot(N[i].x - T.x, N[i].z - T.z) / SPEED[0];
+  const T = N[to], h = i => Math.hypot(N[i].x - T.x, N[i].z - T.z) / (SPEED[0] * 1.15);
   const hk = [], hv = []; // heap of [priority, node]
   const push = (k, v) => { let i = hk.length; hk.push(k); hv.push(v); while (i) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hk[i] = hk[p]; hv[i] = hv[p]; i = p; } hk[i] = k; hv[i] = v; };
   const pop = () => { const top = hv[0], k = hk.pop(), v = hv.pop(), n = hk.length; if (n) { let i = 0; for (;;) { let c = 2 * i + 1; if (c >= n) break; if (c + 1 < n && hk[c + 1] < hk[c]) c++; if (hk[c] >= k) break; hk[i] = hk[c]; hv[i] = hv[c]; i = c; } hk[i] = k; hv[i] = v; } return top; };
   dist[from] = 0; push(h(from), from);
   while (hk.length) {
     const u = pop(); if (done[u]) continue; if (u === to) break; done[u] = 1;
-    for (const e of adj[u]) { const d = dist[u] + e.len / SPEED[e.cl]; if (d < dist[e.to]) { dist[e.to] = d; prev[e.to] = u; pe[e.to] = e; push(d + h(e.to), e.to); } }
+    for (const e of adj[u]) { if (traffic?.closed(e)) continue; const d = dist[u] + e.len / edgeSpeed(e); if (d < dist[e.to]) { dist[e.to] = d; prev[e.to] = u; pe[e.to] = e; push(d + h(e.to), e.to); } }
   }
   if (!isFinite(dist[to])) return null;
   const nodes = [], edges = [];
@@ -371,7 +378,7 @@ async function startTrip(toNode, name, vias = []) {
   }
   if (r.nodes.length < 2) return false;
   const pts = r.nodes.map(i => N[i]); const cum = [0], tcum = [0];
-  for (let k = 1; k < pts.length; k++) { const l = pts[k].distanceTo(pts[k - 1]); cum.push(cum[k - 1] + l); tcum.push(tcum[k - 1] + l / SPEED[r.edges[k - 1].cl]); }
+  for (let k = 1; k < pts.length; k++) { const l = pts[k].distanceTo(pts[k - 1]); cum.push(cum[k - 1] + l); tcum.push(tcum[k - 1] + l / edgeSpeed(r.edges[k - 1])); }
   // manoeuvres: a named-road change or a bend sharper than 35 degrees
   const steps = [];
   for (let k = 1; k < r.edges.length; k++) {
@@ -646,6 +653,7 @@ function placeAt(x, z, title) {
 const ray = new THREE.Raycaster(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hitV = new THREE.Vector3();
 function pickAt(cx, cy) {
   const r = stageEl.getBoundingClientRect(); ray.setFromCamera(new THREE.Vector2((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height * 2 - 1)), camera);
+  { const hit = ray.intersectObjects(incMarks.children)[0]; if (hit) return showIncident(hit.object.userData.it); }
   let y = orbit.target.y;
   for (let i = 0; i < 3; i++) { groundPlane.constant = -y; if (!ray.ray.intersectPlane(groundPlane, hitV)) return; const g = smoothY(hitV.x, hitV.z); if (isNaN(g)) break; y = g; }
   placeAt(hitV.x, hitV.z);
@@ -656,7 +664,7 @@ async function go(node, name, vias = []) {
   chip.hide(); search.close(); sheet.toggle(false); dropPin.visible = false; mapView.pin = null;
   const i = dests.findIndex(d => d.node === node); if (i >= 0) $('dest').value = i;
   hereNode();
-  if (await startTrip(node, name, vias)) { paused = false; $('pause').firstChild.textContent = 'Pause'; setMode('nav'); }
+  if (await startTrip(node, name, vias)) { if (traffic?.on) for (const { it } of traffic.along(routeAhead(Infinity, 0))) offered.add(it.id); paused = false; $('pause').firstChild.textContent = 'Pause'; setMode('nav'); }
 }
 // add a stop before the destination (stops already passed are dropped)
 function addStop(node, name) {
@@ -684,9 +692,70 @@ const mapBtns = createMapButtons(stageEl, {
 });
 const chip = createChip(stageEl);
 const painter = createPainter({ G, N, meta });
-const mapView = createMapView({ stage: stageEl, painter, labels, onTap: (x, z) => placeAt(x, z) });
+const mapView = createMapView({ stage: stageEl, painter, labels, onTap: (x, z) => { const it = nearestIncident(x, z, 7 * mapView.mpp); if (it) showIncident(it); else placeAt(x, z); } });
 const miniEl = document.createElement('div'); miniEl.id = 'minimap'; miniEl.className = 'panel'; miniEl.title = 'Open the map'; stageEl.append(miniEl);
 const mini = mapView.minimap(miniEl, () => setMode('map'));
+
+// ---------- live traffic: speed colours and incident icons on both maps, incident markers in 3D, routing around
+// closures and slow roads, and an offer to find a faster way when something turns up on the route ahead
+const incMarks = new THREE.Group(); scene.add(incMarks);
+const incMats = new Map(), offered = new Set();
+let trafficOn = !!trafficUrl && trafficUrl !== 'off', lastOffer = 0;
+function setTraffic(on) {
+  trafficOn = on && !!trafficUrl && trafficUrl !== 'off';
+  if (trafficOn) { traffic ??= createTraffic({ url: trafficUrl, G, N, meta, adj, onChange: trafficChanged }); traffic.start(); }
+  else traffic?.stop();
+}
+function trafficChanged() {
+  mapView.traffic = traffic?.overlay() ?? null; mapView.markDirty(); mini.markDirty();
+  incMarks.clear();
+  for (const it of traffic?.on ? traffic.state.incidents : []) {
+    let mat = incMats.get(it.kind);
+    if (!mat) { const t = new THREE.CanvasTexture(incidentIcon(it.kind, 4)); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; mat = new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }); incMats.set(it.kind, mat); }
+    const m = new THREE.Sprite(mat); m.scale.set(8, 8, 1); m.renderOrder = 5; m.userData.it = it; m.userData.noY = true; m.position.set(it.x, 0, it.z); incMarks.add(m);
+  }
+  placeIncidents(); dirty = true; trafficOffer(true);
+}
+// markers sit 9 blocks over the road once its heights are loaded, and only show within 1.2 km
+function placeIncidents() {
+  for (const m of incMarks.children) {
+    if (m.userData.noY) { const gy = smoothY(m.position.x, m.position.z); if (!isNaN(gy)) { m.position.y = gy + 9; m.userData.noY = false; } }
+    m.visible = !m.userData.noY && Math.hypot(m.position.x - focus.x, m.position.z - focus.z) < 1200;
+  }
+}
+function nearestIncident(x, z, r) {
+  let best = null, bd = r;
+  for (const it of traffic?.on ? traffic.state.incidents : []) { const d = Math.hypot(it.x - x, it.z - z); if (d < bd) { bd = d; best = it; } }
+  return best;
+}
+const clockTime = t => new Date(t * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+function incidentSub(it) {
+  const ago = it.time ? Math.round((Date.now() / 1000 - it.time) / 60) : null;
+  return [it.sub, `${fmtD(Math.hypot(it.x - car.position.x, it.z - car.position.z))} away`,
+    ago != null && ago >= 0 ? (ago < 60 ? `${ago} min ago` : `since ${clockTime(it.time)}`) : '', it.until ? `until ${clockTime(it.until)}` : '', it.details?.[0] ?? '', it.src].filter(Boolean).join(' · ');
+}
+function reroute() { if (!trip) return; const left = trip.stops.filter(v => v.at > dist + 5).map(({ node, name }) => ({ node, name })); go(trip.toNode, trip.destName, left); }
+function showIncident(it) {
+  chip.show({ icon: incidentIcon(it.kind, 2), title: it.title, sub: incidentSub(it), actions: [
+    ...(trip ? [{ label: 'Find a faster way', primary: true, fn: reroute }] : []),
+    ...(mode === 'map' ? [] : [{ label: 'Show on map', fn: () => { setMode('map'); mapView.center.set(it.x, 0, it.z); showIncident(it); } }]),
+    { label: 'Close', fn: () => { chip.hide(); dirty = true; } }] });
+  dirty = true;
+}
+// something new on the next 5 km of the route: offer once per incident
+// the trip's directed edges from the car on, with their distance ahead
+function routeAhead(max = Infinity, from = dist) {
+  const out = []; for (let k = Math.max(1, along(from).k); k < trip.pts.length && trip.cum[k - 1] - from < max; k++) out.push({ k: trip.edges[k - 1].k, at: Math.max(0, trip.cum[k - 1] - from) });
+  return out;
+}
+function trafficOffer(force = false) {
+  const now = performance.now(); if (!trip || !traffic?.on || chip.open || (!force && now - lastOffer < 5000)) return; lastOffer = now;
+  const hit = traffic.along(routeAhead(5000)).find(({ it }) => !offered.has(it.id)); if (!hit) return;
+  offered.add(hit.it.id);
+  chip.show({ icon: incidentIcon(hit.it.kind, 2), title: `${hit.it.title} ahead`, sub: `${fmtD(hit.at)} ahead` + (hit.it.road ? ` on ${hit.it.road}` : '') + (hit.it.details?.[0] ? ` · ${hit.it.details[0]}` : ''),
+    actions: [{ label: 'Find a faster way', primary: true, fn: reroute }, { label: 'Keep route', fn: () => { chip.hide(); dirty = true; } }] });
+  dirty = true;
+}
 const searchItems = dests.map(d => ({ name: roadName(d.name), pos: N[d.node], node: d.node, kind: 'Street' }));
 const hallDest = dests.find(d => d.name === 'Civic Center Plaza');
 if (hallDest) searchItems.unshift({ name: 'Irvine City Hall', aliases: ['city hall', 'civic center', 'irvine civic center', 'town hall'], pos: N[hallDest.node], node: hallDest.node, kind: 'Place' });
@@ -703,6 +772,7 @@ const sheet = createSheet(stageEl, { sections: [
   { title: 'Trip', node: $('tripCtl') },
   { title: 'Vehicle', tiles: Object.entries(VEHICLES).map(([k, v]) => ({ k, label: v.label, icon: () => { const c = vehicleIcon(k); c.classList.add('pix', 'veh'); return c; } })),
     get: () => vehicleKind, set: k => { setVehicle(k); sky.refreshCar(); dirty = true; } },
+  ...(trafficUrl && trafficUrl !== 'off' ? [{ title: 'Live traffic', small: true, tiles: [{ k: true, label: 'On' }, { k: false, label: 'Off' }], get: () => trafficOn, set: v => setTraffic(v) }] : []),
   { title: 'Route line', tiles: tileSet(ROUTE_STYLES), get: () => routeLine.style, set: k => { routeLine.setStyle(k); dirty = true; } },
   { title: 'Sky', tiles: [{ k: 'auto', label: 'Auto' }, { k: 'day', label: 'Day' }, { k: 'night', label: 'Night' }], get: () => sky.mode, set: k => { sky.setMode(k); dirty = true; } },
   { title: 'Camera', tiles: tileSet(CAMERAS), get: () => dcam.preset, set: k => { dcam.setPreset(k); dcam.setViewport({}); } },
@@ -712,6 +782,7 @@ const sheet = createSheet(stageEl, { sections: [
     get: () => layoutParam, set: k => { layoutParam = k; applyLayout(); } },
 ], footer: $('about') });
 $('menuBtn').onclick = () => toggleMenu();
+setTimeout(() => setTraffic(trafficOn), 1500);   // after the first frames: building the road index takes a moment
 const clock = new THREE.Clock();
 let lastFrame = 0, stillFrames = 0, lastCam = new THREE.Matrix4(), dirty = true, btnKey = '', mapTrip, mapStamp = 0;
 const parkDir = new THREE.Vector3(0, 0, -1);
@@ -726,7 +797,7 @@ function frame(now = performance.now()) {
     const here = along(dist), next = trip.steps.find(s => s.at > dist + 0.5) ?? trip.steps[trip.steps.length - 1];
     const toNext = Math.max(0, next.at - dist);
     // speed: road class limit, easing down before a turn and at the destination
-    let target = SPEED[trip.edges[Math.min(here.k - 1, trip.edges.length - 1)].cl];
+    let target = Math.max(4, edgeSpeed(trip.edges[Math.min(here.k - 1, trip.edges.length - 1)]));
     if (next.kind !== 'straight' && toNext < 70) target = Math.min(target, 6 + toNext * 0.2);
     if (paused || dist >= trip.L) target = 0;
     speed += Math.max(-9 * dt, Math.min(4 * dt, target - speed));
@@ -781,6 +852,7 @@ function frame(now = performance.now()) {
     mapView.markDirty(); mini.markDirty();
   }
   mini.update(now, mode === 'nav' && !chip.open);
+  if (traffic?.on && now - lastOffer > 1000) { placeIncidents(); trafficOffer(); }
   focus.copy(mode === 'walk' ? walkPos : mode === 'orbit' ? orbit.target : car.position); stream(focus);
   sky.update(dt, camera);
   animateVehicle(vehicle, now / 1000);
@@ -830,7 +902,7 @@ else if (params.get('trip') === 'random') await randomTrip();
 makeHud(); setMode(params.get('mode') ?? 'nav'); applyLayout();
 window.__api = { startTrip, randomTrip, along, groundY, smoothY, yAt, loadHeights: (x, z, r = 0) => Promise.all(packsNear(x, z, r).map(hload)), dests, trip: () => trip, setStart: n => { curNode = n; }, nodes: N, names: G.names };
 let frozen = null; window.__freeze = (d, v = 13) => { frozen = d == null ? null : { d, v }; snap = true; };
-window.__dcam = dcam; window.__map = mapView; window.__ui = { search, sheet, chip, placeAt, go, endTrip, setVehicle }; window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
+window.__traffic = () => traffic; window.__dcam = dcam; window.__map = mapView; window.__ui = { search, sheet, chip, placeAt, go, endTrip, setVehicle }; window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
 frame();
 </script>
 </body>

@@ -4,7 +4,7 @@
 
 Writes {"<station id>": [lat, lon, freeway, direction], ...}. The file's schema isn't documented, so this reads
 any element that carries an id plus latitude/longitude attributes, and prints the first one it finds so a
-deploy log shows what the file looked like. Stations outside Orange County are dropped.
+deploy log shows what the file looked like. Only mainline detectors (type ML) inside Orange County are kept.
 """
 import sys, json
 import xml.etree.ElementTree as ET
@@ -16,7 +16,7 @@ out, shown = {}, False
 for _, el in ET.iterparse(src, events=("end",)):
     a = el.attrib
     lat, lon, vid = pick(a, "latitude", "lat", "Latitude"), pick(a, "longitude", "lon", "lng", "Longitude"), pick(a, "id", "ID", "vds_id")
-    if lat and lon and vid:
+    if lat and lon and vid and a.get("type", "ML") == "ML":   # mainline only: HOV, ramp and connector detectors would mislead
         if not shown: print("first station element:", el.tag, dict(a)); shown = True
         try: la, lo = float(lat), float(lon)
         except ValueError: continue

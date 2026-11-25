@@ -12,6 +12,10 @@ const ROAD = [ // by road class: [fill, outline, width in map pixels when close]
   ['#f2b84b', '#7a4a12', 3], ['#f2c65e', '#7a4a12', 3], ['#fbf3dc', '#6b5a3a', 2], ['#fbf3dc', '#6b5a3a', 2],
   ['#f4ecd6', '#8a7a5a', 1], ['#efe6cf', '#8a7a5a', 1], ['#ebe1c8', null, 1], ['#e3d8bd', null, 1]];
 
+import { incidentIcon } from './traffic.js';
+
+const JAM = r => r < 0 ? '#4a0a0a' : r >= 0.75 ? '#3fbf5a' : r >= 0.45 ? '#f2c230' : '#e5483b';
+
 export function createPainter({ G, N, meta, base = '' }) {
   // roads bucketed by 256-block cell so a view only walks what it can see
   const CELL = 256, cells = new Map(), nameClass = new Map();
@@ -67,12 +71,19 @@ export function createPainter({ G, N, meta, base = '' }) {
         for (const i of list) { const e = G.edges[i]; if (e[3] !== cl) continue; const A = N[e[0]], B = N[e[1]]; ctx.moveTo(X(A.x), Z(A.z)); ctx.lineTo(X(B.x), Z(B.z)); }
         ctx.stroke();
       }
+      // live traffic: freeway speeds as green / yellow / red over the road, closed stretches dark red
+      if (data.traffic?.segs.length) {
+        ctx.lineCap = 'butt'; ctx.lineWidth = Math.max(2, Math.round(3 * Math.min(1.6, 4 / mpp)));
+        const by = new Map(); for (const sg of data.traffic.segs) { const c = JAM(sg[4]); if (!by.has(c)) by.set(c, []); by.get(c).push(sg); }
+        for (const [c, list] of by) { ctx.strokeStyle = c; ctx.beginPath(); for (const [ax, az, bx, bz] of list) { if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(az, bz) < z0 || Math.min(az, bz) > z1) continue; ctx.moveTo(X(ax), Z(az)); ctx.lineTo(X(bx), Z(bz)); } ctx.stroke(); }
+      }
       const px = (x, y, c, s = 1) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x) - (s >> 1), Math.round(y) - (s >> 1), s, s); };
       const sprite = (rows, x, y, ink, light) => { const ox = Math.round(x) - (rows[0].length >> 1), oy = Math.round(y) - rows.length + 1; rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch !== '.') px(ox + i, oy + j, ch === '#' ? ink : light); })); };
       if (data.route?.length) {
         ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         for (const [c, lw] of [['#0b2a66', 5], ['#4aa3ff', 3]]) { ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.beginPath(); data.route.forEach((p, i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, X(p.x), Z(p.z))); ctx.stroke(); }
       }
+      for (const it of data.traffic?.incidents ?? []) { if (it.x < x0 - 20 || it.x > x1 + 20 || it.z < z0 - 20 || it.z > z1 + 20) continue; ctx.drawImage(incidentIcon(it.kind, 1), Math.round(X(it.x)) - 6, Math.round(Z(it.z)) - 6); }
       for (const s of data.stops ?? []) sprite(FLAG, X(s.x) + 3, Z(s.z), '#3b2a12', '#ffd84a');
       if (data.dest) sprite(FLAG, X(data.dest.x) + 3, Z(data.dest.z), '#14361a', '#5fd35b');
       if (data.pin) sprite(PIN, X(data.pin.x), Z(data.pin.z), '#8e1b1b', '#ff6b5e');
@@ -153,8 +164,9 @@ export function createMapView({ stage, painter, labels, onTap }) {
 
   let mini = null;
   const api = {
-    center, car: null, heading: 0, pin: null, data: null,
+    center, car: null, heading: 0, pin: null, data: null, traffic: null,
     get active() { return st.on; },
+    get mpp() { return st.mpp; },
     enter(at) { if (st.on) return; st.on = true; for (const e of [cv, names, frame, ctl]) e.style.display = ''; document.body.classList.add('mapmode'); fit(); center.set(at.x, 0, at.z); },
     exit() { if (!st.on) return; st.on = false; for (const e of [cv, names, frame, ctl]) e.style.display = 'none'; document.body.classList.remove('mapmode'); api.pin = null; },
     resize() { if (st.on) fit(); },
@@ -162,7 +174,7 @@ export function createMapView({ stage, painter, labels, onTap }) {
     /** call every frame while open; repaints only when something changed */
     update() {
       if (!st.on || !st.dirty) return false; st.dirty = false;
-      painter.paint(g, { cx: center.x, cz: center.z, mpp: st.mpp, w: cv.width, h: cv.height }, { ...api.data, pin: api.pin, car: api.car, heading: api.heading });
+      painter.paint(g, { cx: center.x, cz: center.z, mpp: st.mpp, w: cv.width, h: cv.height }, { ...api.data, traffic: api.traffic, pin: api.pin, car: api.car, heading: api.heading });
       paintNames(); return true;
     },
     /** a small always-on map while driving; tap opens the full map */
@@ -176,7 +188,7 @@ export function createMapView({ stage, painter, labels, onTap }) {
           const w = Math.ceil(el.clientWidth / 2), h = Math.ceil(el.clientHeight / 2);
           if (c.width !== w || c.height !== h) { c.width = w; c.height = h; dirty = true; }
           if (!dirty && now - last < 250) return; dirty = false; last = now;   // 4 times a second is plenty
-          if (api.car) painter.paint(x, { cx: api.car.x, cz: api.car.z, mpp: 5, w, h }, { ...api.data, car: api.car, heading: api.heading });
+          if (api.car) painter.paint(x, { cx: api.car.x, cz: api.car.z, mpp: 5, w, h }, { ...api.data, traffic: api.traffic, car: api.car, heading: api.heading });
         },
       };
       return mini;
