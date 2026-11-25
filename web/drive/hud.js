@@ -96,20 +96,21 @@ export function createHud({ units = 'imperial', onMenu, onEnd } = {}) {
   return {
     el: { card, bar },
     show(v) { card.style.display = v ? '' : 'none'; bar.style.display = v ? '' : 'none'; },
-    /** s: { kind, name, toNext, then?: {kind,name}, speed m/s, limit m/s|null, left m, leftSec, progress 0..1, arrived, rerouting } */
+    /** s: { kind, name, toNext, then?: {kind,name}, speed m/s, limit m/s|null, left m, leftSec, progress 0..1, arrived, rerouting, side?: 'left'|'right' } */
     update(s) {
-      const key = [s.kind, s.name, Math.round(s.toNext), s.then?.kind, s.then?.name, Math.round(s.speed * 2), Math.round(s.leftSec / 10), Math.round(s.left / 20), s.arrived, s.rerouting, s.limit].join('|');
+      const key = [s.kind, s.name, Math.round(s.toNext), s.then?.kind, s.then?.name, Math.round(s.speed * 2), Math.round(s.leftSec / 10), Math.round(s.left / 20), s.arrived, s.rerouting, s.limit, s.side].join('|');
       if (key === last) return; last = key;
       card.classList.toggle('warn', !!s.rerouting);
       if (s.rerouting) {
         arrowInto(el.arrow, 'uturn'); el.dist.textContent = 'Rerouting'; el.name.textContent = 'Finding a new route'; el.then.style.display = 'none';
       } else if (s.arrived) {
-        arrowInto(el.arrow, 'arrive'); el.dist.textContent = 'Arrived'; el.name.textContent = roadName(s.name); el.then.style.display = 'none';
+        arrowInto(el.arrow, 'arrive'); el.dist.textContent = 'Arrived'; el.name.textContent = roadName(s.name) + (s.side ? ` · on your ${s.side}` : ''); el.then.style.display = 'none';
       } else {
         arrowInto(el.arrow, s.kind);
         const [n, u] = fmtDist(s.toNext, units); el.dist.innerHTML = `${n}<small>${u}</small>`;
         card.classList.toggle('soon', s.toNext < 60 && s.kind !== 'straight');
-        el.name.textContent = roadName(s.name);
+        // the destination's side of the street, once it is the next thing ahead
+        el.name.textContent = roadName(s.name) + (s.kind === 'arrive' && s.side ? ` · on the ${s.side}` : '');
         el.name.title = `${VERB[s.kind]} ${s.name}`;
         if (s.then) { el.then.style.display = ''; arrowInto(el.thenArrow, s.then.kind); el.thenName.textContent = roadName(s.then.name); }
         else el.then.style.display = 'none';
