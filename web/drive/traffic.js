@@ -194,21 +194,43 @@ export function createTraffic({ url, G, N, meta, adj, onChange }) {
   return api;
 }
 
-// 12x12 pixel icons for incidents, drawn on canvases (shared by the 2D map and the 3D markers)
+// 16 x 16 pixel road signs for incidents, drawn on canvases (shared by the 2D map, the map key and the 3D markers);
+// the shapes follow road-sign habits: a red circle for closed, diamonds for work and warnings, a triangle for hazards
+// 16 x 16 pixel signs: '#' outline, '+' sign colour, 'o' symbol colour, '.' clear
 const ICON = {
-  crash: { ink: '#3a0d0d', fill: '#ff5a4e', rows: ['....####....', '...#++++#...', '..#+#++#+#..', '.#++#++#++#.', '#+++####+++#', '#++++##++++#', '#++++##++++#', '#+++#..#+++#', '.#++#..#++#.', '..#++##++#..', '...#++++#...', '....####....'] },
-  roadwork: { ink: '#3a1d00', fill: '#ff9a1f', rows: ['.....##.....', '....#++#....', '....#++#....', '...#####....', '...#++++#...', '..#######...', '..#++++++#..', '.#########..', '.#++++++++#.', '############', '#++++++++++#', '############'] },
-  lanes: { ink: '#3a2a00', fill: '#ffd23a', rows: ['.....##.....', '....#++#....', '....#++#....', '...#####....', '...#++++#...', '..#######...', '..#++++++#..', '.#########..', '.#++++++++#.', '############', '#++++++++++#', '############'] },
-  closure: { ink: '#3a0d0d', fill: '#e53935', rows: ['..########..', '.#++++++++#.', '#++++++++++#', '#++++++++++#', '#+########+#', '#+########+#', '#++++++++++#', '#++++++++++#', '.#++++++++#.', '..########..', '............', '............'] },
-  fire: { ink: '#3a1000', fill: '#ff7a1a', rows: ['.....#......', '....#+#.....', '....#+#..#..', '...#++#.#+#.', '..#+++##++#.', '..#++++++#..', '.#+++##++#..', '.#++#..#++#.', '.#++#..#++#.', '.#+++##+++#.', '..#++++++#..', '...######...'] },
-  animal: { ink: '#2a1a08', fill: '#c98a4a', rows: ['............', '.##......##.', '#++#....#++#', '#+++####+++#', '.#++++++++#.', '.#+#++++#+#.', '.#++++++++#.', '..#++##++#..', '..#++++++#..', '...#++++#...', '....####....', '............'] },
-  hazard: { ink: '#3a2a00', fill: '#ffd23a', rows: ['.....##.....', '....#++#....', '....#++#....', '...#+##+#...', '...#+##+#...', '..#++##++#..', '..#++##++#..', '.#++++++++#.', '.#+++##+++#.', '#++++++++++#', '############', '............'] },
+  // a red circle with a white bar: no entry, the road is closed
+  closure: { ink: '#4a0b0b', fill: '#e53935', glyph: '#ffffff', rows: [
+    '.....######.....', '...##++++++##...', '..#++++++++++#..', '.#++++++++++++#.', '.#++++++++++++#.', '#++++++++++++++#', '#+oooooooooooo+#', '#+oooooooooooo+#',
+    '#+oooooooooooo+#', '#++++++++++++++#', '.#++++++++++++#.', '.#++++++++++++#.', '..#++++++++++#..', '...##++++++##...', '.....######.....', '................'] },
+  // a red square: two cars nose to nose under a spark
+  crash: { ink: '#4a0b0b', fill: '#e8463a', glyph: '#ffffff', rows: [
+    '.##############.', '#++++++o+o+++++#', '#+++++++o++++++#', '#++++++o+o+++++#', '#++oooo++oooo++#', '#+oooooo+ooooo+#', '#oooooooooooooo#', '#+o++o++++o++o+#', '#++++++++++++++#', '.##############.', '................', '................', '................', '................', '................', '................'] },
+  // an orange diamond with a traffic cone: road work
+  roadwork: { ink: '#4a2400', fill: '#ff9a1f', glyph: '#2b1a0a', rows: [
+    '.......##.......', '......#++#......', '.....#++++#.....', '....#+++o++#....', '...#++++o+++#...', '..#++++ooo+++#..', '.#+++++o+o++++#.', '#+++++ooooo++++#',
+    '.#++++o+++o+++#.', '..#+ooooooooo#..', '...#+++++++++#..', '....#+++++++#...', '.....#+++++#....', '......#+++#.....', '.......###......', '................'] },
+  // an orange diamond with two lanes becoming one: a lane is closed
+  lanes: { ink: '#4a2400', fill: '#ffb21f', glyph: '#2b1a0a', rows: [
+    '.......##.......', '......#++#......', '.....#++++#.....', '....#+o++o+#....', '...#++o++o++#...', '..#+++o++o+++#..', '.#++++o++o++++#.', '#+++++o++o+++++#', '.#++++o+o+++++#.', '..#+++oo+++++#..', '...#++o+++++#...', '....#+o++++#....', '.....#++++#.....', '......#++#......', '.......##.......', '................'] },
+  // an orange-red square with a white flame
+  fire: { ink: '#4a1400', fill: '#ff6a1a', glyph: '#fff3d6', rows: [
+    '.##############.', '#+++++++o++++++#', '#+++++++oo+++++#', '#++++++ooo+++++#', '#++++++oooo+o++#', '#+++++ooooo+oo+#', '#++++oooooooo++#', '#++++ooo+ooooo+#',
+    '#+++ooo+++oooo+#', '#+++ooo+++oooo+#', '#++++ooo+oooo++#', '#+++++ooooo++++#', '.##############.', '................', '................', '................'] },
+  // a yellow diamond with a deer's head and antlers: animal on the road
+  animal: { ink: '#3a2a00', fill: '#ffd23a', glyph: '#2b1a0a', rows: [
+    '.......##.......', '......#++#......', '.....#++++#.....', '....#o++++o#....', '...#+oo++oo+#...', '..#+++oooo+++#..', '.#+++oooooo+++#.', '#+++++oooo+++++#', '.#++++oooo++++#.', '..#++++oo++++#..', '...#+++oo+++#...', '....#++++++#....', '.....#++++#.....', '......#++#......', '.......##.......', '................'] },
+  // a yellow triangle with "!": something on or near the road
+  hazard: { ink: '#3a2a00', fill: '#ffd23a', glyph: '#2b1a0a', rows: [
+    '.......##.......', '......#++#......', '......#++#......', '.....#+oo+#.....', '.....#+oo+#.....', '....#++oo++#....', '....#++oo++#....', '...#+++oo+++#...',
+    '...#+++oo+++#...', '..#++++++++++#..', '..#++++oo++++#..', '.#+++++oo+++++#.', '.#++++++++++++#.', '################', '................', '................'] },
 };
+
 const iconCache = new Map();
 export function incidentIcon(kind, px = 1) {
   const key = kind + px; if (iconCache.has(key)) return iconCache.get(key);
-  const d = ICON[kind] ?? ICON.hazard, c = document.createElement('canvas'); c.width = c.height = 12 * px;
+  const d = ICON[kind] ?? ICON.hazard, c = document.createElement('canvas');
+  const h = d.rows.findLastIndex(r => /[^.]/.test(r)) + 1; c.width = 16 * px; c.height = h * px;
   const g = c.getContext('2d');
-  d.rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch === '.') return; g.fillStyle = ch === '#' ? d.ink : d.fill; g.fillRect(x * px, y * px, px, px); }));
+  d.rows.slice(0, h).forEach((r, y) => [...r].forEach((ch, x) => { if (ch === '.') return; g.fillStyle = ch === '#' ? d.ink : ch === 'o' ? d.glyph : d.fill; g.fillRect(x * px, y * px, px, px); }));
   iconCache.set(key, c); return c;
 }

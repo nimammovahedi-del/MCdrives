@@ -27,8 +27,9 @@ const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) 
 // ---------- floating map buttons (right edge, above the trip bar)
 export function createMapButtons(stage, { onSearch, onMap, onExplore, onRecenter }) {
   const wrap = h('div', 'mapbtns'); wrap.id = 'mapBtns';
-  const btn = (name, label, fn) => { const b = h('button', 'mb'); b.append(icon(name)); b.title = label; b.setAttribute('aria-label', label); b.onclick = e => { e.stopPropagation(); fn(); }; wrap.append(b); return b; };
-  const b = { search: btn('search', 'Search', onSearch), map: btn('map', 'Map', onMap), explore: btn('explore', 'Explore', onExplore) };
+  // each button says what it is under its icon
+  const btn = (name, label, fn, word = label) => { const b = h('button', 'mb cap'); b.append(icon(name), h('span', 'cap-t', word)); b.title = label; b.setAttribute('aria-label', label); b.onclick = e => { e.stopPropagation(); fn(); }; wrap.append(b); return b; };
+  const b = { search: btn('search', 'Search', onSearch), map: btn('map', 'Map', onMap), explore: btn('explore', 'Explore in 3D', onExplore, '3D') };
   const re = h('button', 'recenter'); re.id = 'recenter'; re.append(icon('recenter', '#fff'), h('span', null, 'Re-center')); re.onclick = e => { e.stopPropagation(); onRecenter(); };
   stage.append(wrap, re);
   return {

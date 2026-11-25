@@ -738,6 +738,7 @@ const mapBtns = createMapButtons(stageEl, {
 });
 const chip = createChip(stageEl);
 const painter = createPainter({ G, N, meta });
+{ let look = params.get('map'); try { look ??= localStorage.mcMapLook; } catch {} if (painter.hasDrawn && (look === 'blocks' || look === 'drawn')) painter.style = look; }
 const mapView = createMapView({ stage: stageEl, painter, labels, onTap: (x, z) => { if (dirs?.open) return; const it = nearestIncident(x, z, 7 * mapView.mpp); if (it) showIncident(it); else placeAt(x, z); } });
 const miniEl = document.createElement('div'); miniEl.id = 'minimap'; miniEl.className = 'panel'; miniEl.title = 'Open the map'; stageEl.append(miniEl);
 const mini = mapView.minimap(miniEl, () => setMode('map'));
@@ -758,7 +759,7 @@ function trafficChanged() {
   for (const it of traffic?.on ? traffic.state.incidents : []) {
     let mat = incMats.get(it.kind);
     if (!mat) { const t = new THREE.CanvasTexture(incidentIcon(it.kind, 4)); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; mat = new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }); incMats.set(it.kind, mat); }
-    const m = new THREE.Sprite(mat); m.scale.set(8, 8, 1); m.renderOrder = 5; m.userData.it = it; m.userData.noY = true; m.position.set(it.x, 0, it.z); incMarks.add(m);
+    const m = new THREE.Sprite(mat); { const im = mat.map.image; m.scale.set(8, 8 * im.height / im.width, 1); } m.renderOrder = 5; m.userData.it = it; m.userData.noY = true; m.position.set(it.x, 0, it.z); incMarks.add(m);
   }
   placeIncidents(); dirty = true; trafficOffer(true);
 }
@@ -955,6 +956,7 @@ const sheet = createSheet(stageEl, { sections: [
   { title: 'Vehicle', tiles: Object.entries(VEHICLES).map(([k, v]) => ({ k, label: v.label, icon: () => { const c = vehicleIcon(k); c.classList.add('pix', 'veh'); return c; } })),
     get: () => vehicleKind, set: k => { setVehicle(k); sky.refreshCar(); dirty = true; } },
   ...(trafficUrl && trafficUrl !== 'off' ? [{ title: 'Live traffic', small: true, tiles: [{ k: true, label: 'On' }, { k: false, label: 'Off' }], get: () => trafficOn, set: v => setTraffic(v) }] : []),
+  ...(painter.hasDrawn ? [{ title: 'Map look', small: true, tiles: [{ k: 'drawn', label: 'Drawn' }, { k: 'blocks', label: 'Blocks' }], get: () => mapView.style, set: k => { mapView.setStyle(k); try { localStorage.mcMapLook = k; } catch {} } }] : []),
   { title: 'Route line', tiles: tileSet(ROUTE_STYLES), get: () => routeLine.style, set: k => { routeLine.setStyle(k); dirty = true; } },
   { title: 'Sky', tiles: [{ k: 'auto', label: 'Auto' }, { k: 'day', label: 'Day' }, { k: 'night', label: 'Night' }], get: () => sky.mode, set: k => { sky.setMode(k); dirty = true; } },
   { title: 'Camera', tiles: tileSet(CAMERAS), get: () => dcam.preset, set: k => { dcam.setPreset(k); dcam.setViewport({}); } },
