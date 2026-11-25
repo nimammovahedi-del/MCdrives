@@ -159,7 +159,10 @@ export function createSearch(stage, { items, from, onPick, fmt, addresses, place
       // by kind ("gas", "school"): whole words only, after anything matched by name, nearest first
       // (a whole kind word asked for leads: "gas" means gas stations before Gascogne Avenue)
       let cat = false;
-      if (q.length >= 3) for (const c of cats) if (c === q || (c.startsWith(q) && q.length >= 4)) { const v = c === q ? -0.1 : 2.5; if (sc == null || v < sc) { sc = v; cat = true; } }
+      if (q.length >= 3) for (const c of cats) if (c === q || (c.startsWith(q) && q.length >= 4)) {
+        const v = c === q ? (sc != null && sc <= 1 ? -0.2 : -0.1) : 2.5;   // "hospital": ones named hospital before other clinics
+        if (sc == null || v < sc) { sc = v; cat = true; }
+      }
       return sc == null ? null : { it, sc, d: dist(it), cat };
     }).filter(Boolean);
     const addrs = addr ? addr.find(text).map(r => ({ ...r, d: dist(r.it) })) : [];

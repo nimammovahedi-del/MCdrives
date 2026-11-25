@@ -768,8 +768,8 @@ const search = createSearch(stageEl, { items: searchItems, from: () => car.posit
 } });
 // named places (tools/places.py; places.json next to roads.json): [name, kind, x, z, node, aliases] in the roads.json
 // frame. Each is found by its name, its other names, and (ranked lower, nearest first) by what it is: "gas", "school".
-const PLACE_KIND = { shop: ['Shop', 'store shopping'], food: ['Food and drink', 'restaurant food cafe eat'], office: ['Office', 'work'],
-  park: ['Park', 'parks playground'], fuel: ['Gas station', 'gas fuel petrol charging'], mall: ['Shopping center', 'mall shopping'],
+const PLACE_KIND = { shop: ['Shop', 'shop store shopping'], food: ['Food and drink', 'restaurant food cafe eat'], office: ['Office', 'office work'],
+  park: ['Park', 'park parks playground'], fuel: ['Gas station', 'gas fuel petrol charging'], mall: ['Shopping center', 'mall shopping'],
   hospital: ['Hospital or clinic', 'hospital clinic doctor medical urgent care'], hotel: ['Hotel', 'hotel motel lodging'],
   station: ['Station', 'station bus train transit'], school: ['School', 'school'], university: ['College', 'college university campus'],
   civic: ['Public building', 'library police fire post office government'], worship: ['Place of worship', 'church temple mosque synagogue'],
