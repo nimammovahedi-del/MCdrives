@@ -5,7 +5,7 @@
 //   blocks: small floating chevrons made of cubes, every 7 m along the lane
 import * as THREE from '../vendor/three.module.js';
 
-export const ROUTE_STYLES = { strip: 'Thin strip + chevrons', paint: 'Painted lane arrows', blocks: 'Floating block arrows' };
+export const ROUTE_STYLES = { combo: 'Painted lane + block arrows', paint: 'Painted lane arrows', blocks: 'Floating block arrows', strip: 'Thin strip + chevrons' };
 
 // pixel textures: drawn cell by cell so they stay crisp (nearest filtering)
 function pixTex(w, h, draw) {
@@ -39,19 +39,26 @@ const STYLES = {
     }),
   },
   blocks: {
-    hw: 0.3, lift: 0.25, tile: 4, scroll: 0, ghost: 0.12, gap: 8, float: 1.1,
+    hw: 0.3, lift: 0.25, tile: 4, scroll: 0, ghost: 0.12, gap: 8, float: 1.1, blocks: true,
     // a faint thread on the road ties the floating arrows together
     tex: () => pixTex(2, 4, (g, w, h) => { g.fillStyle = 'rgba(47,140,255,0.45)'; g.fillRect(0, 0, w, h); g.clearRect(0, 3, w, 1); }),
   },
 };
+// the default: the painted lane, with a floating block arrow halfway between each pair of painted arrows
+STYLES.combo = { ...STYLES.paint, blocks: true, gap: 12, phase: 3.5, float: 1.3 };
 
 // a chevron of cubes pointing to -z, as one merged geometry with darker sides
+// cells: [x, y, z, colour?]; tops get the colour, sides a darker shade, like light from above on a block
 function cubeGeometry(cells, s, topC, sideC) {
-  const P = [], N = [], C = [], top = new THREE.Color(topC), side = new THREE.Color(sideC);
-  for (const [x, y, z] of cells) {
+  const P = [], N = [], C = [], top = new THREE.Color(topC), side = new THREE.Color(sideC), ct = new THREE.Color(), cs = new THREE.Color(), cf = new THREE.Color();
+  for (const [x, y, z, col] of cells) {
     const g = new THREE.BoxGeometry(s, s, s).toNonIndexed(); g.translate(x * s, y * s, z * s);
     const p = g.getAttribute('position'), n = g.getAttribute('normal');
-    for (let i = 0; i < p.count; i++) { P.push(p.getX(i), p.getY(i), p.getZ(i)); N.push(n.getX(i), n.getY(i), n.getZ(i)); const c = n.getY(i) > 0.5 ? top : side; C.push(c.r, c.g, c.b); }
+    if (col != null) { ct.set(col); cs.copy(ct).multiplyScalar(0.62); } else { ct.copy(top); cs.copy(side); }
+    for (let i = 0; i < p.count; i++) {
+      P.push(p.getX(i), p.getY(i), p.getZ(i)); N.push(n.getX(i), n.getY(i), n.getZ(i));
+      const c = n.getY(i) > 0.5 ? ct : n.getY(i) < -0.5 ? cs : n.getX(i) !== 0 ? cs : cf.copy(cs).multiplyScalar(1.15); C.push(c.r, c.g, c.b);
+    }
     g.dispose();
   }
   const g = new THREE.BufferGeometry();
@@ -60,14 +67,31 @@ function cubeGeometry(cells, s, topC, sideC) {
 }
 const CHEVRON = [[0, 0, -2], [-1, 0, -1], [1, 0, -1], [0, 0, -1], [-2, 0, 0], [2, 0, 0], [-1, 0, 0], [1, 0, 0], [-2, 0, 1], [2, 0, 1]];
 
-/** the turn marker: a block arrow pointing to -z, about 10 m long, made of 1.2 m cubes */
+/** the turn marker: a pixel arrow extruded one block thick, like an item sprite: a dark gold rim, a bright
+ *  face and a highlight down its upper-left edge. Points to -z, about 9 m long. */
+const ARROW = [
+  '....#....',
+  '...###...',
+  '..#####..',
+  '.#######.',
+  '#########',
+  '...###...',
+  '...###...',
+  '...###...',
+  '...###...',
+  '...###...',
+];
 export function voxelArrow() {
+  const H = ARROW.length, Wd = ARROW[0].length, on = (x, z) => ARROW[z]?.[x] === '#';
   const cells = [];
-  for (let z = 0; z < 5; z++) cells.push([0, 0, z], [-1 + 1, 0, z]);           // shaft, 2 wide (x 0..1)
-  for (let r = 0; r < 4; r++) for (let x = -r; x <= r + 1; x++) cells.push([x, 0, -1 - (3 - r)]); // head, widest at its base
-  const uniq = [...new Map(cells.map(c => [c.join(), c])).values()];
-  const g = cubeGeometry(uniq, 1.2, 0xffd84a, 0xc58f14); g.translate(-0.6, 0, -1);
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, depthTest: false, transparent: true, opacity: 0.95 }));
+  for (let z = 0; z < H; z++) for (let x = 0; x < Wd; x++) {
+    if (!on(x, z)) continue;
+    const rim = !on(x - 1, z) || !on(x + 1, z) || !on(x, z - 1) || !on(x, z + 1);
+    const hi = !rim && (!on(x - 1, z - 1) || !on(x - 2, z) || !on(x, z - 2));
+    cells.push([x - (Wd - 1) / 2, 0, z - H / 2, rim ? 0xc8860e : hi ? 0xfff3a6 : 0xffd23a]);
+  }
+  const g = cubeGeometry(cells, 1.3, 0xffd23a, 0xa8700c);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, depthTest: false }));
   const grp = new THREE.Group(); grp.add(m); m.renderOrder = 4; return grp;
 }
 
@@ -79,7 +103,7 @@ export function createRoute(scene, { style = 'strip' } = {}) {
   ghost.frustumCulled = false; ghost.renderOrder = 3; scene.add(ghost);
   const chevGeo = cubeGeometry(CHEVRON, 0.6, 0x9ad8ff, 0x1f6fd6);
   const chevMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95 });
-  let blocks = null, tex = null, S = STYLES[style] ? style : 'strip', src = null, scroll = 0, night = false, nInst = 0, gap = 7;
+  let blocks = null, d0 = 0, tex = null, S = STYLES[style] ? style : 'combo', src = null, scroll = 0, night = false, nInst = 0, gap = 7;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), pos = new THREE.Vector3();
 
   function build() {
@@ -88,12 +112,12 @@ export function createRoute(scene, { style = 'strip' } = {}) {
     strip.geometry.dispose(); strip.geometry = new THREE.BufferGeometry(); ghost.geometry = strip.geometry;
     if (blocks) { scene.remove(blocks); blocks.dispose(); blocks = null; }
     tex?.dispose(); tex = null;
-    if (S === 'blocks') {
-      // instance i sits at L - i*gap, so hiding the ones already passed is just lowering the count
-      gap = st.gap; nInst = Math.floor(L / gap);
+    if (st.blocks) {
+      // instance i sits at d0 - i*gap, so hiding the ones already passed is just lowering the count
+      gap = st.gap; d0 = st.phase != null ? Math.floor((L - 2 - st.phase) / gap) * gap + st.phase : L - 0.5 * gap; nInst = Math.max(0, Math.floor(d0 / gap) + 1);
       blocks = new THREE.InstancedMesh(chevGeo, chevMat, nInst); blocks.frustumCulled = false; blocks.renderOrder = 2;
       for (let i = 0; i < nInst; i++) {
-        const d = L - (i + 0.5) * gap, a = along(d), b = along(d + 2);
+        const d = d0 - i * gap, a = along(d), b = along(d + 2);
         q.setFromAxisAngle(up, Math.atan2(-(b.p.x - a.p.x), -(b.p.z - a.p.z)));
         pos.set(a.p.x, yAt(d) + st.float, a.p.z); blocks.setMatrixAt(i, m4.compose(pos, q, one));
       }
@@ -127,7 +151,7 @@ export function createRoute(scene, { style = 'strip' } = {}) {
     /** trims what is already driven; returns true when it changed something that needs a redraw */
     update(dt, dist) {
       if (!src) return false;
-      if (blocks) blocks.count = Math.max(0, Math.min(nInst, Math.floor((src.L - dist - 4) / gap)));
+      if (blocks) blocks.count = Math.max(0, Math.min(nInst, Math.floor((d0 - dist - 4) / gap) + 1));
       const i0 = Math.max(0, Math.floor((dist - 4) / 2)) * 6;
       strip.geometry.setDrawRange(i0, Infinity); ghost.geometry.setDrawRange(i0, 60 * 6);
       const st = STYLES[S];

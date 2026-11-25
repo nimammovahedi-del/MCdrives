@@ -36,7 +36,7 @@ import { DriveCamera, CAMERAS } from './drive/camera.js';
 import { createSky } from './drive/sky.js';
 import { createRoute, voxelArrow, ROUTE_STYLES } from './drive/route.js';
 import { VEHICLES, buildVehicle, animateVehicle, vehicleIcon } from './drive/vehicles.js';
-import { icon, createMapButtons, createSheet, createSearch, createChip } from './drive/menu.js';
+import { icon, createMapButtons, createSheet, createSearch, createChip, addressIndex } from './drive/menu.js';
 import { createMapView } from './drive/mapview.js';
 import { fmtDist } from './drive/hud.js';
 
@@ -344,7 +344,7 @@ for (const [i, d] of dests.entries()) $('dest').add(new Option(d.name, i));
 // ---------- trip state
 let trip = null, tripSeq = 0, dist = 0, curNode = dests.find(d => d.name === 'Entertainment Way')?.node ?? 0, paused = false, speed = 0, snap = true;
 // the route line and the marker over the next manoeuvre (web/drive/route.js)
-const routeLine = createRoute(scene, { style: params.get('route') ?? 'paint' });
+const routeLine = createRoute(scene, { style: params.get('route') ?? 'combo' });
 const turnMark = voxelArrow(); turnMark.visible = false; scene.add(turnMark);
 const pin = new THREE.Mesh(new THREE.ConeGeometry(4, 14, 4), new THREE.MeshLambertMaterial({ color: 0xe53935 })); pin.rotation.x = Math.PI; scene.add(pin); pin.visible = false;
 function along(d, T = trip) {
@@ -652,7 +652,9 @@ const mapView = createMapView({ renderer, scene, stage: stageEl, sky, labels, on
 const searchItems = dests.map(d => ({ name: roadName(d.name), pos: N[d.node], node: d.node, kind: 'Street' }));
 const hallDest = dests.find(d => d.name === 'Civic Center Plaza');
 if (hallDest) searchItems.unshift({ name: 'Irvine City Hall', aliases: ['city hall', 'civic center', 'irvine civic center', 'town hall'], pos: N[hallDest.node], node: hallDest.node, kind: 'Place' });
-const search = createSearch(stageEl, { items: searchItems, from: () => car.position, fmt: fmtD, onPick: it => {
+// street addresses (tools/addresses.py), fetched the first time search opens; same block coordinates as roads.json
+const loadAddresses = async () => { try { const r = await fetch('data/addresses.json'); if (!r.ok) return null; return addressIndex(await r.json(), (x, z) => new THREE.Vector3(x - meta.minx, 0, z - meta.minz)); } catch { return null; } };
+const search = createSearch(stageEl, { items: searchItems, from: () => car.position, fmt: fmtD, addresses: loadAddresses, onPick: it => {
   if (mode === 'map') { mapView.center.set(it.pos.x, 0, it.pos.z); }
   placeAt(it.pos.x, it.pos.z, it.name);
 } });
@@ -751,7 +753,7 @@ function frame(now = performance.now()) {
         nextNm = G.names.indexOf(nx.name); nextExit = nx.kind === 'arrive' ? null : along(nx.at + 40).p;
         if (mode === 'nav' && nx.kind !== 'arrive' && nx.at - dist < 400 && !dcam.lookingAround) {
           const a = along(nx.at + 6), c = along(nx.at + 16);
-          turnMark.position.set(a.p.x, yAt(nx.at + 6) + 7 + Math.sin(performance.now() / 300) * 0.8, a.p.z);
+          turnMark.position.set(a.p.x, yAt(nx.at + 6) + 7, a.p.z);
           turnMark.rotation.y = Math.atan2(-(c.p.x - a.p.x), -(c.p.z - a.p.z)); turnMark.visible = true;
         }
       }
