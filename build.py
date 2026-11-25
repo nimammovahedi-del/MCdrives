@@ -54,7 +54,7 @@ def split(bbox, max_km2):
 def keep_chunks(area, chunks):
     """Drop the chunks an area does not want. "keep" in the area file lists chunk ids outright;
     "within" names an administrative boundary (e.g. {"name": "Irvine", "admin_level": "8"}) and keeps
-    the chunks that touch it. MC_KEEP (a JSON list) overrides both, so every job of one CI run uses
+    the chunks it covers at least min_share of (default a tenth). MC_KEEP (a JSON list) overrides both, so every job of one CI run uses
     the list its plan job worked out instead of asking the map server again."""
     ids = json.loads(os.environ["MC_KEEP"]) if os.environ.get("MC_KEEP") else area.get("keep")
     if ids is None and area.get("within") and len(chunks) > 1:
@@ -78,10 +78,9 @@ def keep_chunks(area, chunks):
         ids = []
         for c in chunks:
             cs, cw, cn, ce = c["bbox"]; N = 12
-            hit = any(inside(cw + (ce - cw) * (i + .5) / N, cs + (cn - cs) * (j + .5) / N) for i in range(N) for j in range(N)) \
-                or any(cw <= x <= ce and cs <= y <= cn for x, y, _, _ in segs)
-            if hit: ids.append(c["id"])
-        print(f"boundary: {wi['name']} touches {len(ids)} of {len(chunks)} chunks", file=sys.stderr)
+            share = sum(inside(cw + (ce - cw) * (i + .5) / N, cs + (cn - cs) * (j + .5) / N) for i in range(N) for j in range(N)) / N / N
+            if share >= wi.get("min_share", 0.1): ids.append(c["id"])
+        print(f"boundary: {wi['name']} covers enough of {len(ids)} of {len(chunks)} chunks", file=sys.stderr)
     if ids is None: return chunks
     kept = [c for c in chunks if c["id"] in ids]
     if not kept: sys.exit("no chunk left after the keep/within filter")

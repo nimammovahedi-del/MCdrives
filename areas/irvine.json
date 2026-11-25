@@ -8,7 +8,7 @@
     -117.68
   ],
   "lidar": true,
-  "max_chunk_km2": 16,
+  "max_chunk_km2": 6,
   "arnis_args": [
     "--lidar-max-mb",
     "4000"
