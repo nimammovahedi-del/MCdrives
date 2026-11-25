@@ -363,7 +363,20 @@ def road_fixes(wg, centre, st):
             filled[s0, s1] |= cells
             st["fill_" + key] += int((cells & inc[s0, s1]).sum())
             st["skip_" + key] += int(((m & ~cells) & inc[s0, s1]).sum())
-    # 2. cycle paths on the ground
+    # 1b. pits: a single column of carriageway sitting up to 3 blocks below its four road neighbours, which are level
+    # with each other, is brought up to them
+    c = (slice(1, -1), slice(1, -1))
+    nb = [(slice(0, -2), c[1]), (slice(2, None), c[1]), (c[0], slice(0, -2)), (c[0], slice(2, None))]
+    lvl = ty[nb[0]]
+    pit = road[nb[0]] & (ty[c] < lvl) & (ty[c] >= lvl - 3) & (lvl < Hh)
+    for q in nb[1:]: pit &= road[q] & (ty[q] == lvl)
+    pz, px = np.nonzero(pit)
+    if len(pz):
+        py = lvl[pz, px]; src = tm[nb[0]][pz, px]
+        src = np.where(T["marking"][src], np.bincount(tm[road & T["asphalt"][tm]], minlength=256).argmax() if (road & T["asphalt"][tm]).any() else src, src)
+        wg[py, pz + 1, px + 1] = src
+        filled[pz + 1, px + 1] = True
+        st["pits"] += int(inc[pz + 1, px + 1].sum())
     # (on a slope Arnis stacks up to a few red blocks under a step; the whole stack goes, so no red riser shows)
     run = np.zeros(ty.shape, dtype=np.int32); alive = T["red"][tm] & has
     for d in range(6):
@@ -383,7 +396,7 @@ def road_fixes(wg, centre, st):
     st["log_cleared"] += int((clr & ~lf & inc[None]).sum())
     wg[clr] = 0
 
-RFS = dict(fill_fill=0, skip_fill=0, fill_soft=0, skip_soft=0, red=0, red_blocks=0, leaf_cleared=0, log_cleared=0)
+RFS = dict(pits=0, fill_fill=0, skip_fill=0, fill_soft=0, skip_soft=0, red=0, red_blocks=0, leaf_cleared=0, log_cleared=0)
 packs = []; total = 0; nquads = 0; nboxes = 0; faces = 0; nleafcut = 0
 for (rx, rz) in sorted(REG):
     # Window = this region plus a margin from its neighbours, so faces and sky reach are right at the seams.

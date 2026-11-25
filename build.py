@@ -204,7 +204,10 @@ def join_roads(parts, area_size, seam_tol, log=print):
         pos[r] = [sum(nodes[i][0] for i in members) / len(members), sum(nodes[i][1] for i in members) / len(members)]
     # drop anything outside the area (the overhang, and the 4-block margin kept by roadgraph.py)
     asx, asz = area_size
-    keep = {r for r, p in pos.items() if 4 < p[0] < asx - 4 and 4 < p[1] < asz - 4}
+    # ... and anything past the built world: where a kept chunk borders one that was not built, its overhang
+    # roads would run out over empty space
+    def built(p): return any(x0 - 1 <= p[0] <= x1 + 1 and z0 - 1 <= p[1] <= z1 + 1 for x0, z0, x1, z1 in edge_of)
+    keep = {r for r, p in pos.items() if 4 < p[0] < asx - 4 and 4 < p[1] < asz - 4 and built(p)}
     link = defaultdict(set)
     kept_edges = set()
     for a, b, nm, cl, ow, ln, dk in edges:
