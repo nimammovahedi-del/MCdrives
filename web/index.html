@@ -54,11 +54,14 @@ async function gunzip(buf) {
   return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
 }
 const heights = new Int16Array(await gunzip(await loadBin('height')));
-const groundY = (x, z) => {
+// Two height layers: [0] the lowest drivable surface, [1] the highest (bridge decks). Older data has one.
+const LAYER = meta.width * meta.depth, twoLayers = heights.length >= 2 * LAYER;
+const groundY = (x, z, deck = false) => {
   const ix = Math.max(0, Math.min(meta.width - 1, Math.floor(x))), iz = Math.max(0, Math.min(meta.depth - 1, Math.floor(z)));
-  return heights[iz * meta.width + ix] + 1;
+  return heights[(deck && twoLayers ? LAYER : 0) + iz * meta.width + ix] + 1;
 };
-const smoothY = (x, z) => { let s = 0; for (const [dx, dz] of [[0,0],[2,0],[-2,0],[0,2],[0,-2]]) s += groundY(x + dx, z + dz); return s / 5; };
+// median of five nearby columns, so a lamp post or kerb under the sample point does not move the car
+const smoothY = (x, z, deck = false) => [[0,0],[2,0],[-2,0],[0,2],[0,-2]].map(([dx, dz]) => groundY(x + dx, z + dz, deck)).sort((a, b) => a - b)[2];
 
 // ---------- scene
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -203,9 +206,9 @@ const focus = new THREE.Vector3();
 const SPEED = [29, 24, 20, 17, 14, 12, 11, 7]; // m/s by road class
 const N = G.nodes.map(([x, z]) => new THREE.Vector3(x - meta.minx, 0, z - meta.minz));
 const adj = N.map(() => []);
-for (const [a, b, nm, cl, ow] of G.edges) {
+for (const [a, b, nm, cl, ow, ln, dk] of G.edges) {
   const len = N[a].distanceTo(N[b]);
-  adj[a].push({ to: b, nm, cl, len }); if (!ow) adj[b].push({ to: a, nm, cl, len });
+  adj[a].push({ to: b, nm, cl, len, dk }); if (!ow) adj[b].push({ to: a, nm, cl, len, dk });
 }
 function route(from, to) {
   const dist = new Float64Array(N.length).fill(Infinity), prev = new Int32Array(N.length).fill(-1), pe = new Array(N.length), done = new Uint8Array(N.length);
@@ -241,6 +244,7 @@ function along(d) {
   const a = trip.pts[k - 1], b = trip.pts[k], l = trip.cum[k] - trip.cum[k - 1] || 1;
   return { p: a.clone().lerp(b, (d - trip.cum[k - 1]) / l), dir: b.clone().sub(a).normalize(), k };
 }
+function yAt(d) { const t = Math.max(0, Math.min(trip.prof.length - 1.001, d / 2)), i = Math.floor(t); return trip.prof[i] + (trip.prof[i + 1] - trip.prof[i]) * (t - i); }
 function startTrip(toNode) {
   const r = route(curNode, toNode); if (!r || r.nodes.length < 2) return false;
   const pts = r.nodes.map(i => N[i]); const cum = [0];
@@ -258,9 +262,14 @@ function startTrip(toNode) {
   }
   steps.push({ at: cum[cum.length - 1], kind: 'arrive', name: $('dest').selectedOptions[0]?.text ?? '' });
   trip = { pts, cum, L: cum[cum.length - 1], edges: r.edges, steps, toNode }; dist = 0; speed = 0;
+  // Height profile every 2 m: the deck layer on bridge edges, the ground layer elsewhere, then smoothed
+  // so the car rides the road's slope instead of stepping block by block.
+  const raw = [];
+  for (let d = 0; d <= trip.L + 2; d += 2) { const q = along(d); raw.push(smoothY(q.p.x, q.p.z, !!trip.edges[Math.min(q.k - 1, trip.edges.length - 1)].dk)); }
+  trip.prof = raw.map((_, i) => { const w = raw.slice(Math.max(0, i - 4), i + 5).sort((a, b) => a - b); const m = w[w.length >> 1]; let s = 0, n = 0; for (let j = Math.max(0, i - 2); j <= Math.min(raw.length - 1, i + 2); j++) { s += Math.abs(raw[j] - m) <= 1.5 ? raw[j] : m; n++; } return s / n; });
   const P = [], I = []; let n = 0;
   for (let d = 0; d <= trip.L; d += 2) {
-    const { p, dir } = along(d); const nx = -dir.z, nz = dir.x, hw = 2.6, y = smoothY(p.x, p.z) + 0.35;
+    const { p, dir } = along(d); const nx = -dir.z, nz = dir.x, hw = 2.6, y = yAt(d) + 0.35;
     P.push(p.x + nx * hw, y, p.z + nz * hw, p.x - nx * hw, y, p.z - nz * hw);
     if (n) I.push(n * 2 - 2, n * 2 - 1, n * 2, n * 2 - 1, n * 2 + 1, n * 2); n++;
   }
@@ -338,7 +347,7 @@ function frame() {
     speed += Math.max(-9 * dt, Math.min(4 * dt, target - speed));
     dist = Math.min(trip.L, dist + speed * dt);
     const { p } = along(dist), ahead = along(dist + 8).p;
-    p.y = smoothY(p.x, p.z); car.position.copy(p);
+    p.y = yAt(dist); car.position.copy(p);
     if (ahead.distanceTo(new THREE.Vector3(p.x, 0, p.z)) > 0.5) {
       const want = Math.atan2(-(ahead.x - p.x), -(ahead.z - p.z));
       let dh = want - heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
@@ -377,6 +386,7 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 const wanted = dests.findIndex(d => d.name === (params.get('to') ?? 'Alton Parkway'));
 if (wanted >= 0) { $('dest').value = wanted; if (!startTrip(dests[wanted].node)) randomTrip(); } else randomTrip();
 setMode(params.get('mode') ?? 'nav');
+window.__api = { startTrip, randomTrip, along, groundY, smoothY, yAt, dests, trip: () => trip, setStart: n => { curNode = n; }, nodes: N, names: G.names };
 window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
 frame();
 </script>

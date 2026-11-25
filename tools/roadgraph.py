@@ -22,13 +22,14 @@ for e in d["elements"]:
     nm = t.get("name") or (t.get("ref") or ("ramp" if hw.endswith("_link") else ""))
     if nm not in nidx: nidx[nm] = len(names); names.append(nm)
     oneway = t.get("oneway") in ("yes", "1", "true") or base == "motorway" or t.get("junction") == "roundabout"
+    deck = 1 if t.get("bridge") not in (None, "no") else 0
     lanes = int(t["lanes"]) if str(t.get("lanes", "")).isdigit() else 0
     if "geometry" in e and e.get("nodes"):
         for n, g in zip(e["nodes"], e["geometry"]):
             if g: ll.setdefault(n, (g["lon"], g["lat"]))
     for a, b in zip(e.get("nodes", []), e.get("nodes", [])[1:]):
         if a == b or a not in ll or b not in ll: continue
-        edges.append((a, b, nidx[nm], CLS.index(base), 1 if oneway else 0, lanes))
+        edges.append((a, b, nidx[nm], CLS.index(base), 1 if oneway else 0, lanes, deck))
         adj[a].append(b); adj[b].append(a)
 # keep the largest connected component, inside the world
 inside = lambda n: 4 < xz(*ll[n])[0] < sx - 4 and 4 < xz(*ll[n])[1] < sz - 4
@@ -44,6 +45,6 @@ for s in adj:
 big = set(max(comps, key=len))
 ids = {n: i for i, n in enumerate(sorted(big))}
 nodes = [[round(c, 1) for c in xz(*ll[n])] for n in sorted(big)]
-E2 = [[ids[a], ids[b], nm, cl, ow, ln] for a, b, nm, cl, ow, ln in edges if a in big and b in big]
+E2 = [[ids[a], ids[b], nm, cl, ow, ln, dk] for a, b, nm, cl, ow, ln, dk in edges if a in big and b in big]
 json.dump({"size": [sx, sz], "names": names, "nodes": nodes, "edges": E2}, open(out, "w"), separators=(",", ":"))
 print(f"{len(nodes)} nodes, {len(E2)} edges, {len(names)} names, {len(comps)} components; kept {len(big)}")

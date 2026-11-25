@@ -262,7 +262,7 @@ BT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("m", "u1"), ("x0", "u1")
 M, S = MARGIN, PACK + 2 * MARGIN
 dirs = [((1, 0, 0), 0), ((-1, 0, 0), 1), ((0, 1, 0), 2), ((0, -1, 0), 3), ((0, 0, 1), 4), ((0, 0, -1), 5)]  # +y -y +z -z +x -x as (dy,dz,dx)
 packs = []; total = 0; nquads = 0; nboxes = 0; faces = 0
-heights = np.full((D, W), -1, dtype=np.int16)
+heights = np.full((2, D, W), -1, dtype=np.int16)  # [0] lowest drivable surface, [1] highest (bridge decks)
 for (rx, rz) in sorted(REG):
     # Window = this region plus a margin from its neighbours, so faces and sky reach are right at the seams.
     wg = np.zeros((H, S, S), dtype=np.uint8); inworld = np.zeros((S, S), dtype=bool)
@@ -278,6 +278,8 @@ for (rx, rz) in sorted(REG):
     dmat = dmat.copy()
     # Only draw faces that touch air connected to the open sky: hides sealed interiors, the hollow
     # under the terrain shell and the world's cut edges (columns outside the world are not passable).
+    # Columns with nothing above the floor layers (outside the baked outline) would let the sky leak under the terrain.
+    inworld &= (wg[2:] != 0).any(axis=0)
     passable = np.zeros((H + 1, S, S), dtype=bool); passable[:H] = ((wg == 0) | see[wg]) & inworld[None]; passable[H] = True
     lab, _ = ndimage.label(passable)
     reach = np.zeros((H + 2, S + 2, S + 2), dtype=bool)
@@ -297,7 +299,14 @@ for (rx, rz) in sorted(REG):
     dmat[~reach[1:H+1, 1+M:1+M+PACK, 1+M:1+M+PACK]] = 0
     faces += sum(int(np.count_nonzero(mask & (1 << b))) for b in range(6))
     ox, oz = (rx - rx0) * PACK, (rz - rz0) * PACK
-    heights[oz:oz+PACK, ox:ox+PACK] = np.where((grid != 0) & (kinds[grid] != 2), np.arange(H)[:, None, None], -1).max(axis=0)
+    # Surfaces a car can stand on: a solid block (not leaves or water) with open sky-connected space and
+    # three blocks of headroom above it. Tree canopies and roofs over the road no longer lift the car.
+    hard = (kinds[grid] == 1) | (kinds[grid] == 3)
+    up = np.zeros((H + 3,) + hard.shape[1:], dtype=bool); up[:H] = hard
+    surf = hard & reach[2:H+2, 1+M:1+M+PACK, 1+M:1+M+PACK] & ~up[1:H+1] & ~up[2:H+2] & ~up[3:H+3]
+    anys = surf.any(axis=0)
+    heights[0, oz:oz+PACK, ox:ox+PACK] = np.where(anys, surf.argmax(axis=0), -1)
+    heights[1, oz:oz+PACK, ox:ox+PACK] = np.where(anys, H - 1 - surf[::-1].argmax(axis=0), -1)
     blob_all = bytearray(); tiles = []
     for b in range(0, PACK, TILE):
         for a in range(0, PACK, TILE):
