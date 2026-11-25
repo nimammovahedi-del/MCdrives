@@ -269,6 +269,7 @@ export function createDirections(stage, { onField, onSwap, onStart, onClose, onC
       if (r?.time) {
         const top = h('div', 'di-top'); top.append(h('b', 'di-t', r.time), h('span', 'di-d', r.dist)); sum.append(top, h('div', 'di-l', r.line));
         if (r.note) sum.append(h('div', 'di-n' + (r.slow ? ' slow' : ''), r.note));
+        for (const sg of r.signs ?? []) { const row = h('div', 'di-sign'); if (sg.icon) { sg.icon.classList.add('pix'); row.append(sg.icon); } row.append(h('span', null, sg.text)); sum.append(row); }
       } else if (r?.busy) sum.append(h('div', 'di-l', 'Finding the fastest way…'));
       else if (r?.msg) sum.append(h('div', 'di-l', r.msg));
       go.disabled = !r?.time; go.textContent = r?.start ?? 'Start';

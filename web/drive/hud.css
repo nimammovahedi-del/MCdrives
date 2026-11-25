@@ -336,3 +336,5 @@ body.dirs-route #mapBtns, body.dirs-route #mapCtl, body.dirs-route #mapKey { dis
 body.dirs-route #recenter, body.dirs-route #menuBtn { display: none !important; }
 /* the panel sits on the map: solid, so street names under it do not show through */
 #dirs.panel { background: linear-gradient(var(--panel), var(--panel)), var(--lo, #18181b); }
+.di-sign { display: flex; align-items: center; gap: 8px; font-size: 15px; margin-top: 4px; } .di-sign canvas.pix { width: 22px; height: auto; flex: none; }
+.di-sign span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -987,10 +987,15 @@ async function dirUpdate() {
   let L = 0, T = 0, T0 = 0;
   for (const e of r.edges) { L += e.len; T += e.len / edgeSpeed(e); T0 += e.len / SPEED[e.cl]; }
   dirRes = { from: a.node, to: b.target };
-  dirData = { route: r.nodes.map(i => N[i]), start: N[a.node], dest: N[b.node] };
+  // incidents on the way, nearest first: their road signs go on the map, larger, and in the panel
+  let at = 0; const ahead = r.edges.map(e => { const o = { k: e.k, at }; at += e.len; return o; });
+  const onWay = traffic?.on ? traffic.along(ahead) : [];
+  dirData = { route: r.nodes.map(i => N[i]), start: N[a.node], dest: N[b.node], signs: onWay.map(({ it }) => it) };
   const late = T - T0, arrive = new Date(Date.now() + T * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), via = viaRoads(r.edges);
   const note = dirFrom.why ?? (!traffic?.on ? 'Usual speeds (live traffic is off)' : late > 90 ? `${fmtDur(late)} slower than usual from traffic` : 'Traffic is light on this route');
-  show({ time: fmtDur(T), dist: fmtD(L), line: `Arrive ${arrive}` + (via ? ` · via ${via}` : ''), note, slow: !!dirFrom.why || late > 90,
+  const signs = onWay.slice(0, 3).map(({ it, at }) => ({ icon: incidentIcon(it.kind, 2), text: `${it.title}` + (it.road ? ` · ${it.road}` : '') + ` · in ${fmtD(at)}` }));
+  if (onWay.length > 3) signs.push({ icon: null, text: `and ${onWay.length - 3} more on the way` });
+  show({ time: fmtDur(T), dist: fmtD(L), line: `Arrive ${arrive}` + (via ? ` · via ${via}` : ''), note, slow: !!dirFrom.why || late > 90, signs,
     start: dirFrom.kind === 'car' ? 'Start' : `Start from ${dirFrom.kind === 'me' ? 'your location' : dirFrom.label}` });
   if (mode !== 'map') setMode('map');
   dirFit(); dirty = true;
@@ -1164,7 +1169,7 @@ else if (params.get('trip') === 'random') await randomTrip();
 makeHud(); setMode(params.get('mode') ?? 'nav'); applyLayout();
 window.__api = { startTrip, randomTrip, along, groundY, smoothY, yAt, loadHeights: (x, z, r = 0) => Promise.all(packsNear(x, z, r).map(hload)), dests, trip: () => trip, setStart: n => { curNode = n; }, nodes: N, names: G.names };
 let frozen = null; window.__freeze = (d, v = 13) => { frozen = d == null ? null : { d, v }; snap = true; };
-window.__traffic = () => traffic; window.__dcam = dcam; window.__map = mapView; window.__ui = { search, sheet, chip, placeAt, go, endTrip, setVehicle, dirs, openDirs, locate, me: () => me, arrival, nodeAt }; window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
+window.__traffic = () => traffic; window.__dcam = dcam; window.__map = mapView; window.__ui = { dirData: () => dirData, search, sheet, chip, placeAt, go, endTrip, setVehicle, dirs, openDirs, locate, me: () => me, arrival, nodeAt }; window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
 frame();
 </script>
 </body>
