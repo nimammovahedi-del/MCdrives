@@ -1,11 +1,20 @@
 {
   "name": "Irvine",
   "slug": "irvine",
-  "bbox": [33.6000, -117.8700, 33.7750, -117.6800],
+  "bbox": [
+    33.6,
+    -117.87,
+    33.775,
+    -117.68
+  ],
   "lidar": true,
   "max_chunk_km2": 16,
   "arnis_args": [
     "--lidar-max-mb",
     "4000"
-  ]
+  ],
+  "within": {
+    "name": "Irvine",
+    "admin_level": "8"
+  }
 }

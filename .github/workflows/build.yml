@@ -33,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       ids: ${{ steps.plan.outputs.ids }}
+      keep: ${{ steps.plan.outputs.keep }}
       joined: ${{ steps.plan.outputs.joined }}
     steps:
       - uses: actions/checkout@v4
@@ -51,6 +52,7 @@ jobs:
           if not ids: raise SystemExit("no chunk matched")
           print(json.dumps(ids))')
           echo "ids=$IDS" >> "$GITHUB_OUTPUT"
+          echo "keep=$ALL" >> "$GITHUB_OUTPUT"
           # Joining needs every chunk of a multi-chunk area, so not after a partial "only" run.
           echo "joined=$([ "$IDS" = "$ALL" ] && [ "$IDS" != '["all"]' ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "building $IDS of $ALL"
@@ -58,6 +60,8 @@ jobs:
   chunk:
     needs: plan
     runs-on: ubuntu-latest
+    env:
+      MC_KEEP: ${{ needs.plan.outputs.keep }}
     timeout-minutes: 330          # GitHub kills a job at 6 h
     strategy:
       fail-fast: false
@@ -104,6 +108,8 @@ jobs:
   join:
     needs: [plan, chunk]
     runs-on: ubuntu-latest
+    env:
+      MC_KEEP: ${{ needs.plan.outputs.keep }}
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4

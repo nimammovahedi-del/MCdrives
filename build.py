@@ -15,7 +15,7 @@ Each step is skipped when its output already exists, so a failed or interrupted 
 resumes where it stopped. Use --force to redo everything, or --from STEP to redo from
 bake | convert | roads | site.
 """
-import argparse, base64, gzip, json, math, os, shutil, subprocess, sys, time, urllib.request
+import argparse, base64, gzip, json, math, os, shutil, subprocess, sys, time, urllib.parse, urllib.request
 from collections import defaultdict
 from pathlib import Path
 
@@ -49,6 +49,43 @@ def split(bbox, max_km2):
                                                s + (n - s) * (r + 1) / rows, w + (e - w) * (c + 1) / cols)],
             })
     return out, rows, cols
+
+
+def keep_chunks(area, chunks):
+    """Drop the chunks an area does not want. "keep" in the area file lists chunk ids outright;
+    "within" names an administrative boundary (e.g. {"name": "Irvine", "admin_level": "8"}) and keeps
+    the chunks that touch it. MC_KEEP (a JSON list) overrides both, so every job of one CI run uses
+    the list its plan job worked out instead of asking the map server again."""
+    ids = json.loads(os.environ["MC_KEEP"]) if os.environ.get("MC_KEEP") else area.get("keep")
+    if ids is None and area.get("within") and len(chunks) > 1:
+        s, w, n, e = area["bbox"]; wi = area["within"]
+        q = (f'[out:json][timeout:90];rel["boundary"="administrative"]["name"="{wi["name"]}"]'
+             f'["admin_level"="{wi.get("admin_level", "8")}"]({s},{w},{n},{e});out geom;')
+        data = None
+        for host in ("overpass-api.de", "overpass.private.coffee", "overpass.kumi.systems"):
+            try:
+                req = urllib.request.Request(f"https://{host}/api/interpreter", data=("data=" + urllib.parse.quote(q)).encode(),
+                                             headers={"User-Agent": "mcdrives-build"})
+                data = json.loads(urllib.request.urlopen(req, timeout=120).read())
+                if data.get("elements"): break
+            except Exception as ex: print(f"boundary: {host} failed: {ex}", file=sys.stderr)
+        if not data or not data.get("elements"): sys.exit(f"boundary: no administrative boundary named {wi['name']} found")
+        # Even-odd ray casting over every boundary segment: no need to stitch the ways into rings.
+        segs = [(a["lon"], a["lat"], b["lon"], b["lat"]) for el in data["elements"] for m in el.get("members", [])
+                if m.get("type") == "way" and m.get("geometry") for a, b in zip(m["geometry"], m["geometry"][1:])]
+        def inside(lon, lat):
+            return sum(1 for x0, y0, x1, y1 in segs if (y0 > lat) != (y1 > lat) and lon < x0 + (lat - y0) * (x1 - x0) / (y1 - y0)) % 2 == 1
+        ids = []
+        for c in chunks:
+            cs, cw, cn, ce = c["bbox"]; N = 12
+            hit = any(inside(cw + (ce - cw) * (i + .5) / N, cs + (cn - cs) * (j + .5) / N) for i in range(N) for j in range(N)) \
+                or any(cw <= x <= ce and cs <= y <= cn for x, y, _, _ in segs)
+            if hit: ids.append(c["id"])
+        print(f"boundary: {wi['name']} touches {len(ids)} of {len(chunks)} chunks", file=sys.stderr)
+    if ids is None: return chunks
+    kept = [c for c in chunks if c["id"] in ids]
+    if not kept: sys.exit("no chunk left after the keep/within filter")
+    return kept
 
 
 # ---------------------------------------------------------------- joining chunks into one world
@@ -472,6 +509,7 @@ def main():
 
     area = json.loads(Path(args.area).read_text())
     chunks, rows, cols = split(area["bbox"], area.get("max_chunk_km2", 4))
+    chunks = keep_chunks(area, chunks)
     h, w = km(area["bbox"])
     if args.plan_ids:
         print(json.dumps([c["id"] for c in chunks])); return
