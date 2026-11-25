@@ -544,6 +544,7 @@ def main():
 
     # Chunks built elsewhere (one CI job each) have no report entry here, so fill them in.
     full, _, _ = split(area["bbox"], area.get("max_chunk_km2", 4))
+    full = keep_chunks(area, full)
     have = {r["id"] for r in report["chunks"]}
     report["chunks"] += [s for s in (chunk_summary(area, c, out / c["id"]) for c in full if c["id"] not in have) if s]
     report["chunks"].sort(key=lambda r: (r["row"], r["col"]))
