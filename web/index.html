@@ -103,7 +103,8 @@ const groundY = (x, z, deck = false) => {
     const lx = x - p.x, lz = z - p.z; if (lx < 0 || lz < 0 || lx >= PK || lz >= PK) continue;
     if (!p.hgt) return 0;
     // a lowest surface on the world floor means sky leaked under the terrain there: use the top surface
-    // (only where the leak is wide: under a bridge the floor is a short gap that the trip profile fills)
+    // (only where the leak is wide: under a bridge the floor is a short gap that the trip profile fills; a deck
+    // over a wide leak comes back as the deck, which startTrip drops as a step it cannot climb)
     let v = p.hgt[(deck ? PK * PK : 0) + lz * PK + lx];
     if (!deck && v >= 0 && v <= 1) { const f = (ax, az) => p.hgt[Math.max(0, Math.min(PK - 1, az)) * PK + Math.max(0, Math.min(PK - 1, ax))] <= 1;
       if (f(lx - 40, lz) && f(lx + 40, lz) && f(lx, lz - 40) && f(lx, lz + 40)) v = p.hgt[PK * PK + lz * PK + lx]; }
@@ -405,6 +406,16 @@ async function startTrip(toNode, name, vias = []) {
   }
   if (seq !== tripSeq) return true;
   trip = T; dist = 0; speed = 0;
+  // A road cannot climb 3 blocks within 4 m: a step up like that which drops back down just as sharply is a deck
+  // or other structure over the route, read where the lowest surface is unknown (the top surface is used there)
+  // or sealed under it. Drop it, so the gap fill below carries the road through underneath. (Only within one
+  // bridge flag: the rise onto the route's own bridge is kept.)
+  for (let i = 2; i < raw.length; i++) for (const a of [i - 1, i - 2]) {
+    if (!(raw[i] - raw[a] >= 3) || S[a][2] !== S[i][2]) continue;
+    let j = i + 1;
+    for (; j < Math.min(raw.length, i + 400) && S[j][2] === S[a][2]; j++) if (raw[j] <= raw[a] + 2) break;
+    if (j < Math.min(raw.length, i + 400) && raw[j] <= raw[a] + 2 && S[j][2] === S[a][2] && [j - 1, j - 2].some(k => k > a && raw[k] - raw[j] >= 3)) { raw.fill(NaN, a + 1, j); i = j; break; }
+  }
   // fill stretches with no surface under the route from the nearest good samples on either side
   for (let i = 0, last = NaN; i < raw.length; i++) { if (isNaN(raw[i])) { let j = i; while (j < raw.length && isNaN(raw[j])) j++; const nxt = j < raw.length ? raw[j] : last, a = isNaN(last) ? nxt : last; for (let k = i; k < j; k++) raw[k] = a + ((isNaN(nxt) ? a : nxt) - a) * (k - i + 1) / (j - i + 1); i = j - 1; } else last = raw[i]; }
   for (let i = 0; i < raw.length; i++) if (isNaN(raw[i])) raw[i] = 1;
