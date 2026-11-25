@@ -509,7 +509,7 @@ function frame(now = performance.now()) {
   }
   // render on demand: skip drawing when the camera has not moved and nothing is streaming in
   camera.updateMatrixWorld();
-  const moved = !lastCam.equals(camera.matrixWorld) || loading > 0 || buildQ.length > 0 || dirty || mode === 'orbit' || (sky.animating && layout !== 'car');
+  const moved = !lastCam.equals(camera.matrixWorld) || loading > 0 || buildQ.length > 0 || dirty || mode === 'orbit';  // clouds only drift on frames that are drawn anyway
   lastCam.copy(camera.matrixWorld); dirty = false;
   if (moved) { stillFrames = 0; renderer.render(scene, camera); window.__frames = (window.__frames ?? 0) + 1; }
   else if (++stillFrames % 30 === 0) { renderer.render(scene, camera); }  // keep the clock and HUD honest about once a second
