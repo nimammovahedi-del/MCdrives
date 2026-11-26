@@ -1,0 +1,6694 @@
+{
+ "area": "orange-county",
+ "commit": "6f2905f",
+ "seed": "1",
+ "shots": [
+  {
+   "file": "s0000_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Los Alisos Boulevard",
+   "x": 41268,
+   "z": 36111,
+   "loaded": true
+  },
+  {
+   "file": "s0012_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on South Main Street",
+   "x": 23395,
+   "z": 26383,
+   "loaded": true
+  },
+  {
+   "file": "s0024_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Brookhurst Street",
+   "x": 15421,
+   "z": 30009,
+   "loaded": true
+  },
+  {
+   "file": "s0036_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on North Wanda Road",
+   "x": 27664,
+   "z": 15780,
+   "loaded": true
+  },
+  {
+   "file": "s0048_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Costa Mesa Freeway",
+   "x": 26470,
+   "z": 24926,
+   "loaded": true
+  },
+  {
+   "file": "s0060_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Yale Avenue",
+   "x": 28408,
+   "z": 32614,
+   "loaded": true
+  },
+  {
+   "file": "s0072_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on West Balboa Boulevard",
+   "x": 18920,
+   "z": 38417,
+   "loaded": true
+  },
+  {
+   "file": "s0072_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on West Balboa Boulevard",
+   "x": 18920,
+   "z": 38417,
+   "loaded": true
+  },
+  {
+   "file": "s0084_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Merit",
+   "x": 37031,
+   "z": 31881,
+   "loaded": true
+  },
+  {
+   "file": "s0096_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Los Trancos Drive",
+   "x": 25683,
+   "z": 34903,
+   "loaded": true
+  },
+  {
+   "file": "s0108_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Poppy Avenue",
+   "x": 23266,
+   "z": 40056,
+   "loaded": true
+  },
+  {
+   "file": "s0108_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Poppy Avenue",
+   "x": 23266,
+   "z": 40056,
+   "loaded": true
+  },
+  {
+   "file": "s0120_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Dodge Avenue",
+   "x": 29084,
+   "z": 20520,
+   "loaded": true
+  },
+  {
+   "file": "s0120_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Dodge Avenue",
+   "x": 29084,
+   "z": 20520,
+   "loaded": true
+  },
+  {
+   "file": "s0132_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Walnut Avenue",
+   "x": 29566,
+   "z": 26576,
+   "loaded": true
+  },
+  {
+   "file": "s0144_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Fernleaf Avenue",
+   "x": 22572,
+   "z": 39309,
+   "loaded": true
+  },
+  {
+   "file": "s0156_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Doe Trail East",
+   "x": 31066,
+   "z": 28836,
+   "loaded": true
+  },
+  {
+   "file": "s0168_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Santiago Canyon Road",
+   "x": 44373,
+   "z": 27432,
+   "loaded": true
+  },
+  {
+   "file": "s0168_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Santiago Canyon Road",
+   "x": 44373,
+   "z": 27432,
+   "loaded": true
+  },
+  {
+   "file": "s0192_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Beach Street",
+   "x": 31309,
+   "z": 45348,
+   "loaded": true
+  },
+  {
+   "file": "s0204_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Barrett Lane",
+   "x": 30242,
+   "z": 18948,
+   "loaded": true
+  },
+  {
+   "file": "s0204_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Barrett Lane",
+   "x": 30242,
+   "z": 18948,
+   "loaded": true
+  },
+  {
+   "file": "s0228_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on unnamed road",
+   "x": 35143,
+   "z": 30522,
+   "loaded": true
+  },
+  {
+   "file": "s0240_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Knollcrest",
+   "x": 31980,
+   "z": 33875,
+   "loaded": true
+  },
+  {
+   "file": "s0252_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on ramp",
+   "x": 26580,
+   "z": 23193,
+   "loaded": true
+  },
+  {
+   "file": "s0264_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Laguna Canyon Road",
+   "x": 32623,
+   "z": 32975,
+   "loaded": true
+  },
+  {
+   "file": "s0264_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Laguna Canyon Road",
+   "x": 32623,
+   "z": 32975,
+   "loaded": true
+  },
+  {
+   "file": "s0276_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Aliso Viejo Parkway",
+   "x": 37733,
+   "z": 40071,
+   "loaded": true
+  },
+  {
+   "file": "s0288_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Portola Parkway",
+   "x": 43549,
+   "z": 31532,
+   "loaded": true
+  },
+  {
+   "file": "s0288_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Portola Parkway",
+   "x": 43549,
+   "z": 31532,
+   "loaded": true
+  },
+  {
+   "file": "s0300_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Fairview Road",
+   "x": 19720,
+   "z": 32319,
+   "loaded": true
+  },
+  {
+   "file": "s0312_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Jamboree Road",
+   "x": 30652,
+   "z": 25139,
+   "loaded": true
+  },
+  {
+   "file": "s0312_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Jamboree Road",
+   "x": 30652,
+   "z": 25139,
+   "loaded": true
+  },
+  {
+   "file": "s0336_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on North Glassell Street",
+   "x": 24769,
+   "z": 14803,
+   "loaded": true
+  },
+  {
+   "file": "s0336_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on North Glassell Street",
+   "x": 24769,
+   "z": 14803,
+   "loaded": true
+  },
+  {
+   "file": "s0348_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on West 16th Street",
+   "x": 17065,
+   "z": 35474,
+   "loaded": true
+  },
+  {
+   "file": "s0360_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Placentia Avenue",
+   "x": 17447,
+   "z": 33619,
+   "loaded": true
+  },
+  {
+   "file": "s0372_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on El Toro Road",
+   "x": 42208,
+   "z": 34118,
+   "loaded": true
+  },
+  {
+   "file": "s0372_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on El Toro Road",
+   "x": 42208,
+   "z": 34118,
+   "loaded": true
+  },
+  {
+   "file": "s0384_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Garden Grove Boulevard",
+   "x": 18780,
+   "z": 19642,
+   "loaded": true
+  },
+  {
+   "file": "s0384_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Garden Grove Boulevard",
+   "x": 18780,
+   "z": 19642,
+   "loaded": true
+  },
+  {
+   "file": "s0396_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on San Joaquin Hills Transportation Corridor",
+   "x": 27629,
+   "z": 36833,
+   "loaded": true
+  },
+  {
+   "file": "s0408_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on West Chapman Avenue",
+   "x": 21544,
+   "z": 17946,
+   "loaded": true
+  },
+  {
+   "file": "s0408_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on West Chapman Avenue",
+   "x": 21544,
+   "z": 17946,
+   "loaded": true
+  },
+  {
+   "file": "s0420_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on San Joaquin Hills Road",
+   "x": 22355,
+   "z": 36290,
+   "loaded": true
+  },
+  {
+   "file": "s0432_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Foothill Transportation Corridor",
+   "x": 35312,
+   "z": 20051,
+   "loaded": true
+  },
+  {
+   "file": "s0432_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Foothill Transportation Corridor",
+   "x": 35312,
+   "z": 20051,
+   "loaded": true
+  },
+  {
+   "file": "s0444_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on ramp",
+   "x": 33364,
+   "z": 17200,
+   "loaded": true
+  },
+  {
+   "file": "s0444_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on ramp",
+   "x": 33364,
+   "z": 17200,
+   "loaded": true
+  },
+  {
+   "file": "s0456_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Newport Coast Drive",
+   "x": 27114,
+   "z": 36515,
+   "loaded": true
+  },
+  {
+   "file": "s0456_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Newport Coast Drive",
+   "x": 27114,
+   "z": 36515,
+   "loaded": true
+  },
+  {
+   "file": "s0468_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Pacific Coast Highway",
+   "x": 33968,
+   "z": 48843,
+   "loaded": true
+  },
+  {
+   "file": "s0480_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Cliff Drive",
+   "x": 29623,
+   "z": 44953,
+   "loaded": true
+  },
+  {
+   "file": "s0480_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Cliff Drive",
+   "x": 29623,
+   "z": 44953,
+   "loaded": true
+  },
+  {
+   "file": "s0492_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Aliso Viejo Parkway",
+   "x": 36668,
+   "z": 43078,
+   "loaded": true
+  },
+  {
+   "file": "s0504_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on East Chapman Avenue",
+   "x": 29118,
+   "z": 18142,
+   "loaded": true
+  },
+  {
+   "file": "s0504_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on East Chapman Avenue",
+   "x": 29118,
+   "z": 18142,
+   "loaded": true
+  },
+  {
+   "file": "s0516_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Santa Vittoria Drive",
+   "x": 34917,
+   "z": 36892,
+   "loaded": true
+  },
+  {
+   "file": "s0528_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Tustin Ranch Road",
+   "x": 31641,
+   "z": 22919,
+   "loaded": true
+  },
+  {
+   "file": "s0001_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Laguna Canyon Road",
+   "x": 33369,
+   "z": 39589,
+   "loaded": true
+  },
+  {
+   "file": "s0013_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 31314,
+   "z": 38909,
+   "loaded": true
+  },
+  {
+   "file": "s0013_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 31314,
+   "z": 38909,
+   "loaded": true
+  },
+  {
+   "file": "s0025_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 40867,
+   "z": 43906,
+   "loaded": true
+  },
+  {
+   "file": "s0025_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 40867,
+   "z": 43906,
+   "loaded": true
+  },
+  {
+   "file": "s0037_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Creek Road",
+   "x": 29866,
+   "z": 30698,
+   "loaded": true
+  },
+  {
+   "file": "s0049_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Pacific Coast Highway",
+   "x": 14812,
+   "z": 35399,
+   "loaded": true
+  },
+  {
+   "file": "s0049_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Pacific Coast Highway",
+   "x": 14812,
+   "z": 35399,
+   "loaded": true
+  },
+  {
+   "file": "s0061_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, unnamed road",
+   "x": 33164,
+   "z": 42082,
+   "loaded": true
+  },
+  {
+   "file": "s0073_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Trabuco Road",
+   "x": 41156,
+   "z": 35386,
+   "loaded": true
+  },
+  {
+   "file": "s0085_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 17155,
+   "z": 28458,
+   "loaded": true
+  },
+  {
+   "file": "s0085_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 17155,
+   "z": 28458,
+   "loaded": true
+  },
+  {
+   "file": "s0097_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, El Paseo",
+   "x": 41478,
+   "z": 41007,
+   "loaded": true
+  },
+  {
+   "file": "s0109_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, West Saint Gertrude Place",
+   "x": 21301,
+   "z": 25768,
+   "loaded": true
+  },
+  {
+   "file": "s0121_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 34056,
+   "z": 31220,
+   "loaded": true
+  },
+  {
+   "file": "s0121_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 34056,
+   "z": 31220,
+   "loaded": true
+  },
+  {
+   "file": "s0133_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, unnamed road",
+   "x": 37533,
+   "z": 23977,
+   "loaded": true
+  },
+  {
+   "file": "s0145_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Garden Grove Freeway",
+   "x": 24597,
+   "z": 19425,
+   "loaded": true
+  },
+  {
+   "file": "s0157_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Crystal Cove",
+   "x": 25993,
+   "z": 41930,
+   "loaded": true
+  },
+  {
+   "file": "s0157_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Crystal Cove",
+   "x": 25993,
+   "z": 41930,
+   "loaded": true
+  },
+  {
+   "file": "s0169_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Dimension Drive",
+   "x": 41456,
+   "z": 32113,
+   "loaded": true
+  },
+  {
+   "file": "s0169_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Dimension Drive",
+   "x": 41456,
+   "z": 32113,
+   "loaded": true
+  },
+  {
+   "file": "s0181_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Riverdale Avenue",
+   "x": 26701,
+   "z": 11471,
+   "loaded": true
+  },
+  {
+   "file": "s0193_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Eastern Transportation Corridor",
+   "x": 36400,
+   "z": 27493,
+   "loaded": true
+  },
+  {
+   "file": "s0205_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 26767,
+   "z": 23529,
+   "loaded": true
+  },
+  {
+   "file": "s0217_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Pacific Coast Highway",
+   "x": 28379,
+   "z": 44018,
+   "loaded": true
+  },
+  {
+   "file": "s0229_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Hamilton Avenue",
+   "x": 15738,
+   "z": 33439,
+   "loaded": true
+  },
+  {
+   "file": "s0241_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, East Meats Avenue",
+   "x": 26736,
+   "z": 14196,
+   "loaded": true
+  },
+  {
+   "file": "s0253_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 39683,
+   "z": 38509,
+   "loaded": true
+  },
+  {
+   "file": "s0265_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Marine Avenue",
+   "x": 21369,
+   "z": 38068,
+   "loaded": true
+  },
+  {
+   "file": "s0277_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Eastern Transportation Corridor",
+   "x": 36048,
+   "z": 17309,
+   "loaded": true
+  },
+  {
+   "file": "s0277_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Eastern Transportation Corridor",
+   "x": 36048,
+   "z": 17309,
+   "loaded": true
+  },
+  {
+   "file": "s0289_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Riverside Freeway",
+   "x": 26451,
+   "z": 11260,
+   "loaded": true
+  },
+  {
+   "file": "s0289_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Riverside Freeway",
+   "x": 26451,
+   "z": 11260,
+   "loaded": true
+  },
+  {
+   "file": "s0301_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 26953,
+   "z": 18153,
+   "loaded": true
+  },
+  {
+   "file": "s0313_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, I 5 Truck",
+   "x": 35620,
+   "z": 34175,
+   "loaded": true
+  },
+  {
+   "file": "s0313_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, I 5 Truck",
+   "x": 35620,
+   "z": 34175,
+   "loaded": true
+  },
+  {
+   "file": "s0325_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 34116,
+   "z": 30539,
+   "loaded": true
+  },
+  {
+   "file": "s0337_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 27120,
+   "z": 36504,
+   "loaded": true
+  },
+  {
+   "file": "s0337_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 27120,
+   "z": 36504,
+   "loaded": true
+  },
+  {
+   "file": "s0349_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, 38th Street",
+   "x": 17253,
+   "z": 37044,
+   "loaded": true
+  },
+  {
+   "file": "s0349_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, 38th Street",
+   "x": 17253,
+   "z": 37044,
+   "loaded": true
+  },
+  {
+   "file": "s0361_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Santiago Canyon Road",
+   "x": 34426,
+   "z": 18793,
+   "loaded": true
+  },
+  {
+   "file": "s0361_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Santiago Canyon Road",
+   "x": 34426,
+   "z": 18793,
+   "loaded": true
+  },
+  {
+   "file": "s0373_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Costa Mesa Freeway",
+   "x": 26420,
+   "z": 12863,
+   "loaded": true
+  },
+  {
+   "file": "s0385_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, I 405 HOV",
+   "x": 35782,
+   "z": 34200,
+   "loaded": true
+  },
+  {
+   "file": "s0397_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Portola Parkway",
+   "x": 43390,
+   "z": 32369,
+   "loaded": true
+  },
+  {
+   "file": "s0409_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Portola Parkway",
+   "x": 32797,
+   "z": 23389,
+   "loaded": true
+  },
+  {
+   "file": "s0421_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Irvine Boulevard",
+   "x": 35712,
+   "z": 28311,
+   "loaded": true
+  },
+  {
+   "file": "s0433_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Wilson Street",
+   "x": 20056,
+   "z": 32818,
+   "loaded": true
+  },
+  {
+   "file": "s0445_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Astor",
+   "x": 37845,
+   "z": 32212,
+   "loaded": true
+  },
+  {
+   "file": "s0457_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Jamboree Road",
+   "x": 29133,
+   "z": 27466,
+   "loaded": true
+  },
+  {
+   "file": "s0469_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 41370,
+   "z": 29909,
+   "loaded": true
+  },
+  {
+   "file": "s0469_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 41370,
+   "z": 29909,
+   "loaded": true
+  },
+  {
+   "file": "s0481_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Newport Boulevard",
+   "x": 17695,
+   "z": 36723,
+   "loaded": true
+  },
+  {
+   "file": "s0493_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, El Toro Road",
+   "x": 42160,
+   "z": 34163,
+   "loaded": true
+  },
+  {
+   "file": "s0505_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 21900,
+   "z": 30810,
+   "loaded": true
+  },
+  {
+   "file": "s0517_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Milligan Drive",
+   "x": 31920,
+   "z": 44341,
+   "loaded": true
+  },
+  {
+   "file": "s0529_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Departures",
+   "x": 24105,
+   "z": 30135,
+   "loaded": true
+  },
+  {
+   "file": "s0529_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Departures",
+   "x": 24105,
+   "z": 30135,
+   "loaded": true
+  },
+  {
+   "file": "s0010_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Mi Jong Lo Han Kung Fu and Tai Chi",
+   "x": 38165,
+   "z": 37252,
+   "loaded": true
+  },
+  {
+   "file": "s0022_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "park: Modjeska Community Park",
+   "x": 45922,
+   "z": 26839,
+   "loaded": true
+  },
+  {
+   "file": "s0022_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "park: Modjeska Community Park",
+   "x": 45922,
+   "z": 26839,
+   "loaded": true
+  },
+  {
+   "file": "s0034_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "food: Tasty Donuts & Deli",
+   "x": 14587,
+   "z": 29439,
+   "loaded": true
+  },
+  {
+   "file": "s0034_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Tasty Donuts & Deli",
+   "x": 14587,
+   "z": 29439,
+   "loaded": true
+  },
+  {
+   "file": "s0046_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "school: 900 Building",
+   "x": 34262,
+   "z": 24109,
+   "loaded": true
+  },
+  {
+   "file": "s0058_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "food: Panda Express",
+   "x": 17128,
+   "z": 27754,
+   "loaded": true
+  },
+  {
+   "file": "s0058_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Panda Express",
+   "x": 17128,
+   "z": 27754,
+   "loaded": true
+  },
+  {
+   "file": "s0070_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Circle K",
+   "x": 20736,
+   "z": 32151,
+   "loaded": true
+  },
+  {
+   "file": "s0082_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "office: Pacific Marine Mammal Center",
+   "x": 33195,
+   "z": 42105,
+   "loaded": true
+  },
+  {
+   "file": "s0094_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Clubhouse",
+   "x": 39603,
+   "z": 36858,
+   "loaded": true
+  },
+  {
+   "file": "s0106_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Square One Pizza",
+   "x": 31092,
+   "z": 31442,
+   "loaded": true
+  },
+  {
+   "file": "s0118_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "hotel: American Inn & Suites",
+   "x": 26701,
+   "z": 12050,
+   "loaded": true
+  },
+  {
+   "file": "s0118_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "hotel: American Inn & Suites",
+   "x": 26701,
+   "z": 12050,
+   "loaded": true
+  },
+  {
+   "file": "s0130_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "neighbourhood: Vidorra",
+   "x": 33276,
+   "z": 20161,
+   "loaded": true
+  },
+  {
+   "file": "s0142_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "university: Sculpture & Ceramic Studios",
+   "x": 25583,
+   "z": 33464,
+   "loaded": true
+  },
+  {
+   "file": "s0154_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "food: McDonald's",
+   "x": 23658,
+   "z": 22831,
+   "loaded": true
+  },
+  {
+   "file": "s0154_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: McDonald's",
+   "x": 23658,
+   "z": 22831,
+   "loaded": true
+  },
+  {
+   "file": "s0166_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Lovisa",
+   "x": 21087,
+   "z": 18750,
+   "loaded": true
+  },
+  {
+   "file": "s0178_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "food: Sweet Greens",
+   "x": 35111,
+   "z": 33499,
+   "loaded": true
+  },
+  {
+   "file": "s0178_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Sweet Greens",
+   "x": 35111,
+   "z": 33499,
+   "loaded": true
+  },
+  {
+   "file": "s0202_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "other: Building #2",
+   "x": 41655,
+   "z": 39339,
+   "loaded": true
+  },
+  {
+   "file": "s0202_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Building #2",
+   "x": 41655,
+   "z": 39339,
+   "loaded": true
+  },
+  {
+   "file": "s0214_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Happy Nails",
+   "x": 27171,
+   "z": 38175,
+   "loaded": true
+  },
+  {
+   "file": "s0226_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Newport Harbor Lawn Bowling Club",
+   "x": 23691,
+   "z": 38120,
+   "loaded": true
+  },
+  {
+   "file": "s0238_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "fuel: Tesla Supercharger",
+   "x": 28163,
+   "z": 26699,
+   "loaded": true
+  },
+  {
+   "file": "s0238_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "fuel: Tesla Supercharger",
+   "x": 28163,
+   "z": 26699,
+   "loaded": true
+  },
+  {
+   "file": "s0250_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "park: Laguna Hills Community Center & Sports Complex",
+   "x": 38815,
+   "z": 40099,
+   "loaded": true
+  },
+  {
+   "file": "s0262_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "shop: Econo Lube N Tune",
+   "x": 41320,
+   "z": 43863,
+   "loaded": true
+  },
+  {
+   "file": "s0262_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Econo Lube N Tune",
+   "x": 41320,
+   "z": 43863,
+   "loaded": true
+  },
+  {
+   "file": "s0274_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "other: James A. Musick Facility",
+   "x": 38973,
+   "z": 32023,
+   "loaded": true
+  },
+  {
+   "file": "s0274_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: James A. Musick Facility",
+   "x": 38973,
+   "z": 32023,
+   "loaded": true
+  },
+  {
+   "file": "s0286_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "school: T-8",
+   "x": 28240,
+   "z": 14976,
+   "loaded": true
+  },
+  {
+   "file": "s0298_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "park: Cloverdale Park",
+   "x": 14850,
+   "z": 24031,
+   "loaded": true
+  },
+  {
+   "file": "s0298_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "park: Cloverdale Park",
+   "x": 14850,
+   "z": 24031,
+   "loaded": true
+  },
+  {
+   "file": "s0310_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "other: Zone 8 Domestic Water Reservoir",
+   "x": 45326,
+   "z": 29411,
+   "loaded": true
+  },
+  {
+   "file": "s0310_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Zone 8 Domestic Water Reservoir",
+   "x": 45326,
+   "z": 29411,
+   "loaded": true
+  },
+  {
+   "file": "s0322_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: ampm",
+   "x": 15490,
+   "z": 33390,
+   "loaded": true
+  },
+  {
+   "file": "s0334_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Outback Steakhouse",
+   "x": 42148,
+   "z": 30000,
+   "loaded": true
+  },
+  {
+   "file": "s0346_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "hotel: Pacific Edge Hotel",
+   "x": 31516,
+   "z": 45964,
+   "loaded": true
+  },
+  {
+   "file": "s0358_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "shop: Garden's Liquor",
+   "x": 17563,
+   "z": 19671,
+   "loaded": true
+  },
+  {
+   "file": "s0358_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Garden's Liquor",
+   "x": 17563,
+   "z": 19671,
+   "loaded": true
+  },
+  {
+   "file": "s0370_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: The Dock",
+   "x": 17843,
+   "z": 37558,
+   "loaded": true
+  },
+  {
+   "file": "s0382_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: 68",
+   "x": 41056,
+   "z": 35074,
+   "loaded": true
+  },
+  {
+   "file": "s0394_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "other: Evan's Gun World",
+   "x": 23354,
+   "z": 15139,
+   "loaded": true
+  },
+  {
+   "file": "s0394_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Evan's Gun World",
+   "x": 23354,
+   "z": 15139,
+   "loaded": true
+  },
+  {
+   "file": "s0406_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "school: Moulton Elementary School",
+   "x": 36787,
+   "z": 47004,
+   "loaded": true
+  },
+  {
+   "file": "s0406_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "school: Moulton Elementary School",
+   "x": 36787,
+   "z": 47004,
+   "loaded": true
+  },
+  {
+   "file": "s0418_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "school: Tustin Ranch Elementary School",
+   "x": 30864,
+   "z": 24126,
+   "loaded": true
+  },
+  {
+   "file": "s0430_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "hotel: Newport Beach Hotel, A Four Sisters Inn",
+   "x": 17647,
+   "z": 37981,
+   "loaded": true
+  },
+  {
+   "file": "s0430_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "hotel: Newport Beach Hotel, A Four Sisters Inn",
+   "x": 17647,
+   "z": 37981,
+   "loaded": true
+  },
+  {
+   "file": "s0442_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "hospital: Alzhemiers Family Center",
+   "x": 14614,
+   "z": 31823,
+   "loaded": true
+  },
+  {
+   "file": "s0442_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "hospital: Alzhemiers Family Center",
+   "x": 14614,
+   "z": 31823,
+   "loaded": true
+  },
+  {
+   "file": "s0454_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Michaels",
+   "x": 21909,
+   "z": 28471,
+   "loaded": true
+  },
+  {
+   "file": "s0466_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "park: Badlands Park",
+   "x": 36008,
+   "z": 49884,
+   "loaded": true
+  },
+  {
+   "file": "s0478_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Tastea",
+   "x": 19784,
+   "z": 30352,
+   "loaded": true
+  },
+  {
+   "file": "s0490_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Engineering Lecture Hall",
+   "x": 25928,
+   "z": 34136,
+   "loaded": true
+  },
+  {
+   "file": "s0502_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "food: Starbucks",
+   "x": 26486,
+   "z": 28199,
+   "loaded": true
+  },
+  {
+   "file": "s0502_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Starbucks",
+   "x": 26486,
+   "z": 28199,
+   "loaded": true
+  },
+  {
+   "file": "s0514_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: North Lake Beach Club",
+   "x": 30042,
+   "z": 29992,
+   "loaded": true
+  },
+  {
+   "file": "s0526_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Concession Stand",
+   "x": 33118,
+   "z": 17398,
+   "loaded": true
+  },
+  {
+   "file": "s0538_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: #7",
+   "x": 41600,
+   "z": 29819,
+   "loaded": true
+  },
+  {
+   "file": "s0011_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 34190,
+   "z": 29842,
+   "loaded": true
+  },
+  {
+   "file": "s0023_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 31736,
+   "z": 18334,
+   "loaded": true
+  },
+  {
+   "file": "s0035_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Jeronimo Road",
+   "x": 40664,
+   "z": 36722,
+   "loaded": true
+  },
+  {
+   "file": "s0047_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Old Bee Canyon Road",
+   "x": 39062,
+   "z": 26712,
+   "loaded": true
+  },
+  {
+   "file": "s0059_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Irvine Boulevard",
+   "x": 31746,
+   "z": 25043,
+   "loaded": true
+  },
+  {
+   "file": "s0071_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Spinnaker Street",
+   "x": 20481,
+   "z": 17161,
+   "loaded": true
+  },
+  {
+   "file": "s0083_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 23968,
+   "z": 14702,
+   "loaded": true
+  },
+  {
+   "file": "s0095_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 34117,
+   "z": 17166,
+   "loaded": true
+  },
+  {
+   "file": "s0107_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Town Center Drive",
+   "x": 21974,
+   "z": 28770,
+   "loaded": true
+  },
+  {
+   "file": "s0119_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 19522,
+   "z": 28494,
+   "loaded": true
+  },
+  {
+   "file": "s0131_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Paramount",
+   "x": 35783,
+   "z": 29416,
+   "loaded": true
+  },
+  {
+   "file": "s0143_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 27998,
+   "z": 17169,
+   "loaded": true
+  },
+  {
+   "file": "s0155_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on West Segerstrom Avenue",
+   "x": 22099,
+   "z": 26959,
+   "loaded": true
+  },
+  {
+   "file": "s0167_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 26881,
+   "z": 29395,
+   "loaded": true
+  },
+  {
+   "file": "s0179_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Catalina Street",
+   "x": 31743,
+   "z": 45899,
+   "loaded": true
+  },
+  {
+   "file": "s0191_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 18547,
+   "z": 24512,
+   "loaded": true
+  },
+  {
+   "file": "s0203_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on South Vassar Circle",
+   "x": 34172,
+   "z": 12864,
+   "loaded": true
+  },
+  {
+   "file": "s0215_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Bristol Street",
+   "x": 22579,
+   "z": 31915,
+   "loaded": true
+  },
+  {
+   "file": "s0227_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Mangrove Banks",
+   "x": 34175,
+   "z": 26439,
+   "loaded": true
+  },
+  {
+   "file": "s0239_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on North Pine Street",
+   "x": 25488,
+   "z": 17174,
+   "loaded": true
+  },
+  {
+   "file": "s0251_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on ramp",
+   "x": 26727,
+   "z": 12224,
+   "loaded": true
+  },
+  {
+   "file": "s0263_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on East Ladera Lane",
+   "x": 31735,
+   "z": 12536,
+   "loaded": true
+  },
+  {
+   "file": "s0275_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 36630,
+   "z": 42667,
+   "loaded": true
+  },
+  {
+   "file": "s0287_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 19502,
+   "z": 38626,
+   "loaded": true
+  },
+  {
+   "file": "s0299_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Yale Avenue",
+   "x": 34169,
+   "z": 24783,
+   "loaded": true
+  },
+  {
+   "file": "s0311_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on ramp",
+   "x": 17093,
+   "z": 20608,
+   "loaded": true
+  },
+  {
+   "file": "s0323_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Summit Way",
+   "x": 32903,
+   "z": 46502,
+   "loaded": true
+  },
+  {
+   "file": "s0335_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Leafy Pass",
+   "x": 34178,
+   "z": 21684,
+   "loaded": true
+  },
+  {
+   "file": "s0347_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Moonstone Way",
+   "x": 45787,
+   "z": 31832,
+   "loaded": true
+  },
+  {
+   "file": "s0359_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Vance Street",
+   "x": 23739,
+   "z": 22061,
+   "loaded": true
+  },
+  {
+   "file": "s0371_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Tapestry",
+   "x": 32311,
+   "z": 34281,
+   "loaded": true
+  },
+  {
+   "file": "s0383_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 18909,
+   "z": 26947,
+   "loaded": true
+  },
+  {
+   "file": "s0395_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Main Street",
+   "x": 24412,
+   "z": 29512,
+   "loaded": true
+  },
+  {
+   "file": "s0407_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 21911,
+   "z": 19616,
+   "loaded": true
+  },
+  {
+   "file": "s0419_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Stockport Street",
+   "x": 39057,
+   "z": 39538,
+   "loaded": true
+  },
+  {
+   "file": "s0431_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on East Riverview Avenue",
+   "x": 24927,
+   "z": 12256,
+   "loaded": true
+  },
+  {
+   "file": "s0443_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 35674,
+   "z": 19586,
+   "loaded": true
+  },
+  {
+   "file": "s0455_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Research Drive",
+   "x": 35453,
+   "z": 34280,
+   "loaded": true
+  },
+  {
+   "file": "s0467_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Sierks Street",
+   "x": 19754,
+   "z": 34327,
+   "loaded": true
+  },
+  {
+   "file": "s0479_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Cayman Brac",
+   "x": 35534,
+   "z": 41606,
+   "loaded": true
+  },
+  {
+   "file": "s0491_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Jeffrey Road",
+   "x": 32365,
+   "z": 29410,
+   "loaded": true
+  },
+  {
+   "file": "s0503_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Country Lane Road",
+   "x": 39059,
+   "z": 43713,
+   "loaded": true
+  },
+  {
+   "file": "s0515_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Wood Brook Road",
+   "x": 40731,
+   "z": 41619,
+   "loaded": true
+  },
+  {
+   "file": "s0527_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on East Catamaran Lane",
+   "x": 26860,
+   "z": 14916,
+   "loaded": true
+  },
+  {
+   "file": "s0539_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Monstad Street",
+   "x": 36394,
+   "z": 44082,
+   "loaded": true
+  },
+  {
+   "file": "s0002_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 24472,
+   "z": 11467,
+   "loaded": true
+  },
+  {
+   "file": "s0002_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 24472,
+   "z": 11467,
+   "loaded": true
+  },
+  {
+   "file": "s0014_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, West Coast Highway",
+   "x": 16562,
+   "z": 36403,
+   "loaded": true
+  },
+  {
+   "file": "s0014_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, West Coast Highway",
+   "x": 16562,
+   "z": 36403,
+   "loaded": true
+  },
+  {
+   "file": "s0026_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Riverside Freeway",
+   "x": 26779,
+   "z": 11527,
+   "loaded": true
+  },
+  {
+   "file": "s0026_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Riverside Freeway",
+   "x": 26779,
+   "z": 11527,
+   "loaded": true
+  },
+  {
+   "file": "s0038_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 39866,
+   "z": 43629,
+   "loaded": true
+  },
+  {
+   "file": "s0050_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 24895,
+   "z": 35206,
+   "loaded": true
+  },
+  {
+   "file": "s0050_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 24895,
+   "z": 35206,
+   "loaded": true
+  },
+  {
+   "file": "s0062_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Costa Mesa Freeway",
+   "x": 21473,
+   "z": 31106,
+   "loaded": true
+  },
+  {
+   "file": "s0074_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Foothill Transportation Corridor",
+   "x": 36011,
+   "z": 20902,
+   "loaded": true
+  },
+  {
+   "file": "s0074_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Foothill Transportation Corridor",
+   "x": 36011,
+   "z": 20902,
+   "loaded": true
+  },
+  {
+   "file": "s0086_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 32958,
+   "z": 39603,
+   "loaded": true
+  },
+  {
+   "file": "s0086_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 32958,
+   "z": 39603,
+   "loaded": true
+  },
+  {
+   "file": "s0098_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Orange Freeway",
+   "x": 22627,
+   "z": 13955,
+   "loaded": true
+  },
+  {
+   "file": "s0098_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Orange Freeway",
+   "x": 22627,
+   "z": 13955,
+   "loaded": true
+  },
+  {
+   "file": "s0110_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Foothill Transportation Corridor",
+   "x": 42728,
+   "z": 31146,
+   "loaded": true
+  },
+  {
+   "file": "s0110_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Foothill Transportation Corridor",
+   "x": 42728,
+   "z": 31146,
+   "loaded": true
+  },
+  {
+   "file": "s0122_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 33418,
+   "z": 33497,
+   "loaded": true
+  },
+  {
+   "file": "s0122_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 33418,
+   "z": 33497,
+   "loaded": true
+  },
+  {
+   "file": "s0134_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 34133,
+   "z": 40076,
+   "loaded": true
+  },
+  {
+   "file": "s0146_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Garden Grove Freeway",
+   "x": 17627,
+   "z": 20547,
+   "loaded": true
+  },
+  {
+   "file": "s0146_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Garden Grove Freeway",
+   "x": 17627,
+   "z": 20547,
+   "loaded": true
+  },
+  {
+   "file": "s0158_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Santa Ana Freeway",
+   "x": 32291,
+   "z": 28376,
+   "loaded": true
+  },
+  {
+   "file": "s0170_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, I 405 EXPR",
+   "x": 19826,
+   "z": 29288,
+   "loaded": true
+  },
+  {
+   "file": "s0182_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 17611,
+   "z": 28659,
+   "loaded": true
+  },
+  {
+   "file": "s0182_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 17611,
+   "z": 28659,
+   "loaded": true
+  },
+  {
+   "file": "s0194_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 35719,
+   "z": 28148,
+   "loaded": true
+  },
+  {
+   "file": "s0206_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Santa Ana Freeway",
+   "x": 22144,
+   "z": 18638,
+   "loaded": true
+  },
+  {
+   "file": "s0218_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Foothill Transportation Corridor",
+   "x": 41941,
+   "z": 30759,
+   "loaded": true
+  },
+  {
+   "file": "s0218_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Foothill Transportation Corridor",
+   "x": 41941,
+   "z": 30759,
+   "loaded": true
+  },
+  {
+   "file": "s0230_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 26858,
+   "z": 18982,
+   "loaded": true
+  },
+  {
+   "file": "s0242_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Foothill Transportation Corridor",
+   "x": 37208,
+   "z": 26781,
+   "loaded": true
+  },
+  {
+   "file": "s0242_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Foothill Transportation Corridor",
+   "x": 37208,
+   "z": 26781,
+   "loaded": true
+  },
+  {
+   "file": "s0254_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Newport Boulevard",
+   "x": 17764,
+   "z": 36565,
+   "loaded": true
+  },
+  {
+   "file": "s0266_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 20544,
+   "z": 32097,
+   "loaded": true
+  },
+  {
+   "file": "s0266_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 20544,
+   "z": 32097,
+   "loaded": true
+  },
+  {
+   "file": "s0278_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Eastern Transportation Corridor",
+   "x": 33733,
+   "z": 19272,
+   "loaded": true
+  },
+  {
+   "file": "s0278_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Eastern Transportation Corridor",
+   "x": 33733,
+   "z": 19272,
+   "loaded": true
+  },
+  {
+   "file": "s0290_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 41103,
+   "z": 39219,
+   "loaded": true
+  },
+  {
+   "file": "s0290_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 41103,
+   "z": 39219,
+   "loaded": true
+  },
+  {
+   "file": "s0302_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 29875,
+   "z": 26333,
+   "loaded": true
+  },
+  {
+   "file": "s0302_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 29875,
+   "z": 26333,
+   "loaded": true
+  },
+  {
+   "file": "s0314_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 26607,
+   "z": 23155,
+   "loaded": true
+  },
+  {
+   "file": "s0326_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 22407,
+   "z": 12523,
+   "loaded": true
+  },
+  {
+   "file": "s0326_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 22407,
+   "z": 12523,
+   "loaded": true
+  },
+  {
+   "file": "s0338_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Corona Del Mar Freeway",
+   "x": 23896,
+   "z": 33152,
+   "loaded": true
+  },
+  {
+   "file": "s0338_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Corona Del Mar Freeway",
+   "x": 23896,
+   "z": 33152,
+   "loaded": true
+  },
+  {
+   "file": "s0350_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 25202,
+   "z": 11239,
+   "loaded": true
+  },
+  {
+   "file": "s0350_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 25202,
+   "z": 11239,
+   "loaded": true
+  },
+  {
+   "file": "s0362_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, West Coast Highway",
+   "x": 15908,
+   "z": 36195,
+   "loaded": true
+  },
+  {
+   "file": "s0362_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, West Coast Highway",
+   "x": 15908,
+   "z": 36195,
+   "loaded": true
+  },
+  {
+   "file": "s0374_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Riverside Freeway",
+   "x": 26741,
+   "z": 11523,
+   "loaded": true
+  },
+  {
+   "file": "s0374_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Riverside Freeway",
+   "x": 26741,
+   "z": 11523,
+   "loaded": true
+  },
+  {
+   "file": "s0386_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 41489,
+   "z": 43812,
+   "loaded": true
+  },
+  {
+   "file": "s0386_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 41489,
+   "z": 43812,
+   "loaded": true
+  },
+  {
+   "file": "s0398_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 24297,
+   "z": 34361,
+   "loaded": true
+  },
+  {
+   "file": "s0398_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 24297,
+   "z": 34361,
+   "loaded": true
+  },
+  {
+   "file": "s0410_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Corona Del Mar Freeway",
+   "x": 22449,
+   "z": 31857,
+   "loaded": true
+  },
+  {
+   "file": "s0410_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Corona Del Mar Freeway",
+   "x": 22449,
+   "z": 31857,
+   "loaded": true
+  },
+  {
+   "file": "s0422_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Foothill Transportation Corridor",
+   "x": 35935,
+   "z": 21485,
+   "loaded": true
+  },
+  {
+   "file": "s0422_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Foothill Transportation Corridor",
+   "x": 35935,
+   "z": 21485,
+   "loaded": true
+  },
+  {
+   "file": "s0434_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 33010,
+   "z": 39559,
+   "loaded": true
+  },
+  {
+   "file": "s0446_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 22610,
+   "z": 15029,
+   "loaded": true
+  },
+  {
+   "file": "s0446_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 22610,
+   "z": 15029,
+   "loaded": true
+  },
+  {
+   "file": "s0458_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 43691,
+   "z": 31518,
+   "loaded": true
+  },
+  {
+   "file": "s0458_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 43691,
+   "z": 31518,
+   "loaded": true
+  },
+  {
+   "file": "s0470_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 32704,
+   "z": 33248,
+   "loaded": true
+  },
+  {
+   "file": "s0482_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 33705,
+   "z": 40051,
+   "loaded": true
+  },
+  {
+   "file": "s0482_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 33705,
+   "z": 40051,
+   "loaded": true
+  },
+  {
+   "file": "s0494_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 17265,
+   "z": 20528,
+   "loaded": true
+  },
+  {
+   "file": "s0494_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 17265,
+   "z": 20528,
+   "loaded": true
+  },
+  {
+   "file": "s0506_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 32523,
+   "z": 28759,
+   "loaded": true
+  },
+  {
+   "file": "s0506_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 32523,
+   "z": 28759,
+   "loaded": true
+  },
+  {
+   "file": "s0518_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 19961,
+   "z": 29238,
+   "loaded": true
+  },
+  {
+   "file": "s0530_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 17361,
+   "z": 28538,
+   "loaded": true
+  },
+  {
+   "file": "s0530_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 17361,
+   "z": 28538,
+   "loaded": true
+  },
+  {
+   "file": "s0003_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Bay Crest Drive",
+   "x": 28533,
+   "z": 44187,
+   "loaded": true
+  },
+  {
+   "file": "s0015_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Pennell Circle",
+   "x": 17459,
+   "z": 26005,
+   "loaded": true
+  },
+  {
+   "file": "s0015_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Pennell Circle",
+   "x": 17459,
+   "z": 26005,
+   "loaded": true
+  },
+  {
+   "file": "s0027_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Carroll Way",
+   "x": 26955,
+   "z": 20556,
+   "loaded": true
+  },
+  {
+   "file": "s0027_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Carroll Way",
+   "x": 26955,
+   "z": 20556,
+   "loaded": true
+  },
+  {
+   "file": "s0039_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Summerhouse",
+   "x": 27952,
+   "z": 36904,
+   "loaded": true
+  },
+  {
+   "file": "s0039_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Summerhouse",
+   "x": 27952,
+   "z": 36904,
+   "loaded": true
+  },
+  {
+   "file": "s0051_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Scale",
+   "x": 36538,
+   "z": 29877,
+   "loaded": true
+  },
+  {
+   "file": "s0051_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Scale",
+   "x": 36538,
+   "z": 29877,
+   "loaded": true
+  },
+  {
+   "file": "s0063_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Santa Ynez",
+   "x": 28774,
+   "z": 29354,
+   "loaded": true
+  },
+  {
+   "file": "s0075_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Baluster",
+   "x": 37648,
+   "z": 31450,
+   "loaded": true
+  },
+  {
+   "file": "s0087_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, East Pheasant Lane",
+   "x": 31045,
+   "z": 18184,
+   "loaded": true
+  },
+  {
+   "file": "s0087_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, East Pheasant Lane",
+   "x": 31045,
+   "z": 18184,
+   "loaded": true
+  },
+  {
+   "file": "s0099_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Avenida Armijo",
+   "x": 38323,
+   "z": 43766,
+   "loaded": true
+  },
+  {
+   "file": "s0111_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Marcus Avenue",
+   "x": 17281,
+   "z": 37003,
+   "loaded": true
+  },
+  {
+   "file": "s0111_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Marcus Avenue",
+   "x": 17281,
+   "z": 37003,
+   "loaded": true
+  },
+  {
+   "file": "s0123_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Marylhurst Court",
+   "x": 40737,
+   "z": 35267,
+   "loaded": true
+  },
+  {
+   "file": "s0135_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Narcissus",
+   "x": 35682,
+   "z": 25176,
+   "loaded": true
+  },
+  {
+   "file": "s0135_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Narcissus",
+   "x": 35682,
+   "z": 25176,
+   "loaded": true
+  },
+  {
+   "file": "s0147_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Rinaldi",
+   "x": 34319,
+   "z": 27876,
+   "loaded": true
+  },
+  {
+   "file": "s0159_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Stanford Court",
+   "x": 25846,
+   "z": 32873,
+   "loaded": true
+  },
+  {
+   "file": "s0171_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Glenmeadows Drive",
+   "x": 43243,
+   "z": 32697,
+   "loaded": true
+  },
+  {
+   "file": "s0183_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Inlet Isle Drive",
+   "x": 24097,
+   "z": 38995,
+   "loaded": true
+  },
+  {
+   "file": "s0183_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Inlet Isle Drive",
+   "x": 24097,
+   "z": 38995,
+   "loaded": true
+  },
+  {
+   "file": "s0195_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Dana",
+   "x": 34579,
+   "z": 34906,
+   "loaded": true
+  },
+  {
+   "file": "s0195_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Dana",
+   "x": 34579,
+   "z": 34906,
+   "loaded": true
+  },
+  {
+   "file": "s0207_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Millwood Road",
+   "x": 44851,
+   "z": 30519,
+   "loaded": true
+  },
+  {
+   "file": "s0207_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Millwood Road",
+   "x": 44851,
+   "z": 30519,
+   "loaded": true
+  },
+  {
+   "file": "s0219_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Parrot Court",
+   "x": 41465,
+   "z": 32867,
+   "loaded": true
+  },
+  {
+   "file": "s0231_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, South Canada Court",
+   "x": 38190,
+   "z": 35435,
+   "loaded": true
+  },
+  {
+   "file": "s0231_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, South Canada Court",
+   "x": 38190,
+   "z": 35435,
+   "loaded": true
+  },
+  {
+   "file": "s0243_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Modjeska Grade Road",
+   "x": 44654,
+   "z": 27073,
+   "loaded": true
+  },
+  {
+   "file": "s0243_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Modjeska Grade Road",
+   "x": 44654,
+   "z": 27073,
+   "loaded": true
+  },
+  {
+   "file": "s0255_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Sandalwood",
+   "x": 29405,
+   "z": 32243,
+   "loaded": true
+  },
+  {
+   "file": "s0267_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Zola Court",
+   "x": 26293,
+   "z": 34855,
+   "loaded": true
+  },
+  {
+   "file": "s0279_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Woodsorrel",
+   "x": 30755,
+   "z": 30453,
+   "loaded": true
+  },
+  {
+   "file": "s0291_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Creekview Drive",
+   "x": 39048,
+   "z": 38460,
+   "loaded": true
+  },
+  {
+   "file": "s0303_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Provence",
+   "x": 25585,
+   "z": 40850,
+   "loaded": true
+  },
+  {
+   "file": "s0303_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Provence",
+   "x": 25585,
+   "z": 40850,
+   "loaded": true
+  },
+  {
+   "file": "s0315_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Dillon Road",
+   "x": 40647,
+   "z": 43342,
+   "loaded": true
+  },
+  {
+   "file": "s0327_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, West Tampion Avenue",
+   "x": 16590,
+   "z": 23613,
+   "loaded": true
+  },
+  {
+   "file": "s0327_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, West Tampion Avenue",
+   "x": 16590,
+   "z": 23613,
+   "loaded": true
+  },
+  {
+   "file": "s0339_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Madison Street",
+   "x": 27639,
+   "z": 25903,
+   "loaded": true
+  },
+  {
+   "file": "s0339_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Madison Street",
+   "x": 27639,
+   "z": 25903,
+   "loaded": true
+  },
+  {
+   "file": "s0351_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Baywood",
+   "x": 36879,
+   "z": 40086,
+   "loaded": true
+  },
+  {
+   "file": "s0363_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Crescent Moon",
+   "x": 34362,
+   "z": 23858,
+   "loaded": true
+  },
+  {
+   "file": "s0375_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Catania",
+   "x": 35639,
+   "z": 36956,
+   "loaded": true
+  },
+  {
+   "file": "s0387_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, East Hood Avenue",
+   "x": 24227,
+   "z": 24886,
+   "loaded": true
+  },
+  {
+   "file": "s0399_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Waverly Avenue",
+   "x": 25638,
+   "z": 19552,
+   "loaded": true
+  },
+  {
+   "file": "s0411_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, 49th Street",
+   "x": 16575,
+   "z": 36612,
+   "loaded": true
+  },
+  {
+   "file": "s0411_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, 49th Street",
+   "x": 16575,
+   "z": 36612,
+   "loaded": true
+  },
+  {
+   "file": "s0423_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, East Ashford Avenue",
+   "x": 29313,
+   "z": 12962,
+   "loaded": true
+  },
+  {
+   "file": "s0435_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, East Forest Glen Road",
+   "x": 28133,
+   "z": 12326,
+   "loaded": true
+  },
+  {
+   "file": "s0435_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, East Forest Glen Road",
+   "x": 28133,
+   "z": 12326,
+   "loaded": true
+  },
+  {
+   "file": "s0447_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Craimer Lane",
+   "x": 15837,
+   "z": 31402,
+   "loaded": true
+  },
+  {
+   "file": "s0459_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Pavillion Drive",
+   "x": 31349,
+   "z": 22555,
+   "loaded": true
+  },
+  {
+   "file": "s0459_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Pavillion Drive",
+   "x": 31349,
+   "z": 22555,
+   "loaded": true
+  },
+  {
+   "file": "s0471_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Quail Ridge",
+   "x": 32396,
+   "z": 33524,
+   "loaded": true
+  },
+  {
+   "file": "s0471_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Quail Ridge",
+   "x": 32396,
+   "z": 33524,
+   "loaded": true
+  },
+  {
+   "file": "s0483_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Aliso Circle",
+   "x": 34003,
+   "z": 48837,
+   "loaded": true
+  },
+  {
+   "file": "s0483_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Aliso Circle",
+   "x": 34003,
+   "z": 48837,
+   "loaded": true
+  },
+  {
+   "file": "s0495_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Minorca Drive",
+   "x": 18006,
+   "z": 30644,
+   "loaded": true
+  },
+  {
+   "file": "s0495_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Minorca Drive",
+   "x": 18006,
+   "z": 30644,
+   "loaded": true
+  },
+  {
+   "file": "s0507_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, South Lowell Street",
+   "x": 22357,
+   "z": 27399,
+   "loaded": true
+  },
+  {
+   "file": "s0507_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, South Lowell Street",
+   "x": 22357,
+   "z": 27399,
+   "loaded": true
+  },
+  {
+   "file": "s0519_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Edgehill Drive",
+   "x": 28013,
+   "z": 34818,
+   "loaded": true
+  },
+  {
+   "file": "s0531_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, West Pendleton Avenue",
+   "x": 19647,
+   "z": 26095,
+   "loaded": true
+  },
+  {
+   "file": "s0004_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "food: The Crab Cooker",
+   "x": 26971,
+   "z": 21441,
+   "loaded": true
+  },
+  {
+   "file": "s0004_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: The Crab Cooker",
+   "x": 26971,
+   "z": 21441,
+   "loaded": true
+  },
+  {
+   "file": "s0016_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Sharkey's Cuts for Kids",
+   "x": 26214,
+   "z": 21368,
+   "loaded": true
+  },
+  {
+   "file": "s0028_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Hercules Burgers",
+   "x": 27923,
+   "z": 18101,
+   "loaded": true
+  },
+  {
+   "file": "s0040_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "other: Building 3",
+   "x": 34444,
+   "z": 48823,
+   "loaded": true
+  },
+  {
+   "file": "s0040_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Building 3",
+   "x": 34444,
+   "z": 48823,
+   "loaded": true
+  },
+  {
+   "file": "s0052_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Red Rock Canyon",
+   "x": 43867,
+   "z": 27445,
+   "loaded": true
+  },
+  {
+   "file": "s0064_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "fuel: Arco",
+   "x": 24753,
+   "z": 17357,
+   "loaded": true
+  },
+  {
+   "file": "s0076_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "hotel: La Quinta Inn & Suites Irvine Spectrum",
+   "x": 33547,
+   "z": 30645,
+   "loaded": true
+  },
+  {
+   "file": "s0076_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "hotel: La Quinta Inn & Suites Irvine Spectrum",
+   "x": 33547,
+   "z": 30645,
+   "loaded": true
+  },
+  {
+   "file": "s0088_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "park: Wandering Trails Park",
+   "x": 45680,
+   "z": 31816,
+   "loaded": true
+  },
+  {
+   "file": "s0100_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "university: Math and Science Offices",
+   "x": 19202,
+   "z": 31270,
+   "loaded": true
+  },
+  {
+   "file": "s0112_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Flippin' Pizza",
+   "x": 43891,
+   "z": 33068,
+   "loaded": true
+  },
+  {
+   "file": "s0124_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "school: Edward Russell Elementary School",
+   "x": 18865,
+   "z": 23555,
+   "loaded": true
+  },
+  {
+   "file": "s0136_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "school: Rancho San Joaquin Middle School",
+   "x": 29070,
+   "z": 32023,
+   "loaded": true
+  },
+  {
+   "file": "s0148_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "park: Jardin De Los Ninos",
+   "x": 19533,
+   "z": 21405,
+   "loaded": true
+  },
+  {
+   "file": "s0160_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Big Saver Foods",
+   "x": 23043,
+   "z": 21306,
+   "loaded": true
+  },
+  {
+   "file": "s0172_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "park: Sierra Oro Park",
+   "x": 28284,
+   "z": 35527,
+   "loaded": true
+  },
+  {
+   "file": "s0184_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "civic: Anaheim Fire Station #9",
+   "x": 32272,
+   "z": 12227,
+   "loaded": true
+  },
+  {
+   "file": "s0184_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "civic: Anaheim Fire Station #9",
+   "x": 32272,
+   "z": 12227,
+   "loaded": true
+  },
+  {
+   "file": "s0196_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "food: Jack in the Box",
+   "x": 18552,
+   "z": 26423,
+   "loaded": true
+  },
+  {
+   "file": "s0196_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Jack in the Box",
+   "x": 18552,
+   "z": 26423,
+   "loaded": true
+  },
+  {
+   "file": "s0208_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "civic: OCFA Station 6",
+   "x": 27678,
+   "z": 29027,
+   "loaded": true
+  },
+  {
+   "file": "s0220_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "park: Arevalos Park",
+   "x": 16189,
+   "z": 30486,
+   "loaded": true
+  },
+  {
+   "file": "s0232_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "other: Wild Rivers",
+   "x": 36129,
+   "z": 31612,
+   "loaded": true
+  },
+  {
+   "file": "s0232_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Wild Rivers",
+   "x": 36129,
+   "z": 31612,
+   "loaded": true
+  },
+  {
+   "file": "s0244_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: La Vista Pool Bar & Grill",
+   "x": 25685,
+   "z": 41062,
+   "loaded": true
+  },
+  {
+   "file": "s0256_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "park: Fred Barrera Park",
+   "x": 33018,
+   "z": 13605,
+   "loaded": true
+  },
+  {
+   "file": "s0256_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "park: Fred Barrera Park",
+   "x": 33018,
+   "z": 13605,
+   "loaded": true
+  },
+  {
+   "file": "s0268_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Secret Bike Course",
+   "x": 32089,
+   "z": 21243,
+   "loaded": true
+  },
+  {
+   "file": "s0280_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Fabio Napoleoni",
+   "x": 31420,
+   "z": 45739,
+   "loaded": true
+  },
+  {
+   "file": "s0292_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Taco Life",
+   "x": 32240,
+   "z": 17299,
+   "loaded": true
+  },
+  {
+   "file": "s0304_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: The Loft",
+   "x": 33675,
+   "z": 48568,
+   "loaded": true
+  },
+  {
+   "file": "s0316_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "university: Interior Design Institute",
+   "x": 23604,
+   "z": 34487,
+   "loaded": true
+  },
+  {
+   "file": "s0328_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "park: Lomas Valley Park",
+   "x": 36997,
+   "z": 27396,
+   "loaded": true
+  },
+  {
+   "file": "s0340_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "park: Oak Canyon Nature Center",
+   "x": 33900,
+   "z": 12637,
+   "loaded": true
+  },
+  {
+   "file": "s0352_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: 53-68",
+   "x": 37658,
+   "z": 36433,
+   "loaded": true
+  },
+  {
+   "file": "s0364_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: The Den",
+   "x": 23251,
+   "z": 22785,
+   "loaded": true
+  },
+  {
+   "file": "s0376_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Lincoln Self Storage",
+   "x": 24552,
+   "z": 12807,
+   "loaded": true
+  },
+  {
+   "file": "s0388_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "office: Tustin Gateway Business Park",
+   "x": 25973,
+   "z": 26215,
+   "loaded": true
+  },
+  {
+   "file": "s0388_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "office: Tustin Gateway Business Park",
+   "x": 25973,
+   "z": 26215,
+   "loaded": true
+  },
+  {
+   "file": "s0400_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "park: Valley View Park",
+   "x": 32490,
+   "z": 34276,
+   "loaded": true
+  },
+  {
+   "file": "s0400_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "park: Valley View Park",
+   "x": 32490,
+   "z": 34276,
+   "loaded": true
+  },
+  {
+   "file": "s0412_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "other: Mail Truck Maintenance Depot",
+   "x": 41658,
+   "z": 44070,
+   "loaded": true
+  },
+  {
+   "file": "s0412_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Mail Truck Maintenance Depot",
+   "x": 41658,
+   "z": 44070,
+   "loaded": true
+  },
+  {
+   "file": "s0424_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "shop: Elements Therapeutic Massage",
+   "x": 37990,
+   "z": 43863,
+   "loaded": true
+  },
+  {
+   "file": "s0424_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Elements Therapeutic Massage",
+   "x": 37990,
+   "z": 43863,
+   "loaded": true
+  },
+  {
+   "file": "s0436_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "shop: Li\u1ec5n \u0110\u00f4ng",
+   "x": 14629,
+   "z": 22837,
+   "loaded": true
+  },
+  {
+   "file": "s0436_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Li\u1ec5n \u0110\u00f4ng",
+   "x": 14629,
+   "z": 22837,
+   "loaded": true
+  },
+  {
+   "file": "s0448_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "food: Carl's Jr.",
+   "x": 23123,
+   "z": 12684,
+   "loaded": true
+  },
+  {
+   "file": "s0448_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Carl's Jr.",
+   "x": 23123,
+   "z": 12684,
+   "loaded": true
+  },
+  {
+   "file": "s0460_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Citibank",
+   "x": 38484,
+   "z": 42304,
+   "loaded": true
+  },
+  {
+   "file": "s0472_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: Gallo's Italian Deli",
+   "x": 23577,
+   "z": 39813,
+   "loaded": true
+  },
+  {
+   "file": "s0484_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "civic: OCFA Station 23",
+   "x": 29816,
+   "z": 15726,
+   "loaded": true
+  },
+  {
+   "file": "s0496_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "food: CUP by Blue Hummingbird Coffee",
+   "x": 35727,
+   "z": 28715,
+   "loaded": true
+  },
+  {
+   "file": "s0508_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "other: Greenshine New Energy LLC",
+   "x": 35251,
+   "z": 35516,
+   "loaded": true
+  },
+  {
+   "file": "s0508_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Greenshine New Energy LLC",
+   "x": 35251,
+   "z": 35516,
+   "loaded": true
+  },
+  {
+   "file": "s0520_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Newport Mesa Optometry",
+   "x": 19383,
+   "z": 35762,
+   "loaded": true
+  },
+  {
+   "file": "s0532_place_low.jpg",
+   "cat": "place",
+   "view": "low",
+   "what": "shop: Trader Joe's",
+   "x": 26856,
+   "z": 42568,
+   "loaded": true
+  },
+  {
+   "file": "s0532_place_high.jpg",
+   "cat": "place",
+   "view": "high",
+   "what": "shop: Trader Joe's",
+   "x": 26856,
+   "z": 42568,
+   "loaded": true
+  },
+  {
+   "file": "s0005_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Ranchland",
+   "x": 36629,
+   "z": 27374,
+   "loaded": true
+  },
+  {
+   "file": "s0017_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Preston",
+   "x": 31787,
+   "z": 31601,
+   "loaded": true
+  },
+  {
+   "file": "s0029_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Via Bacchus",
+   "x": 36976,
+   "z": 39173,
+   "loaded": true
+  },
+  {
+   "file": "s0041_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 17089,
+   "z": 22863,
+   "loaded": true
+  },
+  {
+   "file": "s0053_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 38439,
+   "z": 31803,
+   "loaded": true
+  },
+  {
+   "file": "s0065_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Smithcliffs Road",
+   "x": 29283,
+   "z": 44757,
+   "loaded": true
+  },
+  {
+   "file": "s0077_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on University Drive",
+   "x": 24450,
+   "z": 33468,
+   "loaded": true
+  },
+  {
+   "file": "s0089_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 21971,
+   "z": 37864,
+   "loaded": true
+  },
+  {
+   "file": "s0101_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Augusta",
+   "x": 31740,
+   "z": 22952,
+   "loaded": true
+  },
+  {
+   "file": "s0113_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 45344,
+   "z": 29401,
+   "loaded": true
+  },
+  {
+   "file": "s0125_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Foothill Transportation Corridor",
+   "x": 37299,
+   "z": 24385,
+   "loaded": true
+  },
+  {
+   "file": "s0137_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Rosalind Drive",
+   "x": 27277,
+   "z": 19672,
+   "loaded": true
+  },
+  {
+   "file": "s0149_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Clear Water",
+   "x": 26851,
+   "z": 41073,
+   "loaded": true
+  },
+  {
+   "file": "s0161_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Bell Vista",
+   "x": 42200,
+   "z": 29400,
+   "loaded": true
+  },
+  {
+   "file": "s0173_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 20284,
+   "z": 19602,
+   "loaded": true
+  },
+  {
+   "file": "s0185_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Littleton Place",
+   "x": 19543,
+   "z": 32091,
+   "loaded": true
+  },
+  {
+   "file": "s0197_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Meads",
+   "x": 31724,
+   "z": 15484,
+   "loaded": true
+  },
+  {
+   "file": "s0209_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on East Wagner Avenue",
+   "x": 21978,
+   "z": 13936,
+   "loaded": true
+  },
+  {
+   "file": "s0221_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Turtle Ridge Drive",
+   "x": 26851,
+   "z": 35773,
+   "loaded": true
+  },
+  {
+   "file": "s0233_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on West Coast Highway",
+   "x": 17117,
+   "z": 36653,
+   "loaded": true
+  },
+  {
+   "file": "s0245_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Foxrun Road",
+   "x": 31725,
+   "z": 18858,
+   "loaded": true
+  },
+  {
+   "file": "s0257_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Pittsford Drive",
+   "x": 41508,
+   "z": 33203,
+   "loaded": true
+  },
+  {
+   "file": "s0269_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 41506,
+   "z": 29347,
+   "loaded": true
+  },
+  {
+   "file": "s0281_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on San Joaquin Hills Transportation Corridor",
+   "x": 32152,
+   "z": 39178,
+   "loaded": true
+  },
+  {
+   "file": "s0293_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 43930,
+   "z": 31408,
+   "loaded": true
+  },
+  {
+   "file": "s0305_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Mesa Verde Drive West",
+   "x": 17095,
+   "z": 30866,
+   "loaded": true
+  },
+  {
+   "file": "s0317_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 32953,
+   "z": 31854,
+   "loaded": true
+  },
+  {
+   "file": "s0329_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on South Baker Street",
+   "x": 22003,
+   "z": 24600,
+   "loaded": true
+  },
+  {
+   "file": "s0341_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Shoreline",
+   "x": 24414,
+   "z": 40574,
+   "loaded": true
+  },
+  {
+   "file": "s0353_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 24424,
+   "z": 27161,
+   "loaded": true
+  },
+  {
+   "file": "s0365_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Westwing",
+   "x": 35369,
+   "z": 39182,
+   "loaded": true
+  },
+  {
+   "file": "s0377_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Pelican Hill Road",
+   "x": 25441,
+   "z": 39171,
+   "loaded": true
+  },
+  {
+   "file": "s0389_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Garden Grove Freeway",
+   "x": 24421,
+   "z": 19315,
+   "loaded": true
+  },
+  {
+   "file": "s0401_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Shadowcast",
+   "x": 28806,
+   "z": 39185,
+   "loaded": true
+  },
+  {
+   "file": "s0413_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 17522,
+   "z": 26955,
+   "loaded": true
+  },
+  {
+   "file": "s0425_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on ramp",
+   "x": 26758,
+   "z": 24500,
+   "loaded": true
+  },
+  {
+   "file": "s0437_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on El Toro Road",
+   "x": 41983,
+   "z": 34276,
+   "loaded": true
+  },
+  {
+   "file": "s0449_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Rockfield Boulevard",
+   "x": 38091,
+   "z": 36722,
+   "loaded": true
+  },
+  {
+   "file": "s0461_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 23613,
+   "z": 17144,
+   "loaded": true
+  },
+  {
+   "file": "s0473_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Peebler Way",
+   "x": 26834,
+   "z": 27509,
+   "loaded": true
+  },
+  {
+   "file": "s0485_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Santa Maria Road",
+   "x": 22434,
+   "z": 36731,
+   "loaded": true
+  },
+  {
+   "file": "s0497_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Mystic Way",
+   "x": 31754,
+   "z": 45116,
+   "loaded": true
+  },
+  {
+   "file": "s0509_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Cape Verde Place",
+   "x": 17321,
+   "z": 29401,
+   "loaded": true
+  },
+  {
+   "file": "s0521_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Ethel Coplen Way",
+   "x": 26861,
+   "z": 32001,
+   "loaded": true
+  },
+  {
+   "file": "s0533_seam_top.jpg",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Mountain View Drive",
+   "x": 34172,
+   "z": 45145,
+   "loaded": true
+  },
+  {
+   "file": "s0006_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on 30th Street",
+   "x": 17605,
+   "z": 37471,
+   "loaded": true
+  },
+  {
+   "file": "s0006_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on 30th Street",
+   "x": 17605,
+   "z": 37471,
+   "loaded": true
+  },
+  {
+   "file": "s0018_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Reef Point Drive",
+   "x": 26915,
+   "z": 42784,
+   "loaded": true
+  },
+  {
+   "file": "s0018_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Reef Point Drive",
+   "x": 26915,
+   "z": 42784,
+   "loaded": true
+  },
+  {
+   "file": "s0030_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on East La Palma Avenue",
+   "x": 26408,
+   "z": 10580,
+   "loaded": true
+  },
+  {
+   "file": "s0030_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on East La Palma Avenue",
+   "x": 26408,
+   "z": 10580,
+   "loaded": true
+  },
+  {
+   "file": "s0042_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Newport Avenue",
+   "x": 27058,
+   "z": 24410,
+   "loaded": true
+  },
+  {
+   "file": "s0054_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Santa Ana Avenue",
+   "x": 18921,
+   "z": 35496,
+   "loaded": true
+  },
+  {
+   "file": "s0066_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on San Diego Freeway",
+   "x": 26185,
+   "z": 30757,
+   "loaded": true
+  },
+  {
+   "file": "s0078_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on North Broadway",
+   "x": 23245,
+   "z": 20918,
+   "loaded": true
+  },
+  {
+   "file": "s0078_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on North Broadway",
+   "x": 23245,
+   "z": 20918,
+   "loaded": true
+  },
+  {
+   "file": "s0090_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on North Cannon Street",
+   "x": 30154,
+   "z": 14973,
+   "loaded": true
+  },
+  {
+   "file": "s0090_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on North Cannon Street",
+   "x": 30154,
+   "z": 14973,
+   "loaded": true
+  },
+  {
+   "file": "s0102_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on East Nohl Ranch Road",
+   "x": 33126,
+   "z": 12613,
+   "loaded": true
+  },
+  {
+   "file": "s0114_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Slater Avenue",
+   "x": 17562,
+   "z": 26916,
+   "loaded": true
+  },
+  {
+   "file": "s0114_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Slater Avenue",
+   "x": 17562,
+   "z": 26916,
+   "loaded": true
+  },
+  {
+   "file": "s0126_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on South Fairview Street",
+   "x": 19699,
+   "z": 27791,
+   "loaded": true
+  },
+  {
+   "file": "s0138_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Imperial Highway",
+   "x": 30420,
+   "z": 12607,
+   "loaded": true
+  },
+  {
+   "file": "s0150_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Santiago Canyon Road",
+   "x": 36407,
+   "z": 20384,
+   "loaded": true
+  },
+  {
+   "file": "s0150_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Santiago Canyon Road",
+   "x": 36407,
+   "z": 20384,
+   "loaded": true
+  },
+  {
+   "file": "s0162_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on North Tustin Street",
+   "x": 26395,
+   "z": 17584,
+   "loaded": true
+  },
+  {
+   "file": "s0174_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Alton Parkway",
+   "x": 41867,
+   "z": 29939,
+   "loaded": true
+  },
+  {
+   "file": "s0174_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Alton Parkway",
+   "x": 41867,
+   "z": 29939,
+   "loaded": true
+  },
+  {
+   "file": "s0186_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on West Chapman Avenue",
+   "x": 20201,
+   "z": 18013,
+   "loaded": true
+  },
+  {
+   "file": "s0186_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on West Chapman Avenue",
+   "x": 20201,
+   "z": 18013,
+   "loaded": true
+  },
+  {
+   "file": "s0198_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on South Sunkist Street",
+   "x": 22229,
+   "z": 14299,
+   "loaded": true
+  },
+  {
+   "file": "s0198_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on South Sunkist Street",
+   "x": 22229,
+   "z": 14299,
+   "loaded": true
+  },
+  {
+   "file": "s0210_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Meadowood",
+   "x": 33216,
+   "z": 24827,
+   "loaded": true
+  },
+  {
+   "file": "s0222_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on South Main Street",
+   "x": 23374,
+   "z": 28099,
+   "loaded": true
+  },
+  {
+   "file": "s0222_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on South Main Street",
+   "x": 23374,
+   "z": 28099,
+   "loaded": true
+  },
+  {
+   "file": "s0234_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Westwing",
+   "x": 35440,
+   "z": 40065,
+   "loaded": true
+  },
+  {
+   "file": "s0246_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on El Toro Road",
+   "x": 38643,
+   "z": 37083,
+   "loaded": true
+  },
+  {
+   "file": "s0246_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on El Toro Road",
+   "x": 38643,
+   "z": 37083,
+   "loaded": true
+  },
+  {
+   "file": "s0258_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Orange Park Boulevard",
+   "x": 31340,
+   "z": 16563,
+   "loaded": true
+  },
+  {
+   "file": "s0270_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Santa Vittoria Drive",
+   "x": 35135,
+   "z": 36549,
+   "loaded": true
+  },
+  {
+   "file": "s0282_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Southwest Birch Street",
+   "x": 22606,
+   "z": 32625,
+   "loaded": true
+  },
+  {
+   "file": "s0282_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Southwest Birch Street",
+   "x": 22606,
+   "z": 32625,
+   "loaded": true
+  },
+  {
+   "file": "s0294_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Peachwood",
+   "x": 39971,
+   "z": 33527,
+   "loaded": true
+  },
+  {
+   "file": "s0306_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Foothill Transportation Corridor",
+   "x": 37361,
+   "z": 23773,
+   "loaded": true
+  },
+  {
+   "file": "s0306_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Foothill Transportation Corridor",
+   "x": 37361,
+   "z": 23773,
+   "loaded": true
+  },
+  {
+   "file": "s0318_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Serrano Avenue",
+   "x": 33361,
+   "z": 13320,
+   "loaded": true
+  },
+  {
+   "file": "s0330_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Costa Mesa Freeway",
+   "x": 26701,
+   "z": 12205,
+   "loaded": true
+  },
+  {
+   "file": "s0330_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Costa Mesa Freeway",
+   "x": 26701,
+   "z": 12205,
+   "loaded": true
+  },
+  {
+   "file": "s0342_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Technology Drive",
+   "x": 35301,
+   "z": 33083,
+   "loaded": true
+  },
+  {
+   "file": "s0342_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Technology Drive",
+   "x": 35301,
+   "z": 33083,
+   "loaded": true
+  },
+  {
+   "file": "s0354_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on West MacArthur Boulevard",
+   "x": 19760,
+   "z": 27955,
+   "loaded": true
+  },
+  {
+   "file": "s0354_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on West MacArthur Boulevard",
+   "x": 19760,
+   "z": 27955,
+   "loaded": true
+  },
+  {
+   "file": "s0366_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Tustin Ranch Road",
+   "x": 32710,
+   "z": 22602,
+   "loaded": true
+  },
+  {
+   "file": "s0378_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on East Lincoln Avenue",
+   "x": 23133,
+   "z": 12642,
+   "loaded": true
+  },
+  {
+   "file": "s0378_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on East Lincoln Avenue",
+   "x": 23133,
+   "z": 12642,
+   "loaded": true
+  },
+  {
+   "file": "s0390_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Bolsa Avenue",
+   "x": 16139,
+   "z": 22917,
+   "loaded": true
+  },
+  {
+   "file": "s0402_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on La Paz Road",
+   "x": 41273,
+   "z": 39171,
+   "loaded": true
+  },
+  {
+   "file": "s0414_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on South Pelican Hill Road",
+   "x": 25457,
+   "z": 39931,
+   "loaded": true
+  },
+  {
+   "file": "s0426_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Garden Grove Boulevard",
+   "x": 17211,
+   "z": 19658,
+   "loaded": true
+  },
+  {
+   "file": "s0426_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Garden Grove Boulevard",
+   "x": 17211,
+   "z": 19658,
+   "loaded": true
+  },
+  {
+   "file": "s0438_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on West McFadden Avenue",
+   "x": 22209,
+   "z": 24089,
+   "loaded": true
+  },
+  {
+   "file": "s0450_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on ramp",
+   "x": 30376,
+   "z": 38707,
+   "loaded": true
+  },
+  {
+   "file": "s0450_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on ramp",
+   "x": 30376,
+   "z": 38707,
+   "loaded": true
+  },
+  {
+   "file": "s0462_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Fairchild Road",
+   "x": 23996,
+   "z": 33056,
+   "loaded": true
+  },
+  {
+   "file": "s0462_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Fairchild Road",
+   "x": 23996,
+   "z": 33056,
+   "loaded": true
+  },
+  {
+   "file": "s0474_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Moulton Parkway",
+   "x": 38712,
+   "z": 41470,
+   "loaded": true
+  },
+  {
+   "file": "s0486_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on 1st Street",
+   "x": 17791,
+   "z": 22902,
+   "loaded": true
+  },
+  {
+   "file": "s0486_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on 1st Street",
+   "x": 17791,
+   "z": 22902,
+   "loaded": true
+  },
+  {
+   "file": "s0498_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Moulton Parkway",
+   "x": 38717,
+   "z": 43628,
+   "loaded": true
+  },
+  {
+   "file": "s0510_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Bluebird Canyon Drive",
+   "x": 32470,
+   "z": 46665,
+   "loaded": true
+  },
+  {
+   "file": "s0510_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Bluebird Canyon Drive",
+   "x": 32470,
+   "z": 46665,
+   "loaded": true
+  },
+  {
+   "file": "s0522_junction_low.jpg",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on ramp",
+   "x": 27192,
+   "z": 28658,
+   "loaded": true
+  },
+  {
+   "file": "s0522_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on ramp",
+   "x": 27192,
+   "z": 28658,
+   "loaded": true
+  },
+  {
+   "file": "s0534_junction_high.jpg",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on South Pelican Hill Road",
+   "x": 25339,
+   "z": 39786,
+   "loaded": true
+  },
+  {
+   "file": "s0007_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Jamboree Road",
+   "x": 29133,
+   "z": 27466,
+   "loaded": true
+  },
+  {
+   "file": "s0007_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Jamboree Road",
+   "x": 29133,
+   "z": 27466,
+   "loaded": true
+  },
+  {
+   "file": "s0019_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 41441,
+   "z": 30153,
+   "loaded": true
+  },
+  {
+   "file": "s0019_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 41441,
+   "z": 30153,
+   "loaded": true
+  },
+  {
+   "file": "s0031_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Newport Boulevard",
+   "x": 17713,
+   "z": 36723,
+   "loaded": true
+  },
+  {
+   "file": "s0031_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Newport Boulevard",
+   "x": 17713,
+   "z": 36723,
+   "loaded": true
+  },
+  {
+   "file": "s0043_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, El Toro Road",
+   "x": 42158,
+   "z": 34145,
+   "loaded": true
+  },
+  {
+   "file": "s0055_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Birch Street",
+   "x": 22906,
+   "z": 32269,
+   "loaded": true
+  },
+  {
+   "file": "s0055_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Birch Street",
+   "x": 22906,
+   "z": 32269,
+   "loaded": true
+  },
+  {
+   "file": "s0067_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, unnamed road",
+   "x": 31537,
+   "z": 44707,
+   "loaded": true
+  },
+  {
+   "file": "s0067_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, unnamed road",
+   "x": 31537,
+   "z": 44707,
+   "loaded": true
+  },
+  {
+   "file": "s0079_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Departures",
+   "x": 23985,
+   "z": 30362,
+   "loaded": true
+  },
+  {
+   "file": "s0079_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Departures",
+   "x": 23985,
+   "z": 30362,
+   "loaded": true
+  },
+  {
+   "file": "s0091_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 25728,
+   "z": 22598,
+   "loaded": true
+  },
+  {
+   "file": "s0091_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 25728,
+   "z": 22598,
+   "loaded": true
+  },
+  {
+   "file": "s0103_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Jamboree Road",
+   "x": 27926,
+   "z": 28105,
+   "loaded": true
+  },
+  {
+   "file": "s0115_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 21743,
+   "z": 19140,
+   "loaded": true
+  },
+  {
+   "file": "s0115_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 21743,
+   "z": 19140,
+   "loaded": true
+  },
+  {
+   "file": "s0127_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Santa Ana Freeway",
+   "x": 30134,
+   "z": 25752,
+   "loaded": true
+  },
+  {
+   "file": "s0127_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Santa Ana Freeway",
+   "x": 30134,
+   "z": 25752,
+   "loaded": true
+  },
+  {
+   "file": "s0139_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 17679,
+   "z": 36851,
+   "loaded": true
+  },
+  {
+   "file": "s0151_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, East South Street",
+   "x": 22642,
+   "z": 13123,
+   "loaded": true
+  },
+  {
+   "file": "s0151_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, East South Street",
+   "x": 22642,
+   "z": 13123,
+   "loaded": true
+  },
+  {
+   "file": "s0163_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Glenn Ranch Road",
+   "x": 45796,
+   "z": 31255,
+   "loaded": true
+  },
+  {
+   "file": "s0163_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Glenn Ranch Road",
+   "x": 45796,
+   "z": 31255,
+   "loaded": true
+  },
+  {
+   "file": "s0175_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Warner Avenue",
+   "x": 18412,
+   "z": 26327,
+   "loaded": true
+  },
+  {
+   "file": "s0175_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Warner Avenue",
+   "x": 18412,
+   "z": 26327,
+   "loaded": true
+  },
+  {
+   "file": "s0187_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 29582,
+   "z": 38293,
+   "loaded": true
+  },
+  {
+   "file": "s0187_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 29582,
+   "z": 38293,
+   "loaded": true
+  },
+  {
+   "file": "s0199_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Talbert Avenue",
+   "x": 17626,
+   "z": 27724,
+   "loaded": true
+  },
+  {
+   "file": "s0199_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Talbert Avenue",
+   "x": 17626,
+   "z": 27724,
+   "loaded": true
+  },
+  {
+   "file": "s0211_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Garden Grove Freeway",
+   "x": 18303,
+   "z": 20457,
+   "loaded": true
+  },
+  {
+   "file": "s0211_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Garden Grove Freeway",
+   "x": 18303,
+   "z": 20457,
+   "loaded": true
+  },
+  {
+   "file": "s0223_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Modjeska Canyon Road",
+   "x": 44907,
+   "z": 26969,
+   "loaded": true
+  },
+  {
+   "file": "s0223_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Modjeska Canyon Road",
+   "x": 44907,
+   "z": 26969,
+   "loaded": true
+  },
+  {
+   "file": "s0235_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, East Lincoln Avenue",
+   "x": 22643,
+   "z": 12553,
+   "loaded": true
+  },
+  {
+   "file": "s0235_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, East Lincoln Avenue",
+   "x": 22643,
+   "z": 12553,
+   "loaded": true
+  },
+  {
+   "file": "s0247_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, North Cannon Street",
+   "x": 30146,
+   "z": 15120,
+   "loaded": true
+  },
+  {
+   "file": "s0259_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 20447,
+   "z": 29320,
+   "loaded": true
+  },
+  {
+   "file": "s0259_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 20447,
+   "z": 29320,
+   "loaded": true
+  },
+  {
+   "file": "s0271_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 35944,
+   "z": 40451,
+   "loaded": true
+  },
+  {
+   "file": "s0283_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 22034,
+   "z": 18611,
+   "loaded": true
+  },
+  {
+   "file": "s0283_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 22034,
+   "z": 18611,
+   "loaded": true
+  },
+  {
+   "file": "s0295_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Highcliff Drive",
+   "x": 32016,
+   "z": 18841,
+   "loaded": true
+  },
+  {
+   "file": "s0307_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 21715,
+   "z": 30740,
+   "loaded": true
+  },
+  {
+   "file": "s0307_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 21715,
+   "z": 30740,
+   "loaded": true
+  },
+  {
+   "file": "s0319_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Jamboree Road",
+   "x": 31795,
+   "z": 23751,
+   "loaded": true
+  },
+  {
+   "file": "s0331_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 38295,
+   "z": 37433,
+   "loaded": true
+  },
+  {
+   "file": "s0331_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 38295,
+   "z": 37433,
+   "loaded": true
+  },
+  {
+   "file": "s0343_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 24136,
+   "z": 34600,
+   "loaded": true
+  },
+  {
+   "file": "s0355_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Jeffrey Road",
+   "x": 31033,
+   "z": 31019,
+   "loaded": true
+  },
+  {
+   "file": "s0367_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Costa Mesa Freeway",
+   "x": 24913,
+   "z": 26986,
+   "loaded": true
+  },
+  {
+   "file": "s0367_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Costa Mesa Freeway",
+   "x": 24913,
+   "z": 26986,
+   "loaded": true
+  },
+  {
+   "file": "s0379_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Garden Grove Freeway",
+   "x": 26829,
+   "z": 19307,
+   "loaded": true
+  },
+  {
+   "file": "s0391_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Campus Drive",
+   "x": 25459,
+   "z": 32878,
+   "loaded": true
+  },
+  {
+   "file": "s0391_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Campus Drive",
+   "x": 25459,
+   "z": 32878,
+   "loaded": true
+  },
+  {
+   "file": "s0403_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Aliso Creek Road",
+   "x": 37310,
+   "z": 44045,
+   "loaded": true
+  },
+  {
+   "file": "s0403_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Aliso Creek Road",
+   "x": 37310,
+   "z": 44045,
+   "loaded": true
+  },
+  {
+   "file": "s0415_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Santiago Canyon Road",
+   "x": 34519,
+   "z": 18928,
+   "loaded": true
+  },
+  {
+   "file": "s0415_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Santiago Canyon Road",
+   "x": 34519,
+   "z": 18928,
+   "loaded": true
+  },
+  {
+   "file": "s0427_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, West 1st Street",
+   "x": 19426,
+   "z": 22884,
+   "loaded": true
+  },
+  {
+   "file": "s0427_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, West 1st Street",
+   "x": 19426,
+   "z": 22884,
+   "loaded": true
+  },
+  {
+   "file": "s0439_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Pergola",
+   "x": 26934,
+   "z": 32225,
+   "loaded": true
+  },
+  {
+   "file": "s0451_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Laguna Canyon Road",
+   "x": 33321,
+   "z": 38210,
+   "loaded": true
+  },
+  {
+   "file": "s0451_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Laguna Canyon Road",
+   "x": 33321,
+   "z": 38210,
+   "loaded": true
+  },
+  {
+   "file": "s0463_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 31314,
+   "z": 38909,
+   "loaded": true
+  },
+  {
+   "file": "s0463_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 31314,
+   "z": 38909,
+   "loaded": true
+  },
+  {
+   "file": "s0475_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Crown Valley Parkway",
+   "x": 41156,
+   "z": 43786,
+   "loaded": true
+  },
+  {
+   "file": "s0475_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Crown Valley Parkway",
+   "x": 41156,
+   "z": 43786,
+   "loaded": true
+  },
+  {
+   "file": "s0487_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Jeffrey Road",
+   "x": 32640,
+   "z": 29053,
+   "loaded": true
+  },
+  {
+   "file": "s0487_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Jeffrey Road",
+   "x": 32640,
+   "z": 29053,
+   "loaded": true
+  },
+  {
+   "file": "s0499_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Pacific Coast Highway",
+   "x": 14812,
+   "z": 35399,
+   "loaded": true
+  },
+  {
+   "file": "s0499_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Pacific Coast Highway",
+   "x": 14812,
+   "z": 35399,
+   "loaded": true
+  },
+  {
+   "file": "s0511_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 34254,
+   "z": 40098,
+   "loaded": true
+  },
+  {
+   "file": "s0511_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 34254,
+   "z": 40098,
+   "loaded": true
+  },
+  {
+   "file": "s0523_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Los Alisos Boulevard",
+   "x": 40926,
+   "z": 36070,
+   "loaded": true
+  },
+  {
+   "file": "s0535_bridge_low.jpg",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, I 405 EXPR",
+   "x": 17193,
+   "z": 28443,
+   "loaded": true
+  },
+  {
+   "file": "s0535_bridge_high.jpg",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, I 405 EXPR",
+   "x": 17193,
+   "z": 28443,
+   "loaded": true
+  },
+  {
+   "file": "s0008_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 29051,
+   "z": 27567,
+   "loaded": true
+  },
+  {
+   "file": "s0020_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 38901,
+   "z": 42427,
+   "loaded": true
+  },
+  {
+   "file": "s0032_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Eastern Transportation Corridor",
+   "x": 35317,
+   "z": 28771,
+   "loaded": true
+  },
+  {
+   "file": "s0044_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 30474,
+   "z": 38595,
+   "loaded": true
+  },
+  {
+   "file": "s0044_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 30474,
+   "z": 38595,
+   "loaded": true
+  },
+  {
+   "file": "s0056_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 37943,
+   "z": 37091,
+   "loaded": true
+  },
+  {
+   "file": "s0056_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 37943,
+   "z": 37091,
+   "loaded": true
+  },
+  {
+   "file": "s0068_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Eastern Transportation Corridor",
+   "x": 34981,
+   "z": 18194,
+   "loaded": true
+  },
+  {
+   "file": "s0068_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Eastern Transportation Corridor",
+   "x": 34981,
+   "z": 18194,
+   "loaded": true
+  },
+  {
+   "file": "s0080_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 28548,
+   "z": 24391,
+   "loaded": true
+  },
+  {
+   "file": "s0092_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 36115,
+   "z": 40585,
+   "loaded": true
+  },
+  {
+   "file": "s0104_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Jamboree Road",
+   "x": 26657,
+   "z": 29301,
+   "loaded": true
+  },
+  {
+   "file": "s0116_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 31837,
+   "z": 24709,
+   "loaded": true
+  },
+  {
+   "file": "s0128_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Eastern Transportation Corridor",
+   "x": 35765,
+   "z": 17585,
+   "loaded": true
+  },
+  {
+   "file": "s0128_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Eastern Transportation Corridor",
+   "x": 35765,
+   "z": 17585,
+   "loaded": true
+  },
+  {
+   "file": "s0140_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 25271,
+   "z": 26509,
+   "loaded": true
+  },
+  {
+   "file": "s0152_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 39765,
+   "z": 28381,
+   "loaded": true
+  },
+  {
+   "file": "s0152_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 39765,
+   "z": 28381,
+   "loaded": true
+  },
+  {
+   "file": "s0164_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 23769,
+   "z": 29566,
+   "loaded": true
+  },
+  {
+   "file": "s0176_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 27172,
+   "z": 31202,
+   "loaded": true
+  },
+  {
+   "file": "s0188_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 27960,
+   "z": 37281,
+   "loaded": true
+  },
+  {
+   "file": "s0188_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 27960,
+   "z": 37281,
+   "loaded": true
+  },
+  {
+   "file": "s0200_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Costa Mesa Freeway",
+   "x": 26634,
+   "z": 13577,
+   "loaded": true
+  },
+  {
+   "file": "s0212_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Foothill Transportation Corridor",
+   "x": 36117,
+   "z": 22082,
+   "loaded": true
+  },
+  {
+   "file": "s0212_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Foothill Transportation Corridor",
+   "x": 36117,
+   "z": 22082,
+   "loaded": true
+  },
+  {
+   "file": "s0224_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Garden Grove Freeway",
+   "x": 17866,
+   "z": 20544,
+   "loaded": true
+  },
+  {
+   "file": "s0224_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Garden Grove Freeway",
+   "x": 17866,
+   "z": 20544,
+   "loaded": true
+  },
+  {
+   "file": "s0236_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 30689,
+   "z": 32083,
+   "loaded": true
+  },
+  {
+   "file": "s0248_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 22753,
+   "z": 29766,
+   "loaded": true
+  },
+  {
+   "file": "s0260_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 27456,
+   "z": 36706,
+   "loaded": true
+  },
+  {
+   "file": "s0260_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 27456,
+   "z": 36706,
+   "loaded": true
+  },
+  {
+   "file": "s0272_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Santa Ana Freeway",
+   "x": 24757,
+   "z": 21714,
+   "loaded": true
+  },
+  {
+   "file": "s0284_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 22536,
+   "z": 19140,
+   "loaded": true
+  },
+  {
+   "file": "s0296_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 32823,
+   "z": 23084,
+   "loaded": true
+  },
+  {
+   "file": "s0308_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, I 5 Truck",
+   "x": 36564,
+   "z": 35432,
+   "loaded": true
+  },
+  {
+   "file": "s0320_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Costa Mesa Freeway",
+   "x": 26728,
+   "z": 13877,
+   "loaded": true
+  },
+  {
+   "file": "s0332_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Costa Mesa Freeway",
+   "x": 26780,
+   "z": 16720,
+   "loaded": true
+  },
+  {
+   "file": "s0344_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 35385,
+   "z": 34018,
+   "loaded": true
+  },
+  {
+   "file": "s0344_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 35385,
+   "z": 34018,
+   "loaded": true
+  },
+  {
+   "file": "s0356_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Jamboree Road",
+   "x": 29312,
+   "z": 27266,
+   "loaded": true
+  },
+  {
+   "file": "s0368_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 38887,
+   "z": 42530,
+   "loaded": true
+  },
+  {
+   "file": "s0380_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Santa Ana Freeway",
+   "x": 33704,
+   "z": 30554,
+   "loaded": true
+  },
+  {
+   "file": "s0380_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Santa Ana Freeway",
+   "x": 33704,
+   "z": 30554,
+   "loaded": true
+  },
+  {
+   "file": "s0392_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 30587,
+   "z": 38650,
+   "loaded": true
+  },
+  {
+   "file": "s0392_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 30587,
+   "z": 38650,
+   "loaded": true
+  },
+  {
+   "file": "s0404_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 38377,
+   "z": 37524,
+   "loaded": true
+  },
+  {
+   "file": "s0416_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 34660,
+   "z": 18684,
+   "loaded": true
+  },
+  {
+   "file": "s0416_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 34660,
+   "z": 18684,
+   "loaded": true
+  },
+  {
+   "file": "s0428_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Santa Ana Freeway",
+   "x": 27875,
+   "z": 23901,
+   "loaded": true
+  },
+  {
+   "file": "s0440_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 38306,
+   "z": 41999,
+   "loaded": true
+  },
+  {
+   "file": "s0452_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Jamboree Road",
+   "x": 26833,
+   "z": 29097,
+   "loaded": true
+  },
+  {
+   "file": "s0464_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 31862,
+   "z": 24792,
+   "loaded": true
+  },
+  {
+   "file": "s0476_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Eastern Transportation Corridor",
+   "x": 35765,
+   "z": 17585,
+   "loaded": true
+  },
+  {
+   "file": "s0476_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Eastern Transportation Corridor",
+   "x": 35765,
+   "z": 17585,
+   "loaded": true
+  },
+  {
+   "file": "s0488_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 24993,
+   "z": 26898,
+   "loaded": true
+  },
+  {
+   "file": "s0500_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 41507,
+   "z": 30351,
+   "loaded": true
+  },
+  {
+   "file": "s0512_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 24316,
+   "z": 29826,
+   "loaded": true
+  },
+  {
+   "file": "s0512_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 24316,
+   "z": 29826,
+   "loaded": true
+  },
+  {
+   "file": "s0524_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 27904,
+   "z": 31456,
+   "loaded": true
+  },
+  {
+   "file": "s0536_freeway_low.jpg",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 28221,
+   "z": 37797,
+   "loaded": true
+  },
+  {
+   "file": "s0536_freeway_high.jpg",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 28221,
+   "z": 37797,
+   "loaded": true
+  },
+  {
+   "file": "s0009_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, 4th Avenue",
+   "x": 23315,
+   "z": 39164,
+   "loaded": true
+  },
+  {
+   "file": "s0021_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, South Nakoma Drive",
+   "x": 19618,
+   "z": 23605,
+   "loaded": true
+  },
+  {
+   "file": "s0033_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, North Hathaway Street",
+   "x": 24782,
+   "z": 22791,
+   "loaded": true
+  },
+  {
+   "file": "s0033_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, North Hathaway Street",
+   "x": 24782,
+   "z": 22791,
+   "loaded": true
+  },
+  {
+   "file": "s0045_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Canadian Drive",
+   "x": 21359,
+   "z": 29570,
+   "loaded": true
+  },
+  {
+   "file": "s0057_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Poinsettia Avenue",
+   "x": 23330,
+   "z": 39840,
+   "loaded": true
+  },
+  {
+   "file": "s0057_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Poinsettia Avenue",
+   "x": 23330,
+   "z": 39840,
+   "loaded": true
+  },
+  {
+   "file": "s0069_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, North Highland Street",
+   "x": 26649,
+   "z": 16188,
+   "loaded": true
+  },
+  {
+   "file": "s0081_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Cielo Azul",
+   "x": 46351,
+   "z": 31014,
+   "loaded": true
+  },
+  {
+   "file": "s0081_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Cielo Azul",
+   "x": 46351,
+   "z": 31014,
+   "loaded": true
+  },
+  {
+   "file": "s0093_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, West Freedom Avenue",
+   "x": 24222,
+   "z": 13715,
+   "loaded": true
+  },
+  {
+   "file": "s0093_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, West Freedom Avenue",
+   "x": 24222,
+   "z": 13715,
+   "loaded": true
+  },
+  {
+   "file": "s0105_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Del Monte Street",
+   "x": 39578,
+   "z": 40600,
+   "loaded": true
+  },
+  {
+   "file": "s0117_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Modjeska Grade Road",
+   "x": 44631,
+   "z": 27200,
+   "loaded": true
+  },
+  {
+   "file": "s0117_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Modjeska Grade Road",
+   "x": 44631,
+   "z": 27200,
+   "loaded": true
+  },
+  {
+   "file": "s0129_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Riverbend Parkway",
+   "x": 24736,
+   "z": 12283,
+   "loaded": true
+  },
+  {
+   "file": "s0141_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, East Estate Ridge Road",
+   "x": 30041,
+   "z": 12433,
+   "loaded": true
+  },
+  {
+   "file": "s0153_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, unnamed road",
+   "x": 37496,
+   "z": 23869,
+   "loaded": true
+  },
+  {
+   "file": "s0153_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, unnamed road",
+   "x": 37496,
+   "z": 23869,
+   "loaded": true
+  },
+  {
+   "file": "s0165_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Marseilles Way",
+   "x": 21106,
+   "z": 33228,
+   "loaded": true
+  },
+  {
+   "file": "s0177_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Jola Avenue",
+   "x": 17637,
+   "z": 20655,
+   "loaded": true
+  },
+  {
+   "file": "s0177_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Jola Avenue",
+   "x": 17637,
+   "z": 20655,
+   "loaded": true
+  },
+  {
+   "file": "s0189_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Spectrum",
+   "x": 34086,
+   "z": 33144,
+   "loaded": true
+  },
+  {
+   "file": "s0189_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Spectrum",
+   "x": 34086,
+   "z": 33144,
+   "loaded": true
+  },
+  {
+   "file": "s0201_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Daimler Street",
+   "x": 24363,
+   "z": 28075,
+   "loaded": true
+  },
+  {
+   "file": "s0201_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Daimler Street",
+   "x": 24363,
+   "z": 28075,
+   "loaded": true
+  },
+  {
+   "file": "s0213_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Ruth Circle",
+   "x": 22262,
+   "z": 20933,
+   "loaded": true
+  },
+  {
+   "file": "s0225_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, East Bellamy Avenue",
+   "x": 23545,
+   "z": 12560,
+   "loaded": true
+  },
+  {
+   "file": "s0225_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, East Bellamy Avenue",
+   "x": 23545,
+   "z": 12560,
+   "loaded": true
+  },
+  {
+   "file": "s0237_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, West Braden Court",
+   "x": 23387,
+   "z": 17122,
+   "loaded": true
+  },
+  {
+   "file": "s0237_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, West Braden Court",
+   "x": 23387,
+   "z": 17122,
+   "loaded": true
+  },
+  {
+   "file": "s0249_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Starlight",
+   "x": 29660,
+   "z": 35130,
+   "loaded": true
+  },
+  {
+   "file": "s0261_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, East Van Bibber Avenue",
+   "x": 25701,
+   "z": 18669,
+   "loaded": true
+  },
+  {
+   "file": "s0273_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Anaheim Avenue",
+   "x": 18261,
+   "z": 34148,
+   "loaded": true
+  },
+  {
+   "file": "s0285_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, East Swarthmore Drive",
+   "x": 33775,
+   "z": 13051,
+   "loaded": true
+  },
+  {
+   "file": "s0297_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, East Golf Glen Drive",
+   "x": 32969,
+   "z": 12578,
+   "loaded": true
+  },
+  {
+   "file": "s0309_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Palm Street",
+   "x": 20320,
+   "z": 38835,
+   "loaded": true
+  },
+  {
+   "file": "s0321_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, West Grove Avenue",
+   "x": 23600,
+   "z": 14641,
+   "loaded": true
+  },
+  {
+   "file": "s0321_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, West Grove Avenue",
+   "x": 23600,
+   "z": 14641,
+   "loaded": true
+  },
+  {
+   "file": "s0333_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, unnamed road",
+   "x": 26955,
+   "z": 42511,
+   "loaded": true
+  },
+  {
+   "file": "s0345_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Bent Twig Lane",
+   "x": 29634,
+   "z": 23689,
+   "loaded": true
+  },
+  {
+   "file": "s0357_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Salton",
+   "x": 31910,
+   "z": 25999,
+   "loaded": true
+  },
+  {
+   "file": "s0369_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Hillshire",
+   "x": 35315,
+   "z": 25194,
+   "loaded": true
+  },
+  {
+   "file": "s0381_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Valia",
+   "x": 42886,
+   "z": 33842,
+   "loaded": true
+  },
+  {
+   "file": "s0393_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, East Woodwind Avenue",
+   "x": 32921,
+   "z": 18172,
+   "loaded": true
+  },
+  {
+   "file": "s0405_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, East Cedarbrooks Road",
+   "x": 31067,
+   "z": 13938,
+   "loaded": true
+  },
+  {
+   "file": "s0417_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Shadyridge Drive",
+   "x": 31854,
+   "z": 19744,
+   "loaded": true
+  },
+  {
+   "file": "s0429_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Banyan",
+   "x": 41790,
+   "z": 29685,
+   "loaded": true
+  },
+  {
+   "file": "s0441_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Fallingleaf Street",
+   "x": 19672,
+   "z": 18376,
+   "loaded": true
+  },
+  {
+   "file": "s0441_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Fallingleaf Street",
+   "x": 19672,
+   "z": 18376,
+   "loaded": true
+  },
+  {
+   "file": "s0453_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Starlight Circle",
+   "x": 20789,
+   "z": 35256,
+   "loaded": true
+  },
+  {
+   "file": "s0465_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Canyon Acres Drive",
+   "x": 32082,
+   "z": 44308,
+   "loaded": true
+  },
+  {
+   "file": "s0465_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Canyon Acres Drive",
+   "x": 32082,
+   "z": 44308,
+   "loaded": true
+  },
+  {
+   "file": "s0477_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Hillview Drive",
+   "x": 33312,
+   "z": 44719,
+   "loaded": true
+  },
+  {
+   "file": "s0489_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Hollyleaf",
+   "x": 34727,
+   "z": 40617,
+   "loaded": true
+  },
+  {
+   "file": "s0501_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Golf Drive",
+   "x": 36602,
+   "z": 39303,
+   "loaded": true
+  },
+  {
+   "file": "s0513_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Princess Pine",
+   "x": 38890,
+   "z": 29447,
+   "loaded": true
+  },
+  {
+   "file": "s0525_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Jetty Drive",
+   "x": 20335,
+   "z": 20344,
+   "loaded": true
+  },
+  {
+   "file": "s0537_residential_low.jpg",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Ocean Way",
+   "x": 32278,
+   "z": 47043,
+   "loaded": true
+  },
+  {
+   "file": "s0537_residential_high.jpg",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Ocean Way",
+   "x": 32278,
+   "z": 47043,
+   "loaded": true
+  }
+ ]
+}
