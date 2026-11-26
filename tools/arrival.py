@@ -260,7 +260,9 @@ class Graph:
                 d = s or self._on_street(x, z, want, k, DIR_REACH, fuzzy)
                 if d is not None: toward = (d[3], d[4])
         if best is None:
-            best, _ = self.nearest(x, z, toward)
+            near = self.nearest(x, z, toward)
+            if not near or near[0] is None: return None   # no road in range (scattered chunks)
+            best = near[0]
         d, i, t, px, pz, how = best
         a, b = self.edges[i][0], self.edges[i][1]
         L = math.dist(self.nodes[a], self.nodes[b])

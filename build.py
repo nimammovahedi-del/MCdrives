@@ -306,8 +306,10 @@ def join_places(info, node_map, roads, area_size, log=print):
     A = arrival.Graph(roads)
     for it in items:
         if len(it) > 6:   # the node at the arrival point's edge in the joined graph (the arrival point is on a road)
-            r = A.snap(it[6][0], it[6][1], None); e = roads["edges"][r["edge"]]
-            it[4] = r["node"] if r["node"] is not None else (e[0] if r["t"] < 0.5 else e[1])
+            r = A.snap(it[6][0], it[6][1], None)
+            if r is not None:
+                e = roads["edges"][r["edge"]]
+                it[4] = r["node"] if r["node"] is not None else (e[0] if r["t"] < 0.5 else e[1])
         if it[4] is None: it[4] = snap(it[2], it[3])
     rows = places.dedupe(items, key=lambda it: (it[4] is not None, len(it[5])))
     rows.sort(key=lambda r: (r[0].lower(), r[2], r[3]))
