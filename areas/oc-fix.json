@@ -52,5 +52,6 @@
     "bucket": "mcmaps-world",
     "url": "https://mcmaps-data.immigration-605.workers.dev/",
     "keep": 2
-  }
+  },
+  "roads_as_baked": true
 }

@@ -27,6 +27,7 @@ OSM = sys.argv[sys.argv.index('--osm') + 1] if '--osm' in sys.argv else None
 GRADE_ONLY = '--grade-only' in sys.argv   # debugging: stop after the re-grade, writing its stats and top maps
 # --bounds S,W,N,E: the chunk's own bbox without build.py's lap, where it meets its neighbours (road_grade.py boundaries())
 BOUNDS = tuple(float(v) for v in sys.argv[sys.argv.index('--bounds') + 1].split(',')) if '--bounds' in sys.argv else None
+NO_GRADE = '--no-regrade' in sys.argv   # keep road surfaces as baked, while the OSM data still serves the roofs
 NO_ROOFS = '--no-flat-roofs' in sys.argv   # leave Arnis's flat roofs as baked (see flat_roofs())
 PACK, MARGIN = 512, 64
 TILE = 64
@@ -327,7 +328,7 @@ def regrade():
         shutil.rmtree(TMP, ignore_errors=True)
         sys.exit(0)
 
-if OSM: regrade()
+if OSM and not NO_GRADE: regrade()
 # A face is drawn when the neighbour is air, or a see-through block of a different material.
 see = np.zeros(256, dtype=bool); see[0] = True
 for i, (_, _, k) in enumerate(MATS):

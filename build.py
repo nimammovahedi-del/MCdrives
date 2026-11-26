@@ -517,7 +517,7 @@ def join(area, chunks, out, seam_tol=6, log=print, sew_seams=True):
         rparts = [(i["id"], i["dx"], i["dz"], json.loads((i["dir"] / "roads.json").read_text()))
                   for i in info if (i["dir"] / "roads.json").exists()]
         sroads = None
-        if len(rparts) == len(info):
+        if len(rparts) == len(info) and not area.get("roads_as_baked"):
             g, _, _ = join_roads(rparts, (psx, psz), seam_tol, log=lambda *a: None)
             sroads = dict(g, nodes=[[x - minx, z - minz] for x, z in g["nodes"]])
         edits, seam_stats = seams.sew(info, read_pack, read_h, log, roads=sroads)
@@ -737,6 +737,8 @@ def build_chunk(area, chunk, args, work, overhang=0):
         # the chunk's own bbox (without the lap), where roads crossing into a neighbour are held to levels both work out
         own = next((c["bbox"] for c in split(area["bbox"], area.get("max_chunk_km2", 4))[0] if c["id"] == chunk["id"]), None)
         if grade and own and chunk["id"] != "all": grade += ["--bounds", ",".join(f"{v:.6f}" for v in own)]
+        # "roads_as_baked": road surfaces stay as Arnis laid them (no re-grade here, no lift at seams in join())
+        if grade and area.get("roads_as_baked"): grade += ["--no-regrade"]
         run([sys.executable, ROOT / "tools" / "mca2web.py", world_dir(), data] + (["--b64"] if args.b64 else []) + grade, log)
         times["convert"] = time.time() - times["convert"]
 
