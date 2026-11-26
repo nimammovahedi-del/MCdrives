@@ -1,0 +1,37 @@
+{
+  "name": "Orange County (audit fixes)",
+  "slug": "oc-fix",
+  "bbox": [
+    33.38,
+    -118.12,
+    33.95,
+    -117.41
+  ],
+  "lidar": true,
+  "max_chunk_km2": 6,
+  "conformal": true,
+  "arnis_args": [
+    "--lidar-max-mb",
+    "4000"
+  ],
+  "private_roads": true,
+  "enrich": [
+    "roof_colour"
+  ],
+  "keep": [
+    "r16c14",
+    "r17c14",
+    "r9c13",
+    "r11c6",
+    "r11c7",
+    "r18c8",
+    "r14c10",
+    "r14c7",
+    "r9c9"
+  ],
+  "r2": {
+    "bucket": "mcmaps-world",
+    "url": "https://mcmaps-data.immigration-605.workers.dev/",
+    "keep": 2
+  }
+}
