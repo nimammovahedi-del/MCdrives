@@ -41,6 +41,7 @@ import { createPainter, createMapView } from './drive/mapview.js';
 import { fmtDist } from './drive/hud.js';
 import { createTraffic, incidentIcon, geoFrame } from './drive/traffic.js';
 import { createArrival } from './drive/arrival.js';
+import { createGps } from './drive/gps.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -49,9 +50,12 @@ if (meta.name) { document.getElementById('areaname').textContent = meta.name + '
 const G = await (await fetch('roads.json')).json();
 
 // Binary data is plain .bin, or base64 inside JSON for hosts that only serve text types.
+// meta.base: where the packs, height tiles and map tiles live when they are too large for this host (an address
+// ending in '/', e.g. object storage); the small files (meta, roads, places, addresses) stay next to the page.
+const BASE = meta.base ?? '';
 async function loadBin(name) {
-  if (meta.ext === 'bin') return (await fetch(`data/${name}.bin`)).arrayBuffer();
-  const { base64 } = await (await fetch(`data/${name}.json`)).json();
+  if (meta.ext === 'bin') return (await fetch(`${BASE}data/${name}.bin`)).arrayBuffer();
+  const { base64 } = await (await fetch(`${BASE}data/${name}.json`)).json();
   const bin = atob(base64), out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out.buffer;
@@ -553,12 +557,20 @@ function label(text, hot) {
 }
 const labels = [], LABEL_H = 0.032; // sprite height as a fraction of the view height
 {
-  const placed = [];
+  // labels already placed, bucketed by 180-block cell: the spacing checks look at the 3 x 3 cells around a spot
+  // (a plain list made this quadratic: half a minute on a phone for a county-sized road graph)
+  const placed = new Map(), PC = 180, pkey = (i, j) => i * 65536 + j;
+  const crowded = (nm, mid) => {
+    const i0 = Math.floor(mid.x / PC), j0 = Math.floor(mid.z / PC);
+    for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++)
+      for (const p of placed.get(pkey(i, j)) ?? []) { const d = p.mid.distanceTo(mid); if (d < 40 || (p.nm === nm && d < 180)) return true; }
+    return false;
+  };
   for (const [a, b, nm, cl] of G.edges) {
     const name = G.names[nm]; if (!name || name === 'ramp' || cl > 6) continue;
     const mid = N[a].clone().lerp(N[b], 0.5), len = N[a].distanceTo(N[b]);
-    if (len < 25 || placed.some(p => p.nm === nm && p.mid.distanceTo(mid) < 180) || placed.some(p => p.mid.distanceTo(mid) < 40)) continue;
-    placed.push({ nm, mid });
+    if (len < 25 || crowded(nm, mid)) continue;
+    { const k = pkey(Math.floor(mid.x / PC), Math.floor(mid.z / PC)); let l = placed.get(k); if (!l) placed.set(k, l = []); l.push({ nm, mid }); }
     // sit on the kerb side of the road, not on its centre line
     const side = new THREE.Vector3(-(N[b].z - N[a].z) / len, 0, (N[b].x - N[a].x) / len).multiplyScalar(cl <= 3 ? 14 : 9);
     // its height is read the first time it comes in range with its height tiles loaded, and the sprites made when first shown
@@ -774,7 +786,7 @@ function pickAt(cx, cy) {
   placeAt(hitV.x, hitV.z);
 }
 // a new route starts where the car is now, not where the last trip began
-function hereNode() { if (trip) { const k = along(dist).k; curNode = trip.nodes[Math.min(k, trip.nodes.length - 1)]; } }
+function hereNode() { if (following) { const s = gps.startPoint(); if (s) { curNode = s.node ?? nodeAt(s); return; } } if (trip) { const k = along(dist).k; curNode = trip.nodes[Math.min(k, trip.nodes.length - 1)]; } }
 // from: start somewhere else instead of where the car is (directions from your location or another place); the car moves there
 async function go(node, name, vias = [], from = null) {
   chip.hide(); search.close(); sheet.toggle(false); dropPin.visible = false; mapView.pin = null;
@@ -791,7 +803,7 @@ function addStop(node, name) {
 }
 function endTrip() {
   if (!trip) return;
-  const k = along(dist).k; curNode = trip.nodes[Math.min(k, trip.nodes.length - 1)];
+  hereNode();
   trip = null; routeLine.clear(); pin.visible = false; turnMark.visible = false; speed = 0; setMode('nav');
 }
 
@@ -806,9 +818,10 @@ const mapBtns = createMapButtons(stageEl, {
   onMap: () => setMode(mode === 'map' ? 'nav' : 'map'),
   onExplore: () => setMode(mode === 'orbit' ? 'nav' : 'orbit'),
   onRecenter: () => { if (mode !== 'nav') setMode('nav'); else dcam.recenter(); },
+  onGps: navigator.geolocation ? () => setFollow(!following) : null,
 });
 const chip = createChip(stageEl);
-const painter = createPainter({ G, N, meta });
+const painter = createPainter({ G, N, meta, base: BASE });
 { let look = params.get('map'); try { look ??= localStorage.mcMapLook; } catch {} if (painter.hasDrawn && (look === 'blocks' || look === 'drawn')) painter.style = look; }
 const mapView = createMapView({ stage: stageEl, painter, labels, onTap: (x, z) => { if (dirs?.open) return; const it = nearestIncident(x, z, 7 * mapView.mpp); if (it) showIncident(it); else placeAt(x, z); } });
 const miniEl = document.createElement('div'); miniEl.id = 'minimap'; miniEl.className = 'panel'; miniEl.title = 'Open the map'; stageEl.append(miniEl);
@@ -894,8 +907,8 @@ const PLACE_KIND = { shop: ['Shop', 'shop store shopping'], food: ['Food and dri
   station: ['Station', 'station bus train transit'], school: ['School', 'school'], university: ['College', 'college university campus'],
   civic: ['Public building', 'library police fire post office government'], worship: ['Place of worship', 'church temple mosque synagogue'],
   neighbourhood: ['Neighborhood', 'neighborhood village'], other: ['Place', ''] };
-fetch('places.json').then(r => r.ok ? r.json() : []).then(rows => {
-  if (!rows.length) return;
+const placesLoaded = fetch('places.json').then(r => r.ok ? r.json() : []).then(rows => {
+  if (!rows.length) return [];
   const items = rows.map(([name, kind, x, z, node, aliases, point]) => {
     const [label, cats] = PLACE_KIND[kind] ?? PLACE_KIND.other;
     const nm = node != null ? adj[node]?.find(e => G.names[e.nm] && G.names[e.nm] !== 'ramp')?.nm : null;   // the street it is reached from
@@ -904,7 +917,8 @@ fetch('places.json').then(r => r.ok ? r.json() : []).then(rows => {
   // the built-in City Hall entry gives way to the map's own when it has one
   const has = new Set(items.map(it => it.name.toLowerCase()));
   search.setItems([...searchItems.filter(it => !has.has(it.name.toLowerCase())), ...items]);
-}).catch(() => {});
+  return items;
+}).catch(() => []);
 // ---------- your location: the browser asks the first time it is needed; inside the map it is a blue dot and a place to start from
 const geo = geoFrame(meta);
 let me = null, meWhy = '', geoPerm = navigator.geolocation ? 'prompt' : 'none';
@@ -936,8 +950,88 @@ async function showMe() {
 // rows above the results while nothing is typed
 const searchExtra = () => [
   { label: 'Directions', sub: 'From anywhere · drive time', icon: icon('route', '#5fd35b', '#bdf0b8'), fn: () => openDirs({}) },
-  ...(geoPerm === 'none' ? [] : [{ label: 'Your location', sub: me ? 'On the map' : 'Asks your browser', icon: icon('me', '#2f6fe0', '#9cc2ff'), fn: showMe }]),
+  ...(geoPerm === 'none' ? [] : [{ label: 'Your location', sub: me ? 'On the map' : 'Asks your browser', icon: icon('me', '#2f6fe0', '#9cc2ff'), fn: showMe },
+    { label: following ? 'Stop following my location' : 'Drive with my location', sub: following ? 'The car goes back to demo driving' : 'The car follows you as you drive', icon: icon('drive', '#5fd35b', '#bdf0b8'), fn: () => { search.close(); setFollow(!following); } }]),
 ];
+
+// ---------- live location driving: the car follows the phone's GPS (web/drive/gps.js)
+// The car, its speed and the guidance come from the phone instead of the demo drive. With a trip, the position is
+// projected onto the route (the HUD counts down to real turns); a few seconds off the route starts a new one from
+// where you are. Outside the map the car stays parked and the panel says how far away you are.
+const gps = createGps({ G, N, adj, geo });
+let following = false, offSince = 0, offFrom = 0, lastReroute = 0, rerouting = false, liveOnRoute = false, gbStamp = 0;
+const gpsBox = document.createElement('div'); gpsBox.id = 'gpsBox'; gpsBox.className = 'panel';
+gpsBox.innerHTML = '<div class="gb-spd slot grey"><b class="t">0</b><i class="t"></i></div><div class="gb-t"><b class="gb-road t"></b><small class="gb-st t"></small></div><button class="mb gb-x" aria-label="Stop following my location"></button>';
+gpsBox.querySelector('.gb-x').append(icon('close')); gpsBox.querySelector('.gb-x').onclick = () => setFollow(false);
+stageEl.append(gpsBox);
+function setFollow(on) {
+  if (on === following) return;
+  if (on) {
+    if (!gps.start()) return chip.show({ icon: icon('me', '#2f6fe0', '#9cc2ff'), title: 'Location not available', sub: gps.state().why, actions: [{ label: 'Close', fn: () => chip.hide() }] });
+    following = true; offSince = 0; if (mode !== 'nav') setMode('nav'); snap = true;
+  } else { hereNode(); gps.stop(); following = false; paused = !!trip; $('pause').firstChild.textContent = paused ? 'Resume' : 'Pause'; }
+  document.body.classList.toggle('following', following); btnKey = ''; gbStamp = 0; dirty = true;
+  whereTo.querySelector('small').textContent = following ? 'Following your location' : 'Stopped where you were';
+}
+gps.onChange(st => {
+  if (st.status === 'denied' || st.status === 'unsupported') {
+    following = false; document.body.classList.remove('following'); btnKey = '';
+    chip.show({ icon: icon('me', '#2f6fe0', '#9cc2ff'), title: 'Location not available', sub: st.why, actions: [{ label: 'Close', fn: () => chip.hide() }] });
+  }
+  if (st.raw && (st.status === 'ok' || st.status === 'weak')) { me = { x: st.raw.x, z: st.raw.z, acc: st.acc, t: Date.now() }; mapView.me = me; mapView.markDirty(); mini.markDirty(); }
+  gbStamp = 0;
+});
+// distance along the trip nearest (x, z), looking a little back and well ahead of d0; off: metres from the route
+function projectTrip(x, z, d0) {
+  let best = null;
+  for (let k = 1; k < trip.pts.length; k++) {
+    if (trip.cum[k] < d0 - 40) continue; if (trip.cum[k - 1] > d0 + 400) break;
+    const A = trip.pts[k - 1], B = trip.pts[k], dx = B.x - A.x, dz = B.z - A.z, l2 = dx * dx + dz * dz || 1;
+    const t = Math.max(0, Math.min(1, ((x - A.x) * dx + (z - A.z) * dz) / l2)), off = Math.hypot(x - A.x - t * dx, z - A.z - t * dz);
+    if (!best || off < best.off - 0.5) best = { d: trip.cum[k - 1] + t * Math.sqrt(l2), off };
+  }
+  return best;
+}
+async function liveReroute() {
+  if (!trip || rerouting) return;
+  rerouting = true; lastReroute = performance.now(); window.__reroutes = (window.__reroutes ?? 0) + 1;
+  const left = trip.stops.filter(v => v.at > dist + 5).map(({ node, name }) => ({ node, name }));
+  try { await go(trip.target ?? trip.toNode, trip.destName, left); } finally { rerouting = false; offSince = 0; offFrom = 0; }
+}
+// put the car where the phone is
+function livePose(g, dt) {
+  let y = NaN, x = g.x, z = g.z; liveOnRoute = false;
+  if (trip) {
+    const pr = projectTrip(x, z, dist), tol = Math.max(25, Math.min(50, g.acc || 0));
+    if (pr && pr.off < tol) { dist = Math.max(0, Math.min(trip.L, pr.d)); offSince = 0; offFrom = 0; liveOnRoute = true; }
+    // just starting: the route begins at the node ahead, so the car may still be short of it
+    else if (dist < 1 && Math.hypot(x - trip.pts[0].x, z - trip.pts[0].z) < 150) { offSince = 0; offFrom = 0; }
+    // wall-clock time off the route (a slow phone may draw only a few frames a second)
+    else if (g.speed > 2) { const t = performance.now(); offFrom ||= t; offSince = (t - offFrom) / 1000; if (offSince > 4 && t - lastReroute > 8000) liveReroute(); }
+    speed = g.speed;
+    if (liveOnRoute) { const q = along(dist).p; x = q.x; z = q.z; y = yAt(dist); }
+  }
+  if (isNaN(y)) {
+    y = smoothY(x, z, g.edge != null && !!G.edges[g.edge][6]);
+    if (isNaN(y)) { if (!hReady(x, z)) packsNear(x, z, 2).forEach(hload); y = car.position.y || 1; }
+  }
+  if (Math.hypot(x - car.position.x, z - car.position.z) > 0.01 || car.rotation.y !== g.yaw) dirty = true;
+  car.position.set(x, y, z); car.rotation.set(0, g.yaw, 0); heading = g.yaw;
+}
+const GB_ST = { waiting: 'Finding you…', lost: 'GPS signal lost', unsupported: 'This browser cannot share your location' };
+function updateGpsBox(now, live) {
+  const show = following && mode === 'nav' && (!trip || !live || gps.status !== 'ok');
+  gpsBox.classList.toggle('show', show); gpsBox.classList.toggle('slim', !!trip);
+  if (!show || now - gbStamp < 250) return; gbStamp = now;
+  const st = gps.state(), mph = units === 'metric' ? 3.6 : 2.23694;
+  gpsBox.querySelector('.gb-spd b').textContent = live ? Math.round(live.speed * mph) : '–';
+  gpsBox.querySelector('.gb-spd i').textContent = units === 'metric' ? 'km/h' : 'mph';
+  const nm = live?.edge != null ? G.names[G.edges[live.edge][2]] : '';
+  gpsBox.querySelector('.gb-road').textContent = st.status === 'outside' ? 'Outside the map' : nm && nm !== 'ramp' ? roadName(nm) : live ? (live.onRoad ? 'On the road' : 'Off the road') : 'Live location';
+  gpsBox.querySelector('.gb-st').textContent = st.status === 'outside' ? `You are ${fmtD(st.why)} outside ${meta.name ?? 'this map'}. The car waits here.`
+    : st.status === 'weak' ? `Weak GPS (±${fmtD(st.acc)})` : st.status === 'ok' ? `Following you · GPS ±${fmtD(st.acc)}` : GB_ST[st.status] ?? st.why ?? '';
+  gpsBox.classList.toggle('warn', st.status !== 'ok');
+}
 
 // ---------- directions: from anywhere to anywhere, with the drive time before you go
 // an end is { label, sub?, kind?: 'me' | 'car', node?, pos? }
@@ -1059,6 +1153,9 @@ function frame(now = performance.now()) {
   if (FPS < 60 && now - lastFrame < 1000 / FPS - 2) return;   // frame cap
   lastFrame = now;
   const dt = Math.min(clock.getDelta(), 0.1);
+  const live = following ? gps.step(dt) : null;
+  if (live) livePose(live, dt);
+  updateGpsBox(now, live);
   if (trip) {
     const here = along(dist), next = trip.steps.find(s => s.at > dist + 0.5) ?? trip.steps[trip.steps.length - 1];
     const toNext = Math.max(0, next.at - dist);
@@ -1066,40 +1163,46 @@ function frame(now = performance.now()) {
     let target = Math.max(4, edgeSpeed(trip.edges[Math.min(here.k - 1, trip.edges.length - 1)]));
     if (next.kind !== 'straight' && toNext < 70) target = Math.min(target, 6 + toNext * 0.2);
     if (paused || dist >= trip.L) target = 0;
-    speed += Math.max(-9 * dt, Math.min(4 * dt, target - speed));
-    dist = Math.min(trip.L, dist + speed * dt);
+    // live location: livePose has already placed the car and set dist and speed from the phone
+    // (until the first fix the car waits where it is)
+    if (!following) {
+      speed += Math.max(-9 * dt, Math.min(4 * dt, target - speed));
+      dist = Math.min(trip.L, dist + speed * dt);
+    } else if (!live) speed = 0;
     if (frozen) { dist = frozen.d; speed = frozen.v; }   // test hook: hold the car still for screenshots
     if (routeLine.update(dt, dist)) dirty = true; // trims the part already driven; chevrons creep forward
-    const { p } = along(dist), ahead = along(dist + 8).p;
-    p.y = yAt(dist); car.position.copy(p);
-    if (ahead.distanceTo(new THREE.Vector3(p.x, 0, p.z)) > 0.5) {
+    const p = following ? car.position.clone() : along(dist).p, ahead = along(dist + 8).p;
+    if (!following) { p.y = yAt(dist); car.position.copy(p); }
+    if (!following && ahead.distanceTo(new THREE.Vector3(p.x, 0, p.z)) > 0.5) {
       const want = Math.atan2(-(ahead.x - p.x), -(ahead.z - p.z));
       let dh = want - heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
       heading = snap ? want : heading + dh * (1 - Math.exp(-dt * 3));
       car.rotation.set(0, want, 0);
     }
-    if (dist >= trip.L - 0.5 && speed < 0.2) curNode = trip.toNode;
+    const endTol = following ? 15 : 0.5;   // GPS stops are rarely exactly on the point
+    if (dist >= trip.L - endTol && speed < 0.2) curNode = trip.toNode;
     if (mode === 'nav') {
       const ahead2 = along(dist + 20); const dir = ahead2.p.clone().sub(p).setY(0);
+      if (following && !liveOnRoute) dir.set(0, 0, 0);   // off the route: look where the car points
       if (dir.lengthSq() < 0.01) dir.set(-Math.sin(heading), 0, -Math.cos(heading)); else dir.normalize();
       if (snap) { dcam.snap = true; snap = false; }
       dcam.update(dt, { p, dir, speed, toNext, nextKind: next.kind, turnPoint: next.point, outDir: next.out });
       const i = trip.steps.indexOf(next), after = trip.steps[i + 1];
-      const arrived = dist >= trip.L - 0.5;
+      const arrived = dist >= trip.L - endTol;
       const k = here.k, frac = (dist - trip.cum[k - 1]) / ((trip.cum[k] - trip.cum[k - 1]) || 1);
       const tNow = trip.tcum[k - 1] + (trip.tcum[k] - trip.tcum[k - 1]) * Math.min(1, Math.max(0, frac));
       const lim = trip.edges[Math.min(k - 1, trip.edges.length - 1)][6];
       hud.update({
         kind: next.kind, name: next.name, toNext,
         then: after && after.at - next.at < 260 && next.kind !== 'arrive' ? { kind: after.kind, name: after.name } : null,
-        speed, limit: lim || null, left: trip.L - dist, leftSec: trip.T - tNow, progress: dist / trip.L, arrived, rerouting: false, side: next.kind === 'arrive' ? next.side : null,
+        speed, limit: lim || null, left: trip.L - dist, leftSec: trip.T - tNow, progress: dist / trip.L, arrived, rerouting: rerouting || (following && offSince > 1.5), side: next.kind === 'arrive' ? next.side : null,
       });
     }
   }
   if (!trip && mode === 'nav') {
     if (snap) { dcam.snap = true; snap = false; }
     const ry = car.rotation.y; parkDir.set(-Math.sin(ry), 0, -Math.cos(ry));
-    dcam.update(dt, { p: car.position, dir: parkDir, speed: 0, toNext: 1e9, nextKind: null, turnPoint: null, outDir: null });
+    dcam.update(dt, { p: car.position, dir: parkDir, speed: live?.speed ?? 0, toNext: 1e9, nextKind: null, turnPoint: null, outDir: null });
   }
   if (mode === 'walk') {
     const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)), right = new THREE.Vector3(-fwd.z, 0, fwd.x);
@@ -1123,7 +1226,7 @@ function frame(now = performance.now()) {
   focus.copy(mode === 'walk' ? walkPos : mode === 'orbit' ? orbit.target : car.position); stream(focus);
   sky.update(dt, camera);
   animateVehicle(vehicle, now / 1000);
-  { const k = mode + (dcam.lookingAround ? 1 : 0); if (k !== btnKey) { btnKey = k; mapBtns.set({ mode, looking: dcam.lookingAround }); applyLayoutSoon(); } }
+  { const k = mode + (dcam.lookingAround ? 1 : 0) + (following ? 'g' : ''); if (k !== btnKey) { btnKey = k; mapBtns.set({ mode, looking: dcam.lookingAround, gps: following }); applyLayoutSoon(); } }
   {
     let curNm = -1, nextNm = -1; turnMark.visible = false;
     if (trip) {
@@ -1166,10 +1269,23 @@ await park();
 const wanted = params.has('to') ? dests.findIndex(d => d.name === params.get('to')) : -1;
 if (wanted >= 0) { $('dest').value = wanted; if (!await startTrip(dests[wanted].node)) await randomTrip(); }
 else if (params.get('trip') === 'random') await randomTrip();
-makeHud(); setMode(params.get('mode') ?? 'nav'); applyLayout();
+makeHud();
+{ // ?mode=orbit (the homepage's View Map): start Explore from a wide view over the car. The drive camera has not
+  // placed itself yet at this point, so picking up from it (what a switch from driving does) starts inside a building.
+  const m0 = params.get('mode') ?? 'nav';
+  if (m0 === 'orbit') { mode = 'walk'; setMode('orbit'); camera.position.set(car.position.x - 330, car.position.y + 510, car.position.z + 450); orbit.update(); }
+  else setMode(m0);
+}
+// ?place=<name> (the How It Works search card): open Directions to that place, as picking it in search would
+if (params.has('place') && !trip) placesLoaded.then(items => {
+  const it = items.find(i => i.name === params.get('place'));
+  if (it) openDirs({ to: { label: it.name, sub: it.kind, pos: it.pos, at: { node: it.node ?? undefined, kind: it.kind, point: it.point } } });
+});
+applyLayout();
+if (params.get('gps') === '1') setFollow(true);
 window.__api = { startTrip, randomTrip, along, groundY, smoothY, yAt, loadHeights: (x, z, r = 0) => Promise.all(packsNear(x, z, r).map(hload)), dests, trip: () => trip, setStart: n => { curNode = n; }, nodes: N, names: G.names };
 let frozen = null; window.__freeze = (d, v = 13) => { frozen = d == null ? null : { d, v }; snap = true; };
-window.__traffic = () => traffic; window.__dcam = dcam; window.__map = mapView; window.__ui = { dirData: () => dirData, search, sheet, chip, placeAt, go, endTrip, setVehicle, dirs, openDirs, locate, me: () => me, arrival, nodeAt }; window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
+window.__traffic = () => traffic; window.__dcam = dcam; window.__map = mapView; window.__ui = { dirData: () => dirData, search, sheet, chip, placeAt, go, endTrip, setVehicle, dirs, openDirs, locate, me: () => me, arrival, nodeAt }; window.__setMode = setMode; window.__gps = { gps, geo, setFollow, following: () => following, dist: () => dist, onRoute: () => liveOnRoute, dbg: () => ({ offSince, rerouting, live: gps.state(), car: [car.position.x, car.position.z] }) }; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
 frame();
 </script>
 </body>

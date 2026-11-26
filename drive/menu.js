@@ -25,17 +25,19 @@ export function icon(name, color = '#fff', light = 'rgba(255,255,255,.55)') {
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 
 // ---------- floating map buttons (right edge, above the trip bar)
-export function createMapButtons(stage, { onSearch, onMap, onExplore, onRecenter }) {
+export function createMapButtons(stage, { onSearch, onMap, onExplore, onRecenter, onGps }) {
   const wrap = h('div', 'mapbtns'); wrap.id = 'mapBtns';
   // each button says what it is under its icon
   const btn = (name, label, fn, word = label) => { const b = h('button', 'mb cap'); b.append(icon(name), h('span', 'cap-t', word)); b.title = label; b.setAttribute('aria-label', label); b.onclick = e => { e.stopPropagation(); fn(); }; wrap.append(b); return b; };
   const b = { search: btn('search', 'Search', onSearch), map: btn('map', 'Map', onMap), explore: btn('explore', 'Explore in 3D', onExplore, '3D') };
+  // live location: the car follows the phone while you drive
+  if (onGps) b.gps = btn('me', 'Drive with my location', onGps, 'GPS');
   const re = h('button', 'recenter'); re.id = 'recenter'; re.append(icon('recenter', '#fff'), h('span', null, 'Re-center')); re.onclick = e => { e.stopPropagation(); onRecenter(); };
   stage.append(wrap, re);
   return {
     el: wrap, recenter: re,
-    set({ mode, looking }) {
-      b.map.classList.toggle('on', mode === 'map'); b.explore.classList.toggle('on', mode === 'orbit');
+    set({ mode, looking, gps }) {
+      b.map.classList.toggle('on', mode === 'map'); b.explore.classList.toggle('on', mode === 'orbit'); b.gps?.classList.toggle('on', !!gps);
       re.classList.toggle('show', mode !== 'nav' || looking);
       re.lastChild.textContent = mode === 'nav' ? 'Re-center' : 'Back to driving';
     },
