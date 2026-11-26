@@ -1,0 +1,134 @@
+[
+ {
+  "label": "Foothill toll road gap",
+  "x": 36117,
+  "z": 22082,
+  "cat": "freeway",
+  "views": [
+   "low",
+   "high",
+   "top"
+  ]
+ },
+ {
+  "label": "Band through three roads",
+  "x": 34133,
+  "z": 40076,
+  "cat": "freeway",
+  "views": [
+   "low",
+   "high",
+   "top"
+  ]
+ },
+ {
+  "label": "PCH bridge approach",
+  "x": 14812,
+  "z": 35399,
+  "cat": "bridge",
+  "views": [
+   "low",
+   "high",
+   "top"
+  ]
+ },
+ {
+  "label": "Newport Blvd hump",
+  "x": 17713,
+  "z": 36723,
+  "cat": "bridge",
+  "views": [
+   "low",
+   "high",
+   "top"
+  ]
+ },
+ {
+  "label": "Newport Blvd hump 2",
+  "x": 17695,
+  "z": 36723,
+  "cat": "bridge",
+  "views": [
+   "low",
+   "high",
+   "top"
+  ]
+ },
+ {
+  "label": "West Chapman wall under overpass",
+  "x": 21544,
+  "z": 17946,
+  "cat": "junction",
+  "views": [
+   "low",
+   "high",
+   "top"
+  ]
+ },
+ {
+  "label": "I-405 split carriageway",
+  "x": 17193,
+  "z": 28443,
+  "cat": "bridge",
+  "views": [
+   "low",
+   "high",
+   "top"
+  ]
+ },
+ {
+  "label": "Costa Mesa Freeway stairs",
+  "x": 24913,
+  "z": 26986,
+  "cat": "bridge",
+  "views": [
+   "low",
+   "high",
+   "top"
+  ]
+ },
+ {
+  "label": "Costa Mesa Freeway split",
+  "x": 24993,
+  "z": 26898,
+  "cat": "freeway",
+  "views": [
+   "low",
+   "high",
+   "top"
+  ]
+ },
+ {
+  "label": "West Coast Highway water line",
+  "x": 17117,
+  "z": 36653,
+  "cat": "seam",
+  "views": [
+   "low",
+   "high",
+   "top"
+  ]
+ },
+ {
+  "label": "Walls above roofs",
+  "x": 23266,
+  "z": 40056,
+  "cat": "junction",
+  "views": [
+   "low",
+   "high",
+   "top"
+  ]
+ },
+ {
+  "label": "East Lincoln bridge",
+  "x": 22034,
+  "z": 18611,
+  "cat": "bridge",
+  "views": [
+   "low",
+   "high",
+   "top"
+  ]
+ }
+]
