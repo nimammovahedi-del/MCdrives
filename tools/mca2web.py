@@ -19,6 +19,9 @@ import nbtlib
 
 WORLD, OUT = sys.argv[1], sys.argv[2]
 B64 = '--b64' in sys.argv[3:]
+# --osm OSM.json: the OSM data the world was baked from; road surfaces are then re-graded along it (road_grade.py)
+OSM = sys.argv[sys.argv.index('--osm') + 1] if '--osm' in sys.argv else None
+GRADE_ONLY = '--grade-only' in sys.argv   # debugging: stop after the re-grade, writing its stats and top maps
 PACK, MARGIN = 512, 64
 TILE = 64
 os.makedirs(OUT, exist_ok=True)
@@ -262,6 +265,62 @@ minx, minz, W, D = rx0 * PACK, rz0 * PACK, NX * PACK, NZ * PACK
 print(f"read {nchunks} chunks from {len(REG)} regions in {time.time()-t0:.1f}s; x {minx}..{minx+W} z {minz}..{minz+D} y {gminy}..{gmaxy}")
 
 kinds = np.array([0 if k == "air" else 1 if k == "solid" else 2 if k == "water" else 3 if k == "glass" else 4 for _, _, k in MATS], dtype=np.uint8)
+
+def regrade():
+    """Re-grades road surfaces along the OSM roads (see road_grade.py), in place in the region caches, so every window
+    that reads a region afterwards sees the same blocks."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import road_grade
+    tg = time.time()
+    lut = lambda names: np.isin(np.arange(256), [mat(*colour(n)) for n in names])
+    k256 = np.zeros(256, dtype=np.uint8); k256[:len(kinds)] = kinds
+    solid_lut = (k256 == 1) | (k256 == 3)
+    block_lut = solid_lut.copy()                      # what fills a block for headroom: not leaves, not water
+    carr_lut = lut(["gray_concrete_powder", "cyan_terracotta", "white_concrete", "yellow_concrete"])
+    gr = road_grade.Grader(W, D, H, log=print)
+    def padded(rx, rz):
+        z = np.load(os.path.join(TMP, f"{rx}_{rz}.npz"))
+        o = REG[(rx, rz)] - gminy; n = z["g"].shape[0]
+        out = []
+        for key in ("g", "dm", "ds"):
+            a = np.zeros((H,) + z[key].shape[1:], dtype=z[key].dtype); a[o:o + n] = z[key]; out.append(a)
+        return out, z["present"], o, n
+    for (rx, rz) in sorted(REG):
+        (g, dm, _), _, _, _ = padded(rx, rz)
+        gr.scan_region((rx - rx0) * PACK, (rz - rz0) * PACK, g, dm, solid_lut, carr_lut, block_lut)
+    print(f"road grade: scanned in {time.time() - tg:.1f}s", flush=True)
+    if GRADE_ONLY:
+        np.save(os.path.join(OUT, "grade_top_before.npy"), gr.lev[0])
+        np.savez(os.path.join(OUT, "grade_scan.npz"), lev=gr.lev, carr=gr.carr, ground=gr.ground, occ=gr.occ, WDH=np.array([W, D, H]))
+    st = gr.run(OSM, WORLD, (minx, minz))
+    fill_id, pave_id = mat(*colour("stone_bricks")), mat(*colour("gray_concrete_powder"))
+    nr = nc = 0
+    for (rx, rz) in sorted(REG):
+        (g, dm, ds), present, o, n = padded(rx, rz)
+        a, b = gr.apply_region((rx - rx0) * PACK, (rz - rz0) * PACK, g, dm, ds, fill_id, pave_id, carr_lut, block_lut)
+        nr += a; nc += b
+        if a or b:
+            # the stored y range may have to grow by what was raised
+            ys = np.flatnonzero((g != 0).any(axis=(1, 2)) | (dm != 0).any(axis=(1, 2)))
+            lo = min(o, int(ys[0]) // 16 * 16) if len(ys) else o
+            hi = max(o + n, -(-(int(ys[-1]) + 1) // 16) * 16) if len(ys) else o + n
+            np.savez_compressed(os.path.join(TMP, f"{rx}_{rz}.npz"), g=g[lo:hi], dm=dm[lo:hi], ds=ds[lo:hi], present=present)
+            REG[(rx, rz)] = gminy + lo
+            if GRADE_ONLY: gr.scan_region((rx - rx0) * PACK, (rz - rz0) * PACK, g, dm, solid_lut, carr_lut, block_lut)
+    st.update(blocks_raised=nr, blocks_carved=nc, seconds=round(time.time() - tg, 1))
+    print(f"road grade: applied at {time.time() - tg:.1f}s", flush=True)
+    print("road grade: " + ", ".join(f"{k} {v:,}" for k, v in st.items()), flush=True)
+    if GRADE_ONLY:
+        np.save(os.path.join(OUT, "grade_top_after.npy"), gr.lev[0])
+        np.savez(os.path.join(OUT, "grade_scan_after.npz"), lev=gr.lev, carr=gr.carr, ground=gr.ground, occ=gr.occ, WDH=np.array([W, D, H]))
+        json.dump(st, open(os.path.join(OUT, "grade_stats.json"), "w"))
+        json.dump({"mats": [[n, c, k] for n, c, k in MATS], "reg": {f"{k[0]}_{k[1]}": v for k, v in REG.items()}, "gminy": gminy},
+                  open(os.path.join(OUT, "grade_regions.json"), "w"))
+        shutil.rmtree(os.path.join(OUT, "grade_npz"), ignore_errors=True); shutil.copytree(TMP, os.path.join(OUT, "grade_npz"))
+        shutil.rmtree(TMP, ignore_errors=True)
+        sys.exit(0)
+
+if OSM: regrade()
 # A face is drawn when the neighbour is air, or a see-through block of a different material.
 see = np.zeros(256, dtype=bool); see[0] = True
 for i, (_, _, k) in enumerate(MATS):

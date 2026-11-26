@@ -574,10 +574,18 @@ function frame() {
   // window.__hold: stream and build, but do not draw. Under software GL a frame of a dense neighbourhood takes
   // seconds, which starves the mesh builds and makes page.screenshot time out; the audit draws once, in __shot.
   if (!window.__hold) renderer.render(scene, camera);
+  frames++;
   requestAnimationFrame(frame);
 }
 // one picture of the current view as a JPEG data URL, drawn on demand (the drawing buffer is preserved)
-window.__shot = (q = 0.82) => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', q); };
+// It waits for two passes of frame() first: the camera takes its pose from window.__free there, and a picture drawn
+// before that pass shows the previous spot under the new name.
+let frames = 0;
+window.__shot = async (q = 0.82) => {
+  const f0 = frames;
+  while (frames < f0 + 2) await new Promise(r => requestAnimationFrame(r));
+  renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', q);
+};
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 const wanted = dests.findIndex(d => d.name === (params.get('to') ?? 'Alton Parkway'));
 // ?notrip=1 (audit photos): no starting trip, whose height tiles along the whole route load before the page is ready
