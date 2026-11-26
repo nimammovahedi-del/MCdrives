@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<!-- A bare copy of the viewer for audit photos (tools/audit_shots.js): no HUD, and window.__free = {x, y, z, yaw, h, pitch}
+     puts the camera anywhere. Copy it next to a built site's index.html. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blockville</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #8ec5ff; font-family: system-ui, sans-serif; }
+  #ui { position: absolute; top: 12px; left: 12px; background: rgba(20,24,32,.85); color: #f2f2f2; padding: 10px 12px;
+        border-radius: 8px; font-size: 13px; line-height: 1.5; max-width: 300px; }
+  #ui button, #ui select { font: inherit; margin: 2px 2px 2px 0; padding: 4px 9px; border-radius: 5px; border: 0; max-width: 100%; }
+  #ui button.on { background: #f1c232; }
+  #banner { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: #14633a; color: #fff; padding: 10px 18px;
+            border-radius: 10px; display: none; align-items: center; gap: 14px; box-shadow: 0 3px 10px rgba(0,0,0,.35); max-width: 60vw; }
+  #arrow { font-size: 44px; line-height: 1; font-weight: 700; }
+  #bdist { font-size: 24px; font-weight: 700; } #bname { font-size: 15px; opacity: .92; }
+  #trip { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); background: rgba(20,24,32,.88); color: #fff;
+          padding: 8px 18px; border-radius: 10px; font-size: 17px; font-weight: 600; display: none; white-space: nowrap; }
+  #credit { position: absolute; bottom: 4px; right: 8px; font-size: 11px; color: #123; background: rgba(255,255,255,.7); padding: 1px 5px; border-radius: 3px; }
+  #load { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #123; }
+</style>
+<style>#ui,#banner,#trip,#credit,#load,#help{display:none!important}</style></head>
+<body>
+<div id="load">Loading blocks…</div>
+<div id="ui">
+  <b id="areaname">Blockville</b> <span id="stats"></span><br>
+  <button id="mNav" class="on">Navigate</button><button id="mOrbit">Overview</button><button id="mWalk">Street view</button><br>
+  Drive to <select id="dest"></select><br>
+  <button id="random">Random trip</button><button id="pause">Pause</button>
+  <div id="help" style="opacity:.8"></div>
+</div>
+<div id="banner"><div id="arrow">↑</div><div><div id="bdist"></div><div id="bname"></div></div></div>
+<div id="trip"></div>
+<div id="credit">Map data © OpenStreetMap contributors, Overture Maps Foundation (ODbL). World generated with Arnis (Apache-2.0). Not an official Minecraft product. Not for use while driving.</div>
+<script type="module">
+import * as THREE from './vendor/three.module.js';
+import { OrbitControls } from './vendor/OrbitControls.js';
+
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const meta = await (await fetch('data/meta.json')).json();
+if (meta.name) { document.getElementById('areaname').textContent = meta.name + ', in blocks'; document.title = 'Blockville: ' + meta.name; }
+const G = await (await fetch('roads.json')).json();
+
+// Binary data is plain .bin, or base64 inside JSON for hosts that only serve text types.
+async function loadBin(name) {
+  if (meta.ext === 'bin') return (await fetch(`${meta.base ?? ''}data/${name}.bin`)).arrayBuffer();
+  const { base64 } = await (await fetch(`data/${name}.json`)).json();
+  const bin = atob(base64), out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+async function gunzip(buf) {
+  return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+}
+// Heights come in one tile per pack (pack.h): int16 [2, pack, pack], [0] the lowest drivable surface, [1] the
+// highest (bridge decks), -1 for none. A tile loads with its pack's meshes, for every pack a route crosses when a
+// trip starts, and stays in a small LRU after. Older data has one whole-area height.bin (one or two layers).
+const packs = meta.packs.map(p => ({ ...p, state: 0, meshes: [], hgt: null, hp: null, hused: 0 }));
+const PK = meta.pack, HMAX = +(params.get('htiles') ?? 48);
+const whole = packs.some(p => p.h) ? null : new Int16Array(await gunzip(await loadBin('height')));
+const WLAYER = meta.width * meta.depth, twoLayers = whole && whole.length >= 2 * WLAYER;
+// packs by 512-block cell of the world; where joined chunks overlap the later pack comes first, and wins
+const CX = Math.ceil(meta.width / PK), cells = Array.from({ length: CX * Math.ceil(meta.depth / PK) }, () => []);
+for (const p of [...packs].reverse())
+  for (let cz = Math.floor(p.z / PK); cz * PK < p.z + PK; cz++) for (let cx = Math.floor(p.x / PK); cx * PK < p.x + PK; cx++)
+    if (cx >= 0 && cx < CX && cells[cz * CX + cx]) cells[cz * CX + cx].push(p);
+// packs whose columns reach within r of (x, z)
+const packsNear = (x, z, r = 0) => {
+  const out = [];
+  for (let cz = Math.floor((z - r) / PK); cz <= Math.floor((z + r) / PK); cz++) for (let cx = Math.floor((x - r) / PK); cx <= Math.floor((x + r) / PK); cx++)
+    for (const p of (cx >= 0 && cx < CX && cells[cz * CX + cx]) || [])
+      if (!out.includes(p) && x + r >= p.x && x - r < p.x + PK && z + r >= p.z && z - r < p.z + PK) out.push(p);
+  return out;
+};
+let hclock = 0;
+const hHeld = () => packs.reduce((n, p) => n + !!p.hgt, 0);
+function hload(p) {
+  if (p.hgt || !p.h) return null;
+  return p.hp ??= loadBin(p.h).then(gunzip).then(b => { p.hgt = new Int16Array(b); p.hused = ++hclock; htrim(); },
+    e => console.error('heights', p.h, e)).finally(() => { p.hp = null; });
+}
+// keep at most HMAX tiles, dropping the least recently used whose pack has no meshes up
+function htrim() {
+  let n = hHeld() - HMAX; if (n <= 0) return;
+  for (const p of packs.filter(p => p.hgt && p.state === 0).sort((a, b) => a.hused - b.hused)) { if (n-- <= 0) break; p.hgt = null; }
+}
+// whether every tile that decides heights within r of (x, z) is loaded
+const hReady = (x, z, r = 2) => !!whole || packsNear(x, z, r).every(p => p.hgt || !p.h);
+// world y of the surface; 0 (unknown) where there is none or its tile is not loaded
+const groundY = (x, z, deck = false) => {
+  if (whole) {
+    const ix = Math.max(0, Math.min(meta.width - 1, Math.floor(x))), iz = Math.max(0, Math.min(meta.depth - 1, Math.floor(z)));
+    return whole[(deck && twoLayers ? WLAYER : 0) + iz * meta.width + ix] + 1;
+  }
+  x = Math.floor(x); z = Math.floor(z);
+  if (x < 0 || z < 0 || x >= meta.width || z >= meta.depth) return 0;
+  for (const p of cells[Math.floor(z / PK) * CX + Math.floor(x / PK)]) {
+    const lx = x - p.x, lz = z - p.z; if (lx < 0 || lz < 0 || lx >= PK || lz >= PK) continue;
+    if (!p.hgt) return 0;
+    // a lowest surface on the world floor means sky leaked under the terrain there: use the top surface
+    // (only where the leak is wide: under a bridge the floor is a short gap that the trip profile fills)
+    let v = p.hgt[(deck ? PK * PK : 0) + lz * PK + lx];
+    if (!deck && v >= 0 && v <= 1) { const f = (ax, az) => p.hgt[Math.max(0, Math.min(PK - 1, az)) * PK + Math.max(0, Math.min(PK - 1, ax))] <= 1;
+      if (f(lx - 40, lz) && f(lx + 40, lz) && f(lx, lz - 40) && f(lx, lz + 40)) v = p.hgt[PK * PK + lz * PK + lx]; }
+    if (v > 1) return v + (p.dy ?? 0) + 1;
+  }
+  return 0;
+};
+// median of five nearby columns, so a lamp post or kerb under the sample point does not move the car
+// (columns with no drivable surface, or only the world floor, are ignored; NaN when all five are empty)
+const smoothY = (x, z, deck = false) => { const v = [[0,0],[2,0],[-2,0],[0,2],[0,-2]].map(([dx, dz]) => groundY(x + dx, z + dz, deck)).filter(y => y > 2).sort((a, b) => a - b); return v.length ? v[v.length >> 1] : NaN; };
+
+// ---------- scene
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8ec5ff);
+scene.fog = new THREE.Fog(0x8ec5ff, 250, 850);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.5, 4000);
+scene.add(new THREE.HemisphereLight(0xe8f2ff, 0x6a6f55, 1.7));
+const sun = new THREE.DirectionalLight(0xfff4e0, 1.5); sun.position.set(0.5, 1, 0.3); scene.add(sun);
+
+// Original 16x16 grain texture multiplied over each block colour.
+const tex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d');
+  let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    let v = 0.88 + rnd() * 0.12; if (x === 0 || y === 0) v *= 0.95;
+    const k = Math.round(v * 255); g.fillStyle = `rgb(${k},${k},${k})`; g.fillRect(x, y, 1, 1);
+  }
+  const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestMipmapLinearFilter;
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+})();
+const mats = meta.materials.map(m => ({ c: new THREE.Color(m.rgb), clear: m.kind === 'water' || m.kind === 'glass' }));
+// Block faces are drawn by vertex pulling: each tile mesh is one non-indexed draw of 6 vertices per face,
+// and the vertex shader reads that face's 16-byte record from an RGBA32UI data texture (one texel per face):
+//   u16 x, y, z   tile-local face-plane min corner, in 1/16 block
+//   u16 su, sv    face size along its two tangent axes (the uv extent), in 1/16 block
+//   u16 dir       0 +y, 1 -y, 2 +z, 3 -z, 4 +x, 5 -x
+//   u16 mat, tint palette index; tint hash 0..999
+// The shader rebuilds corner, normal, uv and colour; lighting, map, fog and colour space stay three.js's
+// own MeshLambertMaterial code (patched in onBeforeCompile).
+const palette = (() => {
+  const a = new Float32Array(mats.length * 4);
+  mats.forEach((m, i) => { a[i * 4] = m.c.r; a[i * 4 + 1] = m.c.g; a[i * 4 + 2] = m.c.b; a[i * 4 + 3] = 1; });
+  const t = new THREE.DataTexture(a, mats.length, 1, THREE.RGBAFormat, THREE.FloatType);
+  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t;
+})();
+const faceVS = `
+uniform highp usampler2D faceData;
+uniform sampler2D blockPalette;
+const int FACE_TRI[6] = int[6](0, 1, 2, 0, 2, 3);   // two triangles per face, same winding as before
+const vec3 FACE_N[6] = vec3[6](vec3(0,1,0), vec3(0,-1,0), vec3(0,0,1), vec3(0,0,-1), vec3(1,0,0), vec3(-1,0,0));
+const vec3 FACE_C[24] = vec3[24](
+  vec3(0,1,1), vec3(1,1,1), vec3(1,1,0), vec3(0,1,0),
+  vec3(0,0,0), vec3(1,0,0), vec3(1,0,1), vec3(0,0,1),
+  vec3(0,0,1), vec3(1,0,1), vec3(1,1,1), vec3(0,1,1),
+  vec3(1,0,0), vec3(0,0,0), vec3(0,1,0), vec3(1,1,0),
+  vec3(1,0,1), vec3(1,0,0), vec3(1,1,0), vec3(1,1,1),
+  vec3(0,0,0), vec3(0,0,1), vec3(0,1,1), vec3(0,1,0));
+`;
+const faceMain = `
+  int qId = gl_VertexID / 6, qV = gl_VertexID - qId * 6;
+  int qCorner = FACE_TRI[qV];
+  int qW = textureSize(faceData, 0).x;
+  uvec4 qT = texelFetch(faceData, ivec2(qId % qW, qId / qW), 0);
+  int qDir = int(qT.z >> 16u);
+  float qSu = float(qT.y >> 16u), qSv = float(qT.z & 0xFFFFu);
+  vec3 qScale = qDir < 2 ? vec3(qSu, 0.0, qSv) : qDir < 4 ? vec3(qSu, qSv, 0.0) : vec3(0.0, qSv, qSu);
+  vec3 qPos = (vec3(float(qT.x & 0xFFFFu), float(qT.x >> 16u), float(qT.y & 0xFFFFu)) + FACE_C[qDir * 4 + qCorner] * qScale) * 0.0625;
+  vec2 qUv = vec2((qCorner == 1 || qCorner == 2) ? qSu : 0.0, qCorner >= 2 ? qSv : 0.0) * 0.0625;
+  vec3 qCol = texelFetch(blockPalette, ivec2(int(qT.w & 0xFFFFu), 0), 0).rgb * (0.96 + float(qT.w >> 16u) / 1000.0 * 0.08);
+  vMapUv = (mapTransform * vec3(qUv, 1)).xy;
+`;
+// One material per tile mesh (they share one compiled program) so each can carry its own data texture.
+const faceMaterial = (data, clear) => {
+  const m = new THREE.MeshLambertMaterial(clear ? { vertexColors: true, map: tex, transparent: true, opacity: 0.62, depthWrite: false } : { vertexColors: true, map: tex });
+  m.onBeforeCompile = sh => {
+    sh.uniforms.faceData = { value: data }; sh.uniforms.blockPalette = { value: palette };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\n' + faceVS)
+      .replace('#include <uv_vertex>', faceMain)
+      .replace('#include <color_vertex>', 'vColor = qCol;')
+      .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = FACE_N[qDir];')
+      .replace('#include <begin_vertex>', 'vec3 transformed = qPos;');
+  };
+  m.customProgramCacheKey = () => 'blockface';
+  return m;
+};
+let quadCount = 0;
+// Tile layout: u32 quad count, then 8-byte greedy quads (x u8, z u8, y u16, w u8, h u8, dir u8, mat u8),
+// then 12-byte boxes for partial blocks (x u8, z u8, y u16, mat u8, x0 y0 z0 x1 y1 z1 in 1/16 block, pad).
+function buildTile(buf, tx, tz, pk) {
+  const made = [];
+  const v = new DataView(buf); const nq = v.getUint32(0, true); const nb = (buf.byteLength - 4 - nq * 8) / 12;
+  let ns = 0, nt = 0;
+  for (let k = 0; k < nq; k++) mats[v.getUint8(4 + k * 8 + 7)].clear ? nt++ : ns++;
+  const boff = 4 + nq * 8;
+  for (let k = 0; k < nb; k++) { const o = boff + k * 12; const f = v.getUint8(o + 6) === 0 ? 5 : 6; if (mats[v.getUint8(o + 4)].clear) nt += f; else ns += f; }
+  const mk = c => { const w = Math.max(1, Math.ceil(Math.sqrt(c))), h = Math.max(1, Math.ceil(c / w)), u = new Uint32Array(w * h * 4);
+    return { u, a: new Uint16Array(u.buffer), w, h, q: 0, lo: [Infinity, Infinity, Infinity], hi: [-Infinity, -Infinity, -Infinity] }; };
+  const S = mk(ns), T = mk(nt);
+  // A pack baked as part of a larger area carries dx/dz/dy: where its own origin sits in this world.
+  const ox = tx * meta.tile + (pk?.dx ?? 0), oz = tz * meta.tile + (pk?.dz ?? 0), oy = pk?.dy ?? 0;
+  // One face of the axis-aligned box at tile-local (x, y, z) with extents (ex, ey, ez), all in 1/16 block.
+  // (wx, wy, wz) is the block the face belongs to, in world blocks, for the per-face tint hash.
+  const put = (b, d, x, y, z, ex, ey, ez, mi, wx, wy, wz) => {
+    if (d === 0) y += ey; else if (d === 2) z += ez; else if (d === 4) x += ex;
+    const su = d < 4 ? ex : ez, sv = d < 2 ? ez : ey;
+    const hsh = ((wx * 73856093) ^ (wy * 19349663) ^ (wz * 83492791)) >>> 0;
+    const i = b.q++ * 8, a = b.a;
+    a[i] = x; a[i + 1] = y; a[i + 2] = z; a[i + 3] = su; a[i + 4] = sv; a[i + 5] = d; a[i + 6] = mi; a[i + 7] = hsh % 1000;
+    const X1 = x + (d < 4 ? su : 0), Y1 = y + (d < 2 ? 0 : sv), Z1 = z + (d < 2 ? sv : d < 4 ? 0 : su);
+    if (x < b.lo[0]) b.lo[0] = x; if (y < b.lo[1]) b.lo[1] = y; if (z < b.lo[2]) b.lo[2] = z;
+    if (X1 > b.hi[0]) b.hi[0] = X1; if (Y1 > b.hi[1]) b.hi[1] = Y1; if (Z1 > b.hi[2]) b.hi[2] = Z1;
+    quadCount++;
+  };
+  for (let k = 0; k < nq; k++) {
+    const o = 4 + k * 8;
+    const x = v.getUint8(o), z = v.getUint8(o + 1), y = v.getUint16(o + 2, true);
+    const w = v.getUint8(o + 4), h = v.getUint8(o + 5), d = v.getUint8(o + 6), mi = v.getUint8(o + 7);
+    const sx = d < 4 ? w : 1, sy = d < 2 ? 1 : h, sz = d < 2 ? h : d < 4 ? 1 : w;
+    put(mats[mi].clear ? T : S, d, x * 16, y * 16, z * 16, sx * 16, sy * 16, sz * 16, mi, x + ox, y, z + oz);
+  }
+  for (let k = 0; k < nb; k++) {
+    const o = boff + k * 12, mi = v.getUint8(o + 4);
+    const X = v.getUint8(o), Z = v.getUint8(o + 1), Y = v.getUint16(o + 2, true);
+    const x0 = v.getUint8(o + 5), y0 = v.getUint8(o + 6), z0 = v.getUint8(o + 7);
+    const ex = v.getUint8(o + 8) - x0, ey = v.getUint8(o + 9) - y0, ez = v.getUint8(o + 10) - z0;
+    const b = mats[mi].clear ? T : S;
+    for (let d = 0; d < 6; d++) {
+      if (d === 1 && y0 === 0) continue;
+      put(b, d, X * 16 + x0, Y * 16 + y0, Z * 16 + z0, ex, ey, ez, mi, X + ox, Y, Z + oz);
+    }
+  }
+  for (const [b, clear] of [[S, false], [T, true]]) {
+    if (!b.q) continue;
+    const data = new THREE.DataTexture(b.u, b.w, b.h, THREE.RGBAIntegerFormat, THREE.UnsignedIntType);
+    data.internalFormat = 'RGBA32UI'; data.magFilter = data.minFilter = THREE.NearestFilter; data.generateMipmaps = false; data.needsUpdate = true;
+    const g = new THREE.BufferGeometry();
+    // No vertex attributes are read (the shader uses gl_VertexID); three.js only needs a position count to size the draw.
+    const pos = new THREE.BufferAttribute(new Uint8Array(3), 3); pos.count = b.q * 6; g.setAttribute('position', pos);
+    g.boundingBox = new THREE.Box3(new THREE.Vector3(...b.lo).multiplyScalar(1 / 16), new THREE.Vector3(...b.hi).multiplyScalar(1 / 16));
+    g.boundingSphere = g.boundingBox.getBoundingSphere(new THREE.Sphere());
+    const fm = faceMaterial(data, clear);
+    g.addEventListener('dispose', () => { data.dispose(); fm.dispose(); });
+    const mesh = new THREE.Mesh(g, fm); mesh.position.set(ox, oy, oz); mesh.updateMatrix(); mesh.matrixAutoUpdate = false;
+    if (clear) mesh.renderOrder = 1; mesh.userData.q = b.q; scene.add(mesh); made.push(mesh);
+  }
+  return made;
+}
+// ---------- streaming: packs of tiles load around the point of interest and unload behind it
+let loading = 0, streamR = 750, everLoaded = false;
+// Meshes are built a few milliseconds per frame so streaming never stalls the drive.
+const buildQ = [], BUDGET = +(params.get('budget') ?? 6);
+async function loadPack(p) {
+  p.state = 1; loading++;
+  try {
+    const [buf] = await Promise.all([loadBin(p.id), hload(p)]);
+    const tiles = await Promise.all(p.tiles.map(([tx, tz, n, off, len]) => gunzip(buf.slice(off, off + len))));
+    if (p.state !== 1) { loading--; return; }
+    p.left = tiles.length;
+    tiles.forEach((tile, i) => buildQ.push({ p, tile, tx: p.tiles[i][0], tz: p.tiles[i][1] }));
+  } catch (e) { console.error('pack', p.id, e); p.state = 0; loading--; }
+}
+function pumpBuilds() {
+  const t = performance.now();
+  while (buildQ.length && performance.now() - t < BUDGET) {
+    const { p, tile, tx, tz } = buildQ.shift();
+    if (p.state !== 1) continue;
+    p.meshes.push(...buildTile(tile, tx, tz, p));
+    if (--p.left === 0) { p.state = 2; loading--; if (!everLoaded) { everLoaded = true; $('load').remove(); } }
+  }
+}
+function dropPack(p) {
+  if (p.state === 1) loading--;
+  for (const m of p.meshes) { scene.remove(m); m.geometry.dispose(); quadCount -= m.userData.q; }
+  p.meshes = []; p.state = 0; htrim();
+}
+let lastStats = 0;
+function stream(pos) {
+  let best = null, bd = Infinity;
+  for (const p of packs) {
+    const dx = Math.max(p.x - pos.x, 0, pos.x - p.x - meta.pack), dz = Math.max(p.z - pos.z, 0, pos.z - p.z - meta.pack), d = Math.hypot(dx, dz);
+    if (p.state === 2 && d > streamR + 150) dropPack(p); // fog hides everything past streamR, so keep little beyond it
+    else if (p.state === 0 && d < streamR && d < bd) { best = p; bd = d; }
+  }
+  if (best && loading < 3) loadPack(best);
+  pumpBuilds();
+  const now = performance.now();
+  if (now - lastStats > 500) { lastStats = now; $('stats').textContent = `(${(quadCount / 1e6).toFixed(2)}M faces loaded${loading ? ', streaming…' : ''})`; }
+}
+window.__stats = () => ({ quadCount, loaded: packs.filter(p => p.state === 2).length, packs: packs.length, heightTiles: hHeld() });
+window.__idle = () => loading === 0 && everLoaded && !packs.some(p => p.state === 0 && Math.hypot(Math.max(p.x - focus.x, 0, focus.x - p.x - meta.pack), Math.max(p.z - focus.z, 0, focus.z - p.z - meta.pack)) < streamR);
+const focus = new THREE.Vector3();
+
+// ---------- road graph and routing
+const SPEED = [29, 24, 20, 17, 14, 12, 11, 7]; // m/s by road class
+const N = G.nodes.map(([x, z]) => new THREE.Vector3(x - meta.minx, 0, z - meta.minz));
+const adj = N.map(() => []);
+for (const [a, b, nm, cl, ow, ln, dk] of G.edges) {
+  const len = N[a].distanceTo(N[b]);
+  adj[a].push({ to: b, nm, cl, len, dk }); if (!ow) adj[b].push({ to: a, nm, cl, len, dk });
+}
+function route(from, to) {
+  // A* on travel time with a binary heap: the city has about 90,000 nodes, and scanning them all for
+  // every step froze the page for seconds
+  const dist = new Float64Array(N.length).fill(Infinity), prev = new Int32Array(N.length).fill(-1), pe = new Array(N.length), done = new Uint8Array(N.length);
+  const T = N[to], h = i => Math.hypot(N[i].x - T.x, N[i].z - T.z) / SPEED[0];
+  const hk = [], hv = []; // heap of [priority, node]
+  const push = (k, v) => { let i = hk.length; hk.push(k); hv.push(v); while (i) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hk[i] = hk[p]; hv[i] = hv[p]; i = p; } hk[i] = k; hv[i] = v; };
+  const pop = () => { const top = hv[0], k = hk.pop(), v = hv.pop(), n = hk.length; if (n) { let i = 0; for (;;) { let c = 2 * i + 1; if (c >= n) break; if (c + 1 < n && hk[c + 1] < hk[c]) c++; if (hk[c] >= k) break; hk[i] = hk[c]; hv[i] = hv[c]; i = c; } hk[i] = k; hv[i] = v; } return top; };
+  dist[from] = 0; push(h(from), from);
+  while (hk.length) {
+    const u = pop(); if (done[u]) continue; if (u === to) break; done[u] = 1;
+    for (const e of adj[u]) { const d = dist[u] + e.len / SPEED[e.cl]; if (d < dist[e.to]) { dist[e.to] = d; prev[e.to] = u; pe[e.to] = e; push(d + h(e.to), e.to); } }
+  }
+  if (!isFinite(dist[to])) return null;
+  const nodes = [], edges = [];
+  for (let u = to; u !== -1; u = prev[u]) { nodes.push(u); if (prev[u] !== -1) edges.push(pe[u]); }
+  return { nodes: nodes.reverse(), edges: edges.reverse() };
+}
+// destinations: one node per named road (closest to the road's centre)
+const byName = new Map();
+for (const [a, b, nm] of G.edges) if (G.names[nm] && G.names[nm] !== 'ramp') { if (!byName.has(nm)) byName.set(nm, new Set()); byName.get(nm).add(a).add(b); }
+const dests = [...byName].map(([nm, set]) => {
+  const ids = [...set], c = ids.reduce((s, i) => s.add(N[i]), new THREE.Vector3()).multiplyScalar(1 / ids.length);
+  return { name: G.names[nm], node: ids.reduce((bst, i) => N[i].distanceTo(c) < N[bst].distanceTo(c) ? i : bst, ids[0]) };
+}).sort((a, b) => a.name.localeCompare(b.name));
+for (const [i, d] of dests.entries()) $('dest').add(new Option(d.name, i));
+
+// ---------- trip state
+let trip = null, tripSeq = 0, dist = 0, curNode = dests.find(d => d.name === 'Entertainment Way')?.node ?? 0, paused = false, speed = 0, snap = true;
+const ribbon = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+ribbon.frustumCulled = false; scene.add(ribbon);
+// faint copy drawn through everything, so the route stays readable under trees and behind buildings
+const ghost = new THREE.Mesh(ribbon.geometry, new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthTest: false, depthWrite: false }));
+ghost.frustumCulled = false; ghost.renderOrder = 3; scene.add(ghost);
+// a marker over the next manoeuvre: a yellow arrow pointing into the road to take
+const turnMark = new THREE.Group();
+{
+  const m = new THREE.MeshBasicMaterial({ color: 0xf1c232, depthTest: false, transparent: true, opacity: 0.95 });
+  const shaft = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.6, 9), m); shaft.position.z = -1.5;
+  const head = new THREE.Mesh(new THREE.ConeGeometry(4, 6, 4), m); head.rotation.x = -Math.PI / 2; head.position.z = -9;
+  turnMark.add(shaft, head); turnMark.traverse(o => o.renderOrder = 4); turnMark.visible = false; scene.add(turnMark);
+}
+const pin = new THREE.Mesh(new THREE.ConeGeometry(4, 14, 4), new THREE.MeshLambertMaterial({ color: 0xe53935 })); pin.rotation.x = Math.PI; scene.add(pin); pin.visible = false;
+function along(d, T = trip) {
+  d = Math.max(0, Math.min(T.L, d));
+  let k = 1; while (k < T.cum.length - 1 && T.cum[k] < d) k++;
+  const a = T.pts[k - 1], b = T.pts[k], l = T.cum[k] - T.cum[k - 1] || 1;
+  return { p: a.clone().lerp(b, (d - T.cum[k - 1]) / l), dir: b.clone().sub(a).normalize(), k };
+}
+function yAt(d, T = trip) { const t = Math.max(0, Math.min(T.prof.length - 1.001, d / 2)), i = Math.floor(t); return T.prof[i] + (T.prof[i + 1] - T.prof[i]) * (t - i); }
+// Resolves false when there is no route. The new trip goes live once the heights along it are in;
+// a later call made before then supersedes it.
+async function startTrip(toNode) {
+  const seq = ++tripSeq;
+  const r = route(curNode, toNode); if (!r || r.nodes.length < 2) return false;
+  const pts = r.nodes.map(i => N[i]); const cum = [0];
+  for (let k = 1; k < pts.length; k++) cum.push(cum[k - 1] + pts[k].distanceTo(pts[k - 1]));
+  // manoeuvres: a named-road change or a bend sharper than 35 degrees
+  const steps = [];
+  for (let k = 1; k < r.edges.length; k++) {
+    const a = pts[k].clone().sub(pts[k - 1]), b = pts[k + 1].clone().sub(pts[k]);
+    const ang = Math.atan2(a.x * b.z - a.z * b.x, a.x * b.x + a.z * b.z) * 180 / Math.PI; // + = right
+    const changed = r.edges[k].nm !== r.edges[k - 1].nm, abs = Math.abs(ang);
+    if (abs < 35 && !changed) continue;
+    if (abs < 20 && adj[r.nodes[k]].length <= 2) continue;
+    const kind = abs > 150 ? 'uturn' : abs > 50 ? (ang > 0 ? 'right' : 'left') : abs > 20 ? (ang > 0 ? 'slight right' : 'slight left') : 'straight';
+    steps.push({ at: cum[k], kind, name: G.names[r.edges[k].nm] || 'the road ahead' });
+  }
+  steps.push({ at: cum[cum.length - 1], kind: 'arrive', name: $('dest').selectedOptions[0]?.text ?? '' });
+  const T = { pts, cum, L: cum[cum.length - 1], edges: r.edges, steps, toNode };
+  // Height profile every 2 m: the deck layer on bridge edges, the ground layer elsewhere, then smoothed
+  // so the car rides the road's slope instead of stepping block by block.
+  const S = [], raw = [];
+  for (let d = 0; d <= T.L + 2; d += 2) { const q = along(d, T); S.push([q.p.x, q.p.z, !!T.edges[Math.min(q.k - 1, T.edges.length - 1)].dk]); }
+  // height tiles are fetched in route order a few ahead of the sample being read, so a long route
+  // never holds more than the LRU allows
+  const need = [...new Set(S.flatMap(([x, z]) => packsNear(x, z, 2)))], order = new Map(need.map((p, i) => [p, i]));
+  let ahead = 0;
+  for (const [x, z, dk] of S) {
+    const ps = packsNear(x, z, 2);
+    for (const last = Math.max(-1, ...ps.map(p => order.get(p))); ahead < need.length && ahead <= last + 8; ahead++) hload(need[ahead]);
+    for (const p of ps) p.hused = ++hclock;
+    if (!ps.every(p => p.hgt || !p.h)) await Promise.all(ps.map(hload));
+    raw.push(smoothY(x, z, dk));
+  }
+  if (seq !== tripSeq) return true;
+  trip = T; dist = 0; speed = 0;
+  // fill stretches with no surface under the route from the nearest good samples on either side
+  for (let i = 0, last = NaN; i < raw.length; i++) { if (isNaN(raw[i])) { let j = i; while (j < raw.length && isNaN(raw[j])) j++; const nxt = j < raw.length ? raw[j] : last, a = isNaN(last) ? nxt : last; for (let k = i; k < j; k++) raw[k] = a + ((isNaN(nxt) ? a : nxt) - a) * (k - i + 1) / (j - i + 1); i = j - 1; } else last = raw[i]; }
+  for (let i = 0; i < raw.length; i++) if (isNaN(raw[i])) raw[i] = 1;
+  trip.prof = raw.map((_, i) => { const w = raw.slice(Math.max(0, i - 4), i + 5).sort((a, b) => a - b); const m = w[w.length >> 1]; let s = 0, n = 0; for (let j = Math.max(0, i - 2); j <= Math.min(raw.length - 1, i + 2); j++) { s += Math.abs(raw[j] - m) <= 1.5 ? raw[j] : m; n++; } return s / n; });
+  const P = [], I = []; let n = 0;
+  for (let d = 0; d <= trip.L; d += 2) {
+    const { p, dir } = along(d); const nx = -dir.z, nz = dir.x, hw = 2.6, y = yAt(d) + 0.35;
+    P.push(p.x + nx * hw, y, p.z + nz * hw, p.x - nx * hw, y, p.z - nz * hw);
+    if (n) I.push(n * 2 - 2, n * 2 - 1, n * 2, n * 2 - 1, n * 2 + 1, n * 2); n++;
+  }
+  ribbon.geometry.dispose(); ribbon.geometry = new THREE.BufferGeometry();
+  ribbon.geometry.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); ribbon.geometry.setIndex(I); ghost.geometry = ribbon.geometry;
+  const end = pts[pts.length - 1]; pin.position.set(end.x, yAt(trip.L) + 9, end.z); pin.visible = true;
+  snap = true; return true;
+}
+async function randomTrip() {
+  for (let tries = 0; tries < 50; tries++) {
+    const i = Math.floor(Math.random() * dests.length);
+    if (N[dests[i].node].distanceTo(N[curNode]) > 500) { $('dest').value = i; if (await startTrip(dests[i].node)) return true; }
+  }
+  return false;
+}
+$('dest').onchange = e => startTrip(dests[+e.target.value].node);
+$('random').onclick = randomTrip;
+$('pause').onclick = () => { paused = !paused; $('pause').textContent = paused ? 'Resume' : 'Pause'; };
+
+// ---------- street name labels: small, fixed size on screen, beside the road, never over the route
+function label(text, hot) {
+  const c = document.createElement('canvas'), g = c.getContext('2d'); g.font = '600 40px system-ui, sans-serif';
+  c.width = Math.ceil(g.measureText(text).width) + 32; c.height = 56;
+  g.font = '600 40px system-ui, sans-serif'; g.fillStyle = hot ? '#f1c232' : 'rgba(255,255,255,.92)'; g.beginPath(); g.roundRect(0, 0, c.width, c.height, 10); g.fill();
+  g.fillStyle = hot ? '#1d1d1d' : '#1b5e3a'; g.textBaseline = 'middle'; g.fillText(text, 16, 30);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, sizeAttenuation: false }));
+  s.userData.aspect = c.width / c.height; s.renderOrder = 5; s.visible = false; return s;
+}
+const labels = [], LABEL_H = 0.032; // sprite height as a fraction of the view height
+{
+  const placed = [];
+  for (const [a, b, nm, cl] of G.edges) {
+    const name = G.names[nm]; if (!name || name === 'ramp' || cl > 6) continue;
+    const mid = N[a].clone().lerp(N[b], 0.5), len = N[a].distanceTo(N[b]);
+    if (len < 25 || placed.some(p => p.nm === nm && p.mid.distanceTo(mid) < 180) || placed.some(p => p.mid.distanceTo(mid) < 40)) continue;
+    placed.push({ nm, mid });
+    // sit on the kerb side of the road, not on its centre line
+    const side = new THREE.Vector3(-(N[b].z - N[a].z) / len, 0, (N[b].x - N[a].x) / len).multiplyScalar(cl <= 3 ? 14 : 9);
+    // its height is read the first time it comes in range with its height tiles loaded, and the sprites made when first shown
+    labels.push({ nm, name, pos: mid.clone().add(side), mid, placed: false, plain: null, hot: null });
+  }
+}
+const _v = new THREE.Vector3();
+function updateLabels(focus, curNm, nextNm) {
+  const W = innerWidth, Hh = innerHeight, shown = [];
+  // screen areas that must stay clear: the control panel, the turn banner, the trip bar, and the car itself
+  const keep = [[0, 0, 350, 200], [W / 2 - 190, 0, W / 2 + 190, 95], [W / 2 - 150, Hh - 80, W / 2 + 150, Hh], [W / 2 - 70, Hh * 0.55, W / 2 + 70, Hh * 0.9]];
+  const range = mode === 'orbit' ? 900 : 380;
+  const cands = labels.map(l => ({ l, d: l.pos.distanceTo(focus) })).filter(c => c.d < range)
+    .sort((a, b) => (b.l.nm === nextNm) - (a.l.nm === nextNm) || a.d - b.d);
+  for (const l of labels) { if (l.plain) l.plain.visible = false; if (l.hot) l.hot.visible = false; }
+  for (const { l } of cands) {
+    if (shown.length >= (mode === 'orbit' ? 14 : 7)) break;
+    if (mode === 'nav' && l.nm === curNm && l.nm !== nextNm) continue; // the road you are on is named in the trip bar
+    if (!l.placed) { if (!hReady(l.pos.x, l.pos.z) || !hReady(l.mid.x, l.mid.z)) continue; l.pos.y = (smoothY(l.pos.x, l.pos.z) || smoothY(l.mid.x, l.mid.z) || 1) + 5; l.placed = true; }
+    _v.copy(l.pos).project(camera); if (_v.z > 1 || Math.abs(_v.x) > 0.96 || Math.abs(_v.y) > 0.96) continue;
+    const hot = l.nm === nextNm && mode === 'nav', key = hot ? 'hot' : 'plain', k = hot ? 1.25 : 1;
+    if (!l[key]) { l[key] = label(l.name, hot); l[key].position.copy(l.pos); scene.add(l[key]); }
+    const sp = l[key];
+    const hpx = LABEL_H * k * Hh, wpx = hpx * sp.userData.aspect, cx = (_v.x + 1) / 2 * W, cy = (1 - _v.y) / 2 * Hh;
+    const r = [cx - wpx / 2 - 6, cy - hpx / 2 - 4, cx + wpx / 2 + 6, cy + hpx / 2 + 4];
+    if (r[0] < 4 || r[2] > W - 4) continue; // never clipped by the screen edge
+    if ([...keep, ...shown].some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1])) continue;
+    shown.push(r); sp.scale.set(LABEL_H * k * sp.userData.aspect, LABEL_H * k, 1); sp.visible = true;
+  }
+}
+
+// ---------- car: an original block car
+const car = new THREE.Group();
+const box = (w, h, d, c, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: c, map: tex })); m.position.set(x, y, z); car.add(m); };
+box(2.2, 1, 4.4, 0xe53935, 0, 0.9, 0); box(2, 0.8, 2.2, 0xe8f1f5, 0, 1.8, -0.2);
+for (const [x, z] of [[-1.1, 1.4], [1.1, 1.4], [-1.1, -1.4], [1.1, -1.4]]) box(0.4, 0.8, 0.8, 0x1d1d1d, x, 0.4, z);
+car.traverse(o => { if (o.material) { o.material.transparent = true; o.renderOrder = 6; } }); // drawn after the see-through route copy
+scene.add(car);
+
+// ---------- modes
+const orbit = new OrbitControls(camera, renderer.domElement);
+let mode = 'nav', heading = 0, camH = 40, camBack = 50;
+const keys = {};
+addEventListener('keydown', e => keys[e.code] = true); addEventListener('keyup', e => keys[e.code] = false);
+let yaw = 0, pitch = 0, walkPos = new THREE.Vector3(), dragging = false, lx = 0, ly = 0;
+renderer.domElement.addEventListener('pointerdown', e => { dragging = true; lx = e.clientX; ly = e.clientY; });
+addEventListener('pointerup', () => dragging = false);
+addEventListener('pointermove', e => { if (!dragging || mode !== 'walk') return; yaw -= (e.clientX - lx) * 0.004; pitch = Math.max(-1.2, Math.min(1.2, pitch - (e.clientY - ly) * 0.004)); lx = e.clientX; ly = e.clientY; });
+function setMode(m) {
+  mode = m; orbit.enabled = m === 'orbit'; snap = true;
+  for (const [id, mm] of [['mNav', 'nav'], ['mOrbit', 'orbit'], ['mWalk', 'walk']]) $(id).classList.toggle('on', mm === m);
+  $('banner').style.display = m === 'nav' ? 'flex' : 'none'; $('trip').style.display = m === 'nav' ? 'block' : 'none';
+  scene.fog.near = m === 'orbit' ? 700 : 250; scene.fog.far = m === 'orbit' ? 1500 : 850; streamR = m === 'orbit' ? 1300 : 750; camera.far = scene.fog.far + 50; camera.updateProjectionMatrix();
+  camera.fov = m === 'walk' ? 70 : 45; camera.updateProjectionMatrix();
+  $('help').textContent = m === 'nav' ? 'The car follows the blue route. Pick a destination or try a random trip.' : m === 'orbit' ? 'Drag to rotate, scroll to zoom.' : 'Drag to look, WASD to walk, Shift to run.';
+  if (m === 'orbit') { orbit.target.copy(car.position); camera.position.set(car.position.x - 250, car.position.y + 380, car.position.z + 420); orbit.update(); }
+  if (m === 'walk') { walkPos.copy(car.position); yaw = heading; pitch = 0; }
+}
+$('mNav').onclick = () => setMode('nav'); $('mOrbit').onclick = () => setMode('orbit'); $('mWalk').onclick = () => setMode('walk');
+const ARROW = { left: '↰', right: '↱', 'slight left': '↖', 'slight right': '↗', straight: '↑', uturn: '↶', arrive: '⚑' };
+const TEXT = { left: 'Turn left onto', right: 'Turn right onto', 'slight left': 'Keep left onto', 'slight right': 'Keep right onto', straight: 'Continue onto', uturn: 'Make a U-turn onto', arrive: 'Arrive at' };
+const clock = new THREE.Clock();
+function frame() {
+  const dt = Math.min(clock.getDelta(), 0.1);
+  if (trip) {
+    const here = along(dist), next = trip.steps.find(s => s.at > dist + 0.5) ?? trip.steps[trip.steps.length - 1];
+    const toNext = Math.max(0, next.at - dist);
+    // speed: road class limit, easing down before a turn and at the destination
+    let target = SPEED[trip.edges[Math.min(here.k - 1, trip.edges.length - 1)].cl];
+    if (next.kind !== 'straight' && toNext < 70) target = Math.min(target, 6 + toNext * 0.2);
+    if (paused || dist >= trip.L) target = 0;
+    speed += Math.max(-9 * dt, Math.min(4 * dt, target - speed));
+    dist = Math.min(trip.L, dist + speed * dt);
+    const { p } = along(dist), ahead = along(dist + 8).p;
+    p.y = yAt(dist); car.position.copy(p);
+    if (ahead.distanceTo(new THREE.Vector3(p.x, 0, p.z)) > 0.5) {
+      const want = Math.atan2(-(ahead.x - p.x), -(ahead.z - p.z));
+      let dh = want - heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+      heading = snap ? want : heading + dh * (1 - Math.exp(-dt * 3));
+      car.rotation.set(0, want, 0);
+    }
+    if (dist >= trip.L - 0.5 && speed < 0.2) curNode = trip.toNode;
+    if (mode === 'nav') {
+      // tilted heading-up camera; drops and tightens near a manoeuvre
+      // approaching a manoeuvre the camera lifts and looks down, so the junction is seen over trees and buildings
+      const near = next.kind !== 'straight' && next.kind !== 'arrive' && toNext < 180;
+      camH += ((near ? 62 : 42) - camH) * (1 - Math.exp(-dt * 1.5)); camBack += ((near ? 44 : 52) - camBack) * (1 - Math.exp(-dt * 1.5));
+      const f = new THREE.Vector3(-Math.sin(heading), 0, -Math.cos(heading));
+      const camPos = p.clone().addScaledVector(f, -camBack).setY(p.y + camH);
+      if (snap) { camera.position.copy(camPos); snap = false; } else camera.position.lerp(camPos, 1 - Math.exp(-dt * 5));
+      camera.lookAt(p.x + f.x * 30, p.y, p.z + f.z * 30);
+      $('arrow').textContent = ARROW[next.kind];
+      $('bdist').textContent = toNext > 950 ? (toNext / 1000).toFixed(1) + ' km' : Math.round(toNext / 10) * 10 + ' m';
+      $('bname').textContent = `${TEXT[next.kind]} ${next.name}`;
+      const left = trip.L - dist, mins = Math.max(1, Math.round(left / 13 / 60));
+      const onName = G.names[trip.edges[Math.min(here.k - 1, trip.edges.length - 1)].nm];
+      $('trip').textContent = dist >= trip.L - 0.5 ? 'You have arrived' : `${onName && onName !== 'ramp' ? onName + ' · ' : ''}${Math.round(speed * 3.6)} km/h · ${left > 950 ? (left / 1000).toFixed(1) + ' km' : Math.round(left) + ' m'} · ${mins} min`;
+    }
+  }
+  if (mode === 'walk') {
+    const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)), right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    const v = (keys.ShiftLeft ? 12 : 4) * dt;
+    if (keys.KeyW) walkPos.addScaledVector(fwd, v); if (keys.KeyS) walkPos.addScaledVector(fwd, -v);
+    if (keys.KeyD) walkPos.addScaledVector(right, v); if (keys.KeyA) walkPos.addScaledVector(right, -v);
+    { const gy = smoothY(walkPos.x, walkPos.z); if (!isNaN(gy)) walkPos.y = gy + 1.7; }
+    camera.position.copy(walkPos); camera.rotation.set(pitch, yaw, 0, 'YXZ');
+  } else if (mode === 'orbit') orbit.update();
+  focus.copy(mode === 'walk' ? walkPos : mode === 'orbit' ? orbit.target : car.position);
+  if (window.__free) { const F = window.__free; focus.set(F.x, F.y, F.z); ribbon.visible = ghost.visible = car.visible = false; turnMark.visible = false;
+    for (const l of labels) { if (l.plain) l.plain.visible = false; if (l.hot) l.hot.visible = false; }
+    const cp = F.pitch, d = F.h / Math.tan(cp), fx = -Math.sin(F.yaw), fz = -Math.cos(F.yaw);
+    camera.position.set(F.x - fx * d, F.y + F.h, F.z - fz * d); camera.lookAt(F.x, F.y, F.z); }
+  stream(focus);
+  {
+    let curNm = -1, nextNm = -1; turnMark.visible = false;
+    if (trip) {
+      const h = along(dist), nx = trip.steps.find(s => s.at > dist + 0.5);
+      curNm = trip.edges[Math.min(h.k - 1, trip.edges.length - 1)].nm;
+      if (nx) {
+        nextNm = G.names.indexOf(nx.name);
+        if (mode === 'nav' && nx.kind !== 'arrive' && nx.at - dist < 400) {
+          const a = along(nx.at + 6), c = along(nx.at + 16);
+          turnMark.position.set(a.p.x, yAt(nx.at + 6) + 7 + Math.sin(performance.now() / 300) * 0.8, a.p.z);
+          turnMark.rotation.y = Math.atan2(-(c.p.x - a.p.x), -(c.p.z - a.p.z)); turnMark.visible = true;
+        }
+      }
+    }
+    if (!window.__free) updateLabels(focus, curNm, nextNm);
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+const wanted = dests.findIndex(d => d.name === (params.get('to') ?? 'Alton Parkway'));
+if (wanted >= 0) { $('dest').value = wanted; if (!await startTrip(dests[wanted].node)) await randomTrip(); } else await randomTrip();
+setMode(params.get('mode') ?? 'nav');
+window.__api = { startTrip, randomTrip, along, groundY, smoothY, yAt, loadHeights: (x, z, r = 0) => Promise.all(packsNear(x, z, r).map(hload)), dests, trip: () => trip, setStart: n => { curNode = n; }, nodes: N, names: G.names };
+window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
+frame();
+</script>
+</body>
+</html>

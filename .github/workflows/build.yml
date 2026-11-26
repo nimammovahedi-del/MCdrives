@@ -136,12 +136,12 @@ jobs:
 
       - name: Collect the chunks of the earlier run
         if: inputs.reuse != ''
-        uses: actions/download-artifact@v4
-        with:
-          path: chunks
-          pattern: "r*c*"
-          run-id: ${{ inputs.reuse }}
-          github-token: ${{ github.token }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # the gh CLI, because download-artifact stops at the first 100 artifacts of another run
+        run: |
+          gh run download "${{ inputs.reuse }}" --repo "${{ github.repository }}" --dir chunks --pattern "r*c*"
+          echo "$(ls chunks | wc -l) chunks from run ${{ inputs.reuse }}"
       - name: Collect the chunks
         uses: actions/download-artifact@v4
         with:

@@ -1,0 +1,88 @@
+name: Audit photos
+
+# Photographs a built area (branch built/<area>) at many places of several kinds, for reviewers to look for
+# glitches, and pushes the pictures with an index to the branch audit/<area>. Reads the site exactly as a browser
+# would, including world data hosted elsewhere (meta.base), so it also proves that hosting works.
+on:
+  workflow_dispatch:
+    inputs:
+      area:
+        description: Built area to photograph (the slug in built/<slug>)
+        default: irvine
+      places:
+        description: Places per shard (each gives one or two pictures)
+        default: "40"
+      shards:
+        description: Parallel jobs
+        default: "10"
+      seed:
+        description: Changes which places are picked
+        default: "1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: audit-${{ inputs.area }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.s.outputs.list }}
+    steps:
+      - id: s
+        run: echo "list=$(python3 -c "import json; print(json.dumps(list(range(${{ inputs.shards }}))))")" >> "$GITHUB_OUTPUT"
+  shoot:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: built/${{ inputs.area }}
+          path: site
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save playwright@1 && npx playwright install --with-deps chromium
+      - name: Photograph
+        run: |
+          cp tools/survey.html site/
+          (cd site && python3 -m http.server 8765 >/dev/null 2>&1 &)
+          sleep 2
+          node tools/audit_shots.js http://localhost:8765 shots "${{ inputs.places }}" "${{ matrix.shard }}" "${{ inputs.shards }}" "${{ inputs.seed }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shots-${{ matrix.shard }}
+          path: shots
+          retention-days: 7
+          compression-level: 0
+  collect:
+    needs: shoot
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: all
+          pattern: shots-*
+          merge-multiple: true
+      - name: Push to a branch
+        run: |
+          cd all
+          python3 -c "
+          import json, glob
+          rows = [r for f in sorted(glob.glob('index_*.json')) for r in json.load(open(f))]
+          json.dump({'area': '${{ inputs.area }}', 'commit': '${GITHUB_SHA::7}', 'seed': '${{ inputs.seed }}', 'shots': rows}, open('index.json', 'w'), indent=1)
+          print(len(rows), 'pictures')"
+          rm -f index_*.json
+          git init -q -b "audit/${{ inputs.area }}" && git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Audit photos of ${{ inputs.area }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "audit/${{ inputs.area }}"
