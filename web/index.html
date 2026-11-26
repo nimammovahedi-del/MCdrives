@@ -894,8 +894,8 @@ const PLACE_KIND = { shop: ['Shop', 'shop store shopping'], food: ['Food and dri
   station: ['Station', 'station bus train transit'], school: ['School', 'school'], university: ['College', 'college university campus'],
   civic: ['Public building', 'library police fire post office government'], worship: ['Place of worship', 'church temple mosque synagogue'],
   neighbourhood: ['Neighborhood', 'neighborhood village'], other: ['Place', ''] };
-fetch('places.json').then(r => r.ok ? r.json() : []).then(rows => {
-  if (!rows.length) return;
+const placesLoaded = fetch('places.json').then(r => r.ok ? r.json() : []).then(rows => {
+  if (!rows.length) return [];
   const items = rows.map(([name, kind, x, z, node, aliases, point]) => {
     const [label, cats] = PLACE_KIND[kind] ?? PLACE_KIND.other;
     const nm = node != null ? adj[node]?.find(e => G.names[e.nm] && G.names[e.nm] !== 'ramp')?.nm : null;   // the street it is reached from
@@ -904,7 +904,8 @@ fetch('places.json').then(r => r.ok ? r.json() : []).then(rows => {
   // the built-in City Hall entry gives way to the map's own when it has one
   const has = new Set(items.map(it => it.name.toLowerCase()));
   search.setItems([...searchItems.filter(it => !has.has(it.name.toLowerCase())), ...items]);
-}).catch(() => {});
+  return items;
+}).catch(() => []);
 // ---------- your location: the browser asks the first time it is needed; inside the map it is a blue dot and a place to start from
 const geo = geoFrame(meta);
 let me = null, meWhy = '', geoPerm = navigator.geolocation ? 'prompt' : 'none';
@@ -1173,6 +1174,11 @@ makeHud();
   if (m0 === 'orbit') { mode = 'walk'; setMode('orbit'); camera.position.set(car.position.x - 330, car.position.y + 510, car.position.z + 450); orbit.update(); }
   else setMode(m0);
 }
+// ?place=<name> (the How It Works search card): open Directions to that place, as picking it in search would
+if (params.has('place') && !trip) placesLoaded.then(items => {
+  const it = items.find(i => i.name === params.get('place'));
+  if (it) openDirs({ to: { label: it.name, sub: it.kind, pos: it.pos, at: { node: it.node ?? undefined, kind: it.kind, point: it.point } } });
+});
 applyLayout();
 window.__api = { startTrip, randomTrip, along, groundY, smoothY, yAt, loadHeights: (x, z, r = 0) => Promise.all(packsNear(x, z, r).map(hload)), dests, trip: () => trip, setStart: n => { curNode = n; }, nodes: N, names: G.names };
 let frozen = null; window.__freeze = (d, v = 13) => { frozen = d == null ? null : { d, v }; snap = true; };

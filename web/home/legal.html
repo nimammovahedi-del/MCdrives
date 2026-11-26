@@ -5,55 +5,46 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Legal & Privacy · Map Craft</title>
 <meta name="description" content="Safety, privacy, map data credits, licenses and trademarks for Map Craft.">
-<meta name="theme-color" content="#111214">
+<meta name="theme-color" content="#f6f5f1">
 <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
 <header class="nav"><div class="wrap">
-  <a class="logo-link" href="./" aria-label="Map Craft home"><canvas class="logo" aria-hidden="true"></canvas></a>
+  <a href="./" aria-label="Map Craft home"><canvas class="logo" aria-hidden="true"></canvas></a><span class="sp"></span>
   <a class="l" href="how-it-works">How it works</a><a class="l" href="how-its-built">How it's built</a><a class="l" href="map?mode=orbit">View map</a>
-  <a class="cta" href="map"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg>Drive on Web</a>
+  <a class="btn sm" href="map">Drive on Web <svg viewBox="0 0 3 6" aria-hidden="true"><rect width="1" height="6" fill="currentColor"/><rect x="1" y="1" width="1" height="4" fill="currentColor"/><rect x="2" y="2" width="1" height="2" fill="currentColor"/></svg></a>
 </div></header>
 <main>
 <div class="hero wrap">
-  <div class="eyebrow">Legal &amp; privacy</div>
-  <h1 class="h1" style="margin:14px 0 14px">The short version.</h1>
-  <p class="lede">Map Craft is free, has no accounts, and your location never leaves your device. The details are below.</p>
-  <div class="summary">
-    <div><b>No accounts</b><span>Nothing to sign up for, no ads, no tracking cookies.</span></div>
-    <div><b>Location stays put</b><span>Used in your browser only, never sent to us.</span></div>
-    <div><b>Open data</b><span>Built from OpenStreetMap and other open sources.</span></div>
-  </div>
-  <div class="legal">
-    <nav class="toc" aria-label="On this page"><a href="#safety">Not for use while driving</a><a href="#privacy">Privacy</a><a href="#data">Map data and credits</a><a href="#software">Software</a><a href="#trademarks">Trademarks</a><a href="#contact">Contact</a></nav>
-    <div class="doc">
-      <div class="card" id="safety"><h2 class="h3"><i class="blk"></i>Not for use while driving</h2><p>Map Craft is a free beta, made for fun and exploration. Don't use it to navigate a real vehicle, and never look at or touch a screen while you drive. Map and traffic data can be late, missing or wrong.</p></div>
-      <div class="card" id="privacy"><h2 class="h3"><i class="blk"></i>Privacy</h2><ul>
-      <li>There are no accounts, no ads and no tracking cookies.</li>
-      <li>If you allow location, your position is used inside your browser to show the blue dot and start directions. It is never sent to us.</li>
-      <li>Your settings, like your car and map style, are saved in your own browser's storage and stay on your device.</li>
-      <li>For live traffic, the app downloads Orange County traffic data from our traffic server. Those requests don't include your location.</li>
-      <li>The site is hosted on Cloudflare, which may keep standard server logs, such as IP addresses, for security.</li>
-    </ul></div>
-      <div class="card" id="data"><h2 class="h3"><i class="blk"></i>Map data and credits</h2><ul>
-      <li>Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, available under the Open Database License (ODbL).</li>
-      <li>Contains data from the <a href="https://overturemaps.org/">Overture Maps Foundation</a> (ODbL and CDLA Permissive 2.0) and OpenAddresses.</li>
-      <li>Elevation from the U.S. Geological Survey 3D Elevation Program (public domain).</li>
-      <li>Traffic data from Caltrans, the California Highway Patrol and TomTom.</li>
-    </ul></div>
-      <div class="card" id="software"><h2 class="h3"><i class="blk"></i>Software</h2><ul>
-      <li>Block world generated with <a href="https://github.com/louis-e/arnis">Arnis</a> (Apache-2.0).</li>
-      <li>3D rendering by <a href="https://threejs.org/">three.js</a> (MIT).</li>
-      <li>Fonts: Pixelify Sans, Chakra Petch and Inter (SIL Open Font License).</li>
-    </ul></div>
-      <div class="card" id="trademarks"><h2 class="h3"><i class="blk"></i>Trademarks</h2><p>Map Craft is an independent project. It is not affiliated with, endorsed by or connected to Mojang, Microsoft or any game. All art, cars and the logo are original. Other names belong to their owners.</p></div>
-      <div class="card" id="contact"><h2 class="h3"><i class="blk"></i>Contact</h2><p>Found a wrong road or a missing building? Questions about this page? Get in touch through the project on GitHub.</p></div>
-      <p class="mu" style="font-size:13px">Last updated November 2026.</p>
-    </div>
+  <div class="crumb"><a href="./" style="text-decoration:none">Map Craft</a><i></i><b>Legal &amp; privacy</b></div>
+  <h1 class="h1">The short version.</h1>
+  <p class="sub">Free. No accounts. Your location stays on your device.</p>
+  <div class="stats three">
+    <div class="card stat"><b>0</b><span>accounts, ads<br>or tracking cookies</span></div>
+    <div class="card stat"><b>0 m</b><span>of your location<br>sent to us</span></div>
+    <div class="card stat"><b>100%</b><span>of the map from<br>open data</span></div>
   </div>
 </div>
+<section><div class="wrap legal">
+  <nav class="toc card" aria-label="On this page"><span class="tag">On this page</span><a href="#flow">Your data</a><a href="#credits">Credits</a><a href="#safety">Not for use while driving</a><a href="#privacy">Privacy</a><a href="#trademarks">Trademarks</a><a href="#contact">Contact</a></nav>
+  <div class="docs">
+    <div id="flow"><div class="sh"><div><span class="tag">Your data</span><h2 class="h2">What goes where.</h2></div></div><div class="flow"><div class="card fl"><div class="top"><span class="tag g">Stays on your device</span></div><ul><li><i class="ok"></i>Your location</li><li><i class="ok"></i>Your settings</li><li><i class="ok"></i>Your car pick</li><li><i class="ok"></i>Your searches</li></ul></div><div class="card fl"><div class="top"><span class="tag">Sent to our traffic server</span></div><ul><li><i class=""></i>A request for Orange County traffic</li><li><i class=""></i>No location, no account</li></ul></div><div class="card fl"><div class="top"><span class="tag">Kept by our host</span></div><ul><li><i class=""></i>Standard server logs</li><li><i class=""></i>Such as IP address, for security</li></ul></div></div></div>
+    <div id="credits" style="margin-top:64px"><div class="sh"><div><span class="tag">Credits</span><h2 class="h2">Built on open work.</h2></div></div><div class="crs"><a class="card hit cr" href="https://www.openstreetmap.org/copyright" rel="noopener"><span class="tag">ODbL</span><b>OpenStreetMap</b><span class="mu">Roads, buildings, places</span><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></a><a class="card hit cr" href="https://overturemaps.org/" rel="noopener"><span class="tag">ODbL · CDLA 2.0</span><b>Overture Maps</b><span class="mu">Buildings, places, addresses</span><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></a><a class="card hit cr" href="https://openaddresses.io/" rel="noopener"><span class="tag">Open data</span><b>OpenAddresses</b><span class="mu">Street addresses</span><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></a><a class="card hit cr" href="https://www.usgs.gov/3d-elevation-program" rel="noopener"><span class="tag">Public domain</span><b>USGS 3DEP</b><span class="mu">Ground height</span><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></a><a class="card hit cr" href="https://pems.dot.ca.gov/" rel="noopener"><span class="tag">Public data</span><b>Caltrans</b><span class="mu">Freeway speeds, closures</span><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></a><a class="card hit cr" href="https://cad.chp.ca.gov/" rel="noopener"><span class="tag">Public data</span><b>CHP</b><span class="mu">Live incidents</span><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></a><a class="card hit cr" href="https://www.tomtom.com/" rel="noopener"><span class="tag">Licensed</span><b>TomTom</b><span class="mu">Traffic incidents</span><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></a><a class="card hit cr" href="https://github.com/louis-e/arnis" rel="noopener"><span class="tag">Apache-2.0</span><b>Arnis</b><span class="mu">Block world generator</span><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></a><a class="card hit cr" href="https://threejs.org/" rel="noopener"><span class="tag">MIT</span><b>three.js</b><span class="mu">3D rendering</span><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></a><a class="card hit cr" href="https://openfontlicense.org/" rel="noopener"><span class="tag">SIL OFL</span><b>Fonts</b><span class="mu">Pixelify Sans, Silkscreen, Chakra Petch, Inter</span><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></a></div></div>
+    <div style="margin-top:64px"><div class="sh"><div><span class="tag">The details</span><h2 class="h2">In plain words.</h2></div></div><div class="docl"><div class="card doc" id="safety"><div class="top"><span class="tag">Not for use while driving</span></div><div class="bd"><p>Map Craft is a free beta, made for fun. Don't use it to navigate a real vehicle, and never look at or touch a screen while you drive. Map and traffic data can be late, missing or wrong.</p></div></div><div class="card doc" id="privacy"><div class="top"><span class="tag">Privacy</span></div><div class="bd"><ul>
+      <li>No accounts, no ads and no tracking cookies.</li>
+      <li>If you allow location, it is used inside your browser for the blue dot and directions. It is never sent to us.</li>
+      <li>Settings such as your car and map style are saved in your browser's storage, on your device.</li>
+      <li>Live traffic is downloaded from our traffic server. Those requests don't include your location.</li>
+      <li>The site is hosted on Cloudflare, which may keep standard server logs, such as IP addresses, for security.</li>
+    </ul></div></div><div class="card doc" id="trademarks"><div class="top"><span class="tag">Trademarks</span></div><div class="bd"><p>Map Craft is an independent project. It is not affiliated with, endorsed by or connected to Mojang, Microsoft or any game. All art, cars and the logo are original. Other names belong to their owners.</p></div></div><div class="card doc" id="contact"><div class="top"><span class="tag">Contact</span></div><div class="bd"><p>Found a wrong road or a missing building? Questions about this page? Get in touch through the project on GitHub.</p></div></div></div></div>
+    <p class="upd">Last updated November 2026.</p>
+  </div>
+</div></section>
+<div class="band"><div class="pat" aria-hidden="true"></div><div class="wrap">
+  <h2 class="h2">Ready to drive?</h2><p>Runs in your browser. Nothing to install.</p>
+  <div class="row"><a class="btn" href="map">Drive on Web <svg viewBox="0 0 3 6" aria-hidden="true"><rect width="1" height="6" fill="currentColor"/><rect x="1" y="1" width="1" height="4" fill="currentColor"/><rect x="2" y="2" width="1" height="2" fill="currentColor"/></svg></a><a class="btn dark" href="map?mode=orbit">View the 3D map</a></div>
+</div></div>
 </main>
-<div style="height:80px"></div>
 <footer><div class="wrap">
   <span>Map Craft · Irvine beta · Map data © OpenStreetMap contributors · Not affiliated with any game</span>
   <nav><a href="./">Home</a><a href="how-it-works">How it works</a><a href="how-its-built">How it's built</a><a href="legal">Legal &amp; Privacy</a></nav>

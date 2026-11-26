@@ -4,98 +4,78 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>How It's Built · Map Craft</title>
-<meta name="description" content="How Map Craft turns open map data into a drivable block city: data sources, the build pipeline, streaming and live traffic.">
-<meta name="theme-color" content="#111214">
+<meta name="description" content="How Map Craft turns open map data into a drivable block city: the pipeline, data sources, streaming and live traffic.">
+<meta name="theme-color" content="#f6f5f1">
 <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
 <header class="nav"><div class="wrap">
-  <a class="logo-link" href="./" aria-label="Map Craft home"><canvas class="logo" aria-hidden="true"></canvas></a>
+  <a href="./" aria-label="Map Craft home"><canvas class="logo" aria-hidden="true"></canvas></a><span class="sp"></span>
   <a class="l" href="how-it-works">How it works</a><a class="l on" href="how-its-built" aria-current="page">How it's built</a><a class="l" href="map?mode=orbit">View map</a>
-  <a class="cta" href="map"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg>Drive on Web</a>
+  <a class="btn sm" href="map">Drive on Web <svg viewBox="0 0 3 6" aria-hidden="true"><rect width="1" height="6" fill="currentColor"/><rect x="1" y="1" width="1" height="4" fill="currentColor"/><rect x="2" y="2" width="1" height="2" fill="currentColor"/></svg></a>
 </div></header>
 <main>
 <div class="hero wrap">
-  <div class="glow" style="width:560px;height:420px;background:#5fae3c;left:-80px;top:60px"></div>
-  <div class="eyebrow">How it's built</div>
-  <h1 class="h1" style="margin:14px 0 16px;max-width:900px">From open map data to a city <span class="lane">you can drive.</span></h1>
-  <p class="lede">Map Craft is built by a pipeline that runs from start to finish with one command. Here's what it does, what it uses, and how a 1.2 GB city fits in a phone's browser.</p>
+  <div class="crumb"><a href="./" style="text-decoration:none">Map Craft</a><i></i><b>How it's built</b></div>
+  <h1 class="h1">From open data to a city you can drive.</h1>
+  <p class="sub">One command builds it. Your browser streams it.</p>
   <div class="stats">
-    <div class="stat"><b>220 km²</b><span>of Irvine, rebuilt in blocks</span></div>
-    <div class="stat"><b>307M</b><span>block faces drawn from real data</span></div>
-    <div class="stat"><b>116,339</b><span>road segments in the routing graph</span></div>
-    <div class="stat"><b>2,835</b><span>places to search, plus every address</span></div>
+    <div class="card stat"><b>220 km²</b><span>of Irvine<br>in blocks</span></div>
+    <div class="card stat"><b>307M</b><span>block faces<br>drawn</span></div>
+    <div class="card stat"><b>116,339</b><span>road<br>segments</span></div>
+    <div class="card stat"><b>41</b><span>chunks built<br>side by side</span></div>
   </div>
 </div>
 
-<section><div class="wrap">
-  <div class="sec-head"><div><div class="eyebrow">The pipeline</div><h2 class="h2" style="margin-top:12px">Six steps, one command.</h2></div>
-    <p class="lede">The same build runs on GitHub's servers and publishes the finished city automatically.</p></div>
-  <div class="pipe">
-    <div class="stage"><div class="ic"><canvas class="ico" data-i="data"></canvas></div><div class="n">STEP 01</div><h3 class="h3">Gather open data</h3><p>Roads, lanes, buildings, parks and water from OpenStreetMap; places and addresses from Overture; ground height from USGS LiDAR.</p><div class="chips"><span>OSM</span><span>Overture</span><span>USGS 3DEP</span></div></div>
-    <div class="stage"><div class="ic"><canvas class="ico" data-i="bake"></canvas></div><div class="n">STEP 02</div><h3 class="h3">Bake the blocks</h3><p>The open-source Arnis generator turns the data into a block world, about one meter per block, in 41 chunks built side by side.</p><div class="chips"><span>Arnis</span><span>GitHub Actions</span></div></div>
-    <div class="stage"><div class="ic"><canvas class="ico" data-i="pack"></canvas></div><div class="n">STEP 03</div><h3 class="h3">Pack for streaming</h3><p>Only visible block faces are kept, merged into large flat pieces and packed into 512 × 512 block squares with height tiles.</p><div class="chips"><span>Greedy meshing</span><span>Binary packs</span></div></div>
-    <div class="stage"><div class="ic"><canvas class="ico" data-i="graph"></canvas></div><div class="n">STEP 04</div><h3 class="h3">Build the road graph</h3><p>Every street becomes a routing graph with one-ways, ramps, gated streets and an arrival point for each place.</p><div class="chips"><span>A* routing</span><span>Arrival points</span></div></div>
-    <div class="stage"><div class="ic"><canvas class="ico" data-i="view"></canvas></div><div class="n">STEP 05</div><h3 class="h3">Drive in the browser</h3><p>A three.js viewer streams the squares around the car and draws the route, camera, sky, cars and 2D map.</p><div class="chips"><span>three.js</span><span>WebGL</span></div></div>
-    <div class="stage"><div class="ic"><canvas class="ico" data-i="live"></canvas></div><div class="n">STEP 06</div><h3 class="h3">Add live traffic</h3><p>A small server gathers Caltrans, CHP and TomTom feeds every few minutes, and the app routes around trouble.</p><div class="chips"><span>Cloudflare Workers</span></div></div>
+<section id="pipeline"><div class="wrap">
+  <div class="sh"><div><span class="tag">The pipeline</span><h2 class="h2">Six steps. One command.</h2></div><span class=n>Tap a step</span></div>
+  <div class="card pipe" data-pipe>
+    <div class="steps" role="tablist"><button class="step" role="tab" data-i="0"><span class="ic"><canvas class="ico" data-i="data"></canvas></span><span class="n">01</span><b>Gather open data</b></button><button class="step" role="tab" data-i="1"><span class="ic"><canvas class="ico" data-i="bake"></canvas></span><span class="n">02</span><b>Bake the blocks</b></button><button class="step" role="tab" data-i="2"><span class="ic"><canvas class="ico" data-i="pack"></canvas></span><span class="n">03</span><b>Pack for streaming</b></button><button class="step" role="tab" data-i="3"><span class="ic"><canvas class="ico" data-i="graph"></canvas></span><span class="n">04</span><b>Build the road graph</b></button><button class="step" role="tab" data-i="4"><span class="ic"><canvas class="ico" data-i="view"></canvas></span><span class="n">05</span><b>Drive in the browser</b></button><button class="step" role="tab" data-i="5"><span class="ic"><canvas class="ico" data-i="live"></canvas></span><span class="n">06</span><b>Add live traffic</b></button></div>
+    <div class="road" aria-hidden="true"><i></i></div>
+    <div class="sv"><div class="m well"><img alt=""></div><div class="tx"><span class="tag g"></span><h3 class="h2"></h3><div class="chips"></div>
+      <div class="row"><button class="btn alt sm" data-prev>Back</button><button class="btn sm" data-nextstep>Next step <svg viewBox="0 0 3 6" aria-hidden="true"><rect width="1" height="6" fill="currentColor"/><rect x="1" y="1" width="1" height="4" fill="currentColor"/><rect x="2" y="2" width="1" height="2" fill="currentColor"/></svg></button></div></div></div>
   </div>
+  <script type="application/json" id="stepdata">[{"t": "Gather open data", "img": "assets/img/map-top.jpg", "chips": ["OpenStreetMap", "Overture", "USGS LiDAR"], "n": "Step 01"}, {"t": "Bake the blocks", "img": "assets/img/blocks-top.jpg", "chips": ["Arnis", "41 chunks in parallel", "1 block \u2248 1 m"], "n": "Step 02"}, {"t": "Pack for streaming", "img": "assets/img/packs.jpg", "chips": ["Visible faces only", "512 \u00d7 512 squares", "1,025 squares"], "n": "Step 03"}, {"t": "Build the road graph", "img": "assets/img/graph.jpg", "chips": ["116,339 road segments", "One-ways and ramps", "A* routing"], "n": "Step 04"}, {"t": "Drive in the browser", "img": "assets/img/d-drive.jpg", "chips": ["three.js", "WebGL", "Phone and desktop"], "n": "Step 05"}, {"t": "Add live traffic", "img": "assets/img/speeds.jpg", "chips": ["Caltrans", "CHP", "TomTom"], "n": "Step 06"}]</script>
 </div></section>
 
-<section><div class="wrap">
-  <div class="sec-head"><div><div class="eyebrow">Where the data comes from</div><h2 class="h2" style="margin-top:12px">Seven open and public sources.</h2></div>
-    <p class="lede">No scraping and no proprietary maps. Each source does one job well.</p></div>
-  <div class="card" style="overflow-x:auto"><table class="matrix">
-    <thead><tr><th>Source</th><th>Roads & lanes</th><th>Buildings</th><th>Places</th><th>Addresses</th><th>Ground height</th><th>Live traffic</th></tr></thead><tbody>
-      <tr><td><b>OpenStreetMap</b><small>Community map of the world</small></td><td><i class="dot "></i></td><td><i class="dot "></i></td><td><i class="dot g"></i></td><td></td><td></td><td></td></tr>
-      <tr><td><b>Overture Maps</b><small>Open map data from Overture Maps Foundation</small></td><td></td><td><i class="dot "></i></td><td><i class="dot g"></i></td><td><i class="dot g"></i></td><td></td><td></td></tr>
-      <tr><td><b>OpenAddresses</b><small>Public address points</small></td><td></td><td></td><td></td><td><i class="dot g"></i></td><td></td><td></td></tr>
-      <tr><td><b>USGS 3DEP LiDAR</b><small>Laser scans of the ground</small></td><td></td><td></td><td></td><td></td><td><i class="dot b"></i></td><td></td></tr>
-      <tr><td><b>Caltrans</b><small>Freeway sensors and lane closures</small></td><td></td><td></td><td></td><td></td><td></td><td><i class="dot r"></i></td></tr>
-      <tr><td><b>California Highway Patrol</b><small>Live incident reports</small></td><td></td><td></td><td></td><td></td><td></td><td><i class="dot r"></i></td></tr>
-      <tr><td><b>TomTom</b><small>Traffic incidents</small></td><td></td><td></td><td></td><td></td><td></td><td><i class="dot r"></i></td></tr>
-    </tbody></table></div>
+<section id="sources"><div class="wrap">
+  <div class="sh"><div><span class="tag">Where the data comes from</span><h2 class="h2">Seven open sources.</h2></div><span class=n>Pick a layer</span></div>
+  <div class="layers seg" role="group" aria-label="Show sources for a layer"><button data-l="" aria-pressed="true">All</button><button data-l="roads"><i class="d-roads"></i>Roads</button><button data-l="bldg"><i class="d-bldg"></i>Buildings</button><button data-l="places"><i class="d-places"></i>Places</button><button data-l="addr"><i class="d-addr"></i>Addresses</button><button data-l="height"><i class="d-height"></i>Ground height</button><button data-l="live"><i class="d-live"></i>Live traffic</button></div>
+  <div class="srcs"><div class="card src" data-ls="roads bldg places"><span class="tag">Map</span><b>OpenStreetMap</b><div class="dots"><i class="d-roads on" title="Roads"></i><i class="d-bldg on" title="Buildings"></i><i class="d-places on" title="Places"></i><i class="d-addr" title="Addresses"></i><i class="d-height" title="Ground height"></i><i class="d-live" title="Live traffic"></i></div></div><div class="card src" data-ls="bldg places addr"><span class="tag">Map</span><b>Overture Maps</b><div class="dots"><i class="d-roads" title="Roads"></i><i class="d-bldg on" title="Buildings"></i><i class="d-places on" title="Places"></i><i class="d-addr on" title="Addresses"></i><i class="d-height" title="Ground height"></i><i class="d-live" title="Live traffic"></i></div></div><div class="card src" data-ls="addr"><span class="tag">Addresses</span><b>OpenAddresses</b><div class="dots"><i class="d-roads" title="Roads"></i><i class="d-bldg" title="Buildings"></i><i class="d-places" title="Places"></i><i class="d-addr on" title="Addresses"></i><i class="d-height" title="Ground height"></i><i class="d-live" title="Live traffic"></i></div></div><div class="card src" data-ls="height"><span class="tag">LiDAR</span><b>USGS 3DEP</b><div class="dots"><i class="d-roads" title="Roads"></i><i class="d-bldg" title="Buildings"></i><i class="d-places" title="Places"></i><i class="d-addr" title="Addresses"></i><i class="d-height on" title="Ground height"></i><i class="d-live" title="Live traffic"></i></div></div><div class="card src" data-ls="live"><span class="tag">Sensors</span><b>Caltrans PeMS</b><div class="dots"><i class="d-roads" title="Roads"></i><i class="d-bldg" title="Buildings"></i><i class="d-places" title="Places"></i><i class="d-addr" title="Addresses"></i><i class="d-height" title="Ground height"></i><i class="d-live on" title="Live traffic"></i></div></div><div class="card src" data-ls="live"><span class="tag">Incidents</span><b>Highway Patrol</b><div class="dots"><i class="d-roads" title="Roads"></i><i class="d-bldg" title="Buildings"></i><i class="d-places" title="Places"></i><i class="d-addr" title="Addresses"></i><i class="d-height" title="Ground height"></i><i class="d-live on" title="Live traffic"></i></div></div><div class="card src" data-ls="live"><span class="tag">Incidents</span><b>TomTom</b><div class="dots"><i class="d-roads" title="Roads"></i><i class="d-bldg" title="Buildings"></i><i class="d-places" title="Places"></i><i class="d-addr" title="Addresses"></i><i class="d-height" title="Ground height"></i><i class="d-live on" title="Live traffic"></i></div></div></div>
 </div></section>
 
-<section><div class="wrap">
+<section id="stream"><div class="wrap">
+  <div class="sh"><div><span class="tag">Why it runs on a phone</span><h2 class="h2">A 1.2 GB city, a few MB at a time.</h2></div><span class=n>Drag the slider</span></div>
   <div class="two">
     <div class="card">
-      <div class="eyebrow">The city in 41 chunks</div>
-      <h3 class="h2" style="font-size:30px;margin:10px 0 10px">Built in parallel, joined at the seams.</h3>
-      <p class="mu" style="margin-bottom:20px">Irvine is cut into a grid of 5.4 km² chunks. Only the 41 that touch the city are built, at the same time, then stitched back together so roads and ground line up across every seam (6,652 road nodes joined). Brighter chunks hold more detail.</p>
-      <div class="chunkmap" id="chunkmap" aria-label="Map of the built chunks"></div>
-      <div class="legend"><span>Less detail</span><span class="ramp"></span><span>More detail</span></div>
-      <p class="tip" id="chunktip">Point at a chunk to see its size.</p>
+      <div class="top"><span class="tag">Chunks</span><span class="hint" id="chunktip">Point at a chunk</span></div>
+      <div class="cm well"><div class="chunkmap" id="chunkmap" aria-label="Map of the built chunks"></div></div>
+      <div class="legend"><span>Less detail</span><i class="ramp"></i><span>More detail</span></div>
       <script type="application/json" id="chunkdata">[["r0c2", 6850985, 28.4, 5.4], ["r0c3", 7597038, 30.88, 5.4], ["r1c0", 9595864, 37.78, 5.4], ["r1c1", 7460811, 30.81, 5.4], ["r1c2", 9266336, 37.12, 5.4], ["r1c3", 7252372, 29.6, 5.4], ["r1c4", 4675020, 20.83, 5.4], ["r1c5", 7252855, 28.82, 5.4], ["r1c6", 6820459, 28.24, 5.4], ["r2c0", 7025380, 27.11, 5.4], ["r2c1", 9992598, 38.32, 5.4], ["r2c2", 10691499, 41.55, 5.4], ["r2c3", 5458034, 22.9, 5.4], ["r2c4", 6840962, 27.18, 5.4], ["r2c5", 5110751, 21.04, 5.4], ["r2c6", 6180423, 25.6, 5.4], ["r3c0", 6918594, 26.59, 5.4], ["r3c1", 8594909, 33.25, 5.4], ["r3c2", 10662661, 41.74, 5.4], ["r3c3", 9780973, 38.69, 5.4], ["r3c4", 6619363, 26.37, 5.4], ["r3c5", 3937542, 17.79, 5.4], ["r3c6", 5579000, 24.28, 5.4], ["r3c7", 4518637, 20.07, 5.4], ["r4c0", 5845529, 23.5, 5.4], ["r4c1", 4972659, 20.51, 5.4], ["r4c2", 6879385, 28.64, 5.4], ["r4c3", 9499417, 37.97, 5.4], ["r4c4", 9445222, 37.61, 5.4], ["r4c5", 7462254, 31.15, 5.4], ["r4c6", 7810845, 31.03, 5.4], ["r4c7", 7844612, 31.46, 5.4], ["r5c3", 8303069, 33.17, 5.4], ["r5c4", 10875763, 43.84, 5.4], ["r5c5", 7597669, 31.59, 5.4], ["r5c6", 6300326, 25.81, 5.4], ["r6c4", 9579221, 38.64, 5.4], ["r6c5", 8840892, 34.58, 5.4], ["r6c6", 7292810, 29.08, 5.4], ["r7c4", 9194532, 36.44, 5.4], ["r7c5", 4206519, 18.55, 5.4]]</script>
     </div>
-    <div class="card">
-      <div class="eyebrow">Why it runs on a phone</div>
-      <h3 class="h2" style="font-size:30px;margin:10px 0 10px">A 1.2 GB city, a few MB at a time.</h3>
-      <p class="mu" style="margin-bottom:26px">The whole city would never fit in a phone's browser. So it's split into 1,025 squares, and Map Craft only loads the ones around your car, dropping them again as you drive away.</p>
-      <div class="bars">
-        <div class="bar"><div class="lbl"><span>The whole city</span><b>1.19 GB</b></div><div class="tr"><i style="width:100%;--c:#ff8a3d"></i></div></div>
-        <div class="bar"><div class="lbl"><span>One square (512 × 512 blocks)</span><b>1.2 MB</b></div><div class="tr"><i style="width:0.60%;--c:#5fae3c"></i></div></div>
-        <div class="bar"><div class="lbl"><span>Loaded around your car, about</span><b>15 MB</b></div><div class="tr"><i style="width:1.27%"></i></div></div>
-      </div>
-      <p class="mu" style="font-size:13px;margin-top:22px">About 13 squares sit within 750 blocks of the car at any time. Average square size from the current Irvine build.</p>
+    <div class="card" data-stream data-per="1.166" data-city="1195">
+      <div class="top"><span class="tag">Streaming</span><span class="hint"><b class="r">750</b> blocks around the car</span></div>
+      <div class="sg well"><canvas class="px" width="360" height="360" aria-label="Squares loaded around the car"></canvas></div>
+      <div class="ctl"><input type="range" min="250" max="2000" step="50" value="750" aria-label="Streaming radius in blocks">
+        <div class="meter"><div><b class="nsq">13</b><span>squares</span></div><div><b class="mb">15 MB</b><span>loaded</span></div><div><b>1.19 GB</b><span>whole city</span></div></div>
+        <div class="bar"><i class="fill"></i></div></div>
     </div>
   </div>
 </div></section>
 
-<section><div class="wrap">
-  <div class="sec-head"><div><div class="eyebrow">Live traffic</div><h2 class="h2" style="margin-top:12px">Fresh every minute.</h2></div>
-    <p class="lede">The app never calls the traffic feeds itself. One small server collects them for everyone and keeps any keys secret.</p></div>
-  <div class="card"><div class="loop">
-    <div class="node"><h3 class="h3">Public feeds</h3><ul><li>CHP incidents<span>~1 min</span></li><li>Caltrans lane closures<span>5 min</span></li><li>Caltrans freeway speeds<span>5 min</span></li><li>TomTom incidents<span>20 min</span></li></ul></div>
-    <div class="wire"></div>
-    <div class="node"><h3 class="h3">Traffic server</h3><ul><li>Trims to Orange County<span>edge</span></li><li>Caches for every driver<span>1 call</span></li><li>Keeps keys private<span>secret</span></li></ul></div>
-    <div class="wire"></div>
-    <div class="node"><h3 class="h3">Map Craft</h3><ul><li>Colors roads by speed<span>map</span></li><li>Avoids slow roads<span>routing</span></li><li>Offers a faster way<span>reroute</span></li></ul></div>
-  </div></div>
+<section id="traffic"><div class="wrap">
+  <div class="sh"><div><span class="tag">Live traffic</span><h2 class="h2">Fresh every minute.</h2></div><span class=n>Live loop</span></div>
+  <div class="loop">
+    <div class="card node"><div class="top"><span class="tag">Feeds</span></div><ul class="feeds"><li><span>CHP incidents</span><em>1 min</em><i style="--t:3s"></i></li><li><span>Caltrans closures</span><em>5 min</em><i style="--t:15s"></i></li><li><span>Freeway speeds</span><em>5 min</em><i style="--t:15s"></i></li><li><span>TomTom incidents</span><em>20 min</em><i style="--t:60s"></i></li></ul></div>
+    <div class="wire" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="card node"><div class="top"><span class="tag">Traffic server</span></div><div class="chips"><span>Trims to Orange County</span><span>One fetch for everyone</span><span>Keys stay secret</span></div></div>
+    <div class="wire" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="card node"><div class="top"><span class="tag g">Map Craft</span></div><div class="chips"><span>Roads colored by speed</span><span>Routes avoid slow roads</span><span>Offers a faster way</span></div></div>
+  </div>
 </div></section>
-<div class="band"><div class="wrap">
-  <h2 class="h2">See it for yourself.</h2>
-  <p class="lede" style="margin:12px auto 0">Everything on this page runs in your browser. Pick a destination and drive.</p>
-  <div class="row"><a class="cta lg" href="map"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg>Drive on Web</a><a class="cta lg ghost" href="map?mode=orbit">View the 3D map</a></div>
+<div class="band"><div class="pat" aria-hidden="true"></div><div class="wrap">
+  <h2 class="h2">See it for yourself.</h2><p>All of this runs in your browser.</p>
+  <div class="row"><a class="btn" href="map">Drive on Web <svg viewBox="0 0 3 6" aria-hidden="true"><rect width="1" height="6" fill="currentColor"/><rect x="1" y="1" width="1" height="4" fill="currentColor"/><rect x="2" y="2" width="1" height="2" fill="currentColor"/></svg></a><a class="btn dark" href="map?mode=orbit">View the 3D map</a></div>
 </div></div>
 </main>
 <footer><div class="wrap">
