@@ -557,12 +557,20 @@ function label(text, hot) {
 }
 const labels = [], LABEL_H = 0.032; // sprite height as a fraction of the view height
 {
-  const placed = [];
+  // labels already placed, bucketed by 180-block cell: the spacing checks look at the 3 x 3 cells around a spot
+  // (a plain list made this quadratic: half a minute on a phone for a county-sized road graph)
+  const placed = new Map(), PC = 180, pkey = (i, j) => i * 65536 + j;
+  const crowded = (nm, mid) => {
+    const i0 = Math.floor(mid.x / PC), j0 = Math.floor(mid.z / PC);
+    for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++)
+      for (const p of placed.get(pkey(i, j)) ?? []) { const d = p.mid.distanceTo(mid); if (d < 40 || (p.nm === nm && d < 180)) return true; }
+    return false;
+  };
   for (const [a, b, nm, cl] of G.edges) {
     const name = G.names[nm]; if (!name || name === 'ramp' || cl > 6) continue;
     const mid = N[a].clone().lerp(N[b], 0.5), len = N[a].distanceTo(N[b]);
-    if (len < 25 || placed.some(p => p.nm === nm && p.mid.distanceTo(mid) < 180) || placed.some(p => p.mid.distanceTo(mid) < 40)) continue;
-    placed.push({ nm, mid });
+    if (len < 25 || crowded(nm, mid)) continue;
+    { const k = pkey(Math.floor(mid.x / PC), Math.floor(mid.z / PC)); let l = placed.get(k); if (!l) placed.set(k, l = []); l.push({ nm, mid }); }
     // sit on the kerb side of the road, not on its centre line
     const side = new THREE.Vector3(-(N[b].z - N[a].z) / len, 0, (N[b].x - N[a].x) / len).multiplyScalar(cl <= 3 ? 14 : 9);
     // its height is read the first time it comes in range with its height tiles loaded, and the sprites made when first shown
