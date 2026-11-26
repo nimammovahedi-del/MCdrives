@@ -42,6 +42,11 @@ BLEND = 16      # blocks over which a chunk's share of the step tapers to nothin
 SMOOTH = 25     # lines in the running median of the step along a seam
 MAXSHIFT = 24   # a larger disagreement than this is not blended (it would be a ramp, not a seam)
 DIRT = 0        # material id for a riser whose top block is not found; set by build.py from the material table
+# material ids of the carriageway (asphalt and lane markings), set by build.py from the material table: across a road
+# the blend and the cut are held even (plan()), so a step there runs straight across the road, never as a crack
+ROAD = frozenset()
+ROAD_RUN = 64   # lines: a longer run of road at the seam runs along it, not across (road_runs())
+ROAD_RGB = ("#515457", "#565b5b", "#cfd5d6", "#f0af15")   # mca2web.py: gray_concrete_powder, cyan_terracotta, white/yellow concrete
 # raised roads across a seam (lift_roads()): each chunk grades its decks and ramps alone, so where one crosses a seam
 # the two sides can stand at different levels (or one side dips under the other's ramp); the lower side is lifted
 GRADE = 1 / 12  # steepest fall of the lifted road away from the level it is lifted to (road_grade.py GRADE)
@@ -56,6 +61,7 @@ QT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("w", "u1"), ("h", "u1"),
 BT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("m", "u1"), ("x0", "u1"), ("y0", "u1"), ("z0", "u1"),
                ("x1", "u1"), ("y1", "u1"), ("z1", "u1"), ("pad", "u1")])
 NONE = -1000
+EDGE_DEPTH = 2  # blocks of side face below a drawn top (roof, wall top, deck edge) that edge_risers() closes at a seam
 
 
 def decode(blob):
@@ -187,7 +193,7 @@ class Chunks:
     slot (bx0, bz0, bx1, bz1: its cell of the area grid), row, col, id, dir, meta."""
 
     def __init__(self, info, read_h):
-        self.info = info; self.read_h = read_h
+        self.info = info; self.read_h = read_h; self.read_pack = None
         self.cache = OrderedDict(); self.seams = []
 
     def tile(self, k, p):
@@ -212,6 +218,32 @@ class Chunks:
             h = self.tile(k, p)[:, az - pz:bz - pz, ax - px:bx - px].astype(np.int32)
             t = np.where(h[0] > 1, h[0], h[1])
             out[az - Z0:bz - Z0, ax - X0:bx - X0] = np.where(t > 1, t + i["sy"], NONE)
+        return out
+
+    def road(self, k, X0, Z0, X1, Z1):
+        """Where chunk k's ground (height()) is carriageway: its top face there is of a ROAD material. All False
+        when the packs cannot be read (no read_pack) or no road material is known."""
+        i = self.info[k]; P = i["meta"]["pack"]; T = i["meta"]["tile"]
+        out = np.zeros((Z1 - Z0, X1 - X0), bool)
+        if self.read_pack is None or not ROAD: return out
+        g = self.height(k, X0, Z0, X1, Z1) - i["sy"]   # chunk-local y of the ground's top face
+        lut = np.zeros(256, bool); lut[list(ROAD)] = True
+        for p in i["meta"]["packs"]:
+            px, pz = i["sx"] + p["x"], i["sz"] + p["z"]
+            if px >= X1 or pz >= Z1 or px + P <= X0 or pz + P <= Z0: continue
+            buf = None
+            for tx, tz, _, off, ln in p["tiles"]:
+                bx, bz = i["sx"] + tx * T, i["sz"] + tz * T                     # built column of the tile's corner
+                if bx >= X1 or bz >= Z1 or bx + T <= X0 or bz + T <= Z0: continue
+                if buf is None: buf = self.read_pack(i, p)
+                q, _ = decode(bytes(buf[off:off + ln]))
+                q = q[(q["d"] == 0) & lut[q["m"]]]
+                if not len(q): continue
+                x0, z0, x1, z1 = footprint(q)
+                for r, a0, c0, a1, c1 in zip(q["y"].astype(np.int32), z0 + bz - Z0, x0 + bx - X0, z1 + bz - Z0, x1 + bx - X0):
+                    a0, c0, a1, c1 = max(a0, 0), max(c0, 0), min(a1, Z1 - Z0), min(c1, X1 - X0)
+                    if a1 <= a0 or c1 <= c0: continue
+                    sub = out[a0:a1, c0:c1]; sub |= g[a0:a1, c0:c1] == r
         return out
 
     def shift(self, k, X0, Z0, X1, Z1):
@@ -320,6 +352,16 @@ def plan(C, log=print):
         r = np.rint(runmed(raw, SMOOTH)); r[(np.abs(r) < 2) | (np.abs(r) > MAXSHIFT)] = 0   # one block is noise
         # ramp in and out along the seam too, so where the blend starts the ground steps a block at a time
         r = np.convolve(np.pad(r, BLEND, mode="edge"), np.ones(2 * BLEND + 1) / (2 * BLEND + 1), "valid")
+        # across a road where the two bakes disagree steadily (within a block over its whole width), the share is held
+        # even at the road's own disagreement, so the blend's steps run straight across the carriageway: a share that
+        # changes from line to line inside a road (ramped in from the ground beside it) steps it along a slant, a crack
+        # through the lanes. A road whose disagreement changes across its width (a ramp crossing at a slant) is left
+        runs = []
+        for l0, l1 in road_runs(C, a, b, ax, lo, hi, first):
+            v = raw[l0:l1]; v = v[~np.isnan(v)]
+            if len(v) < (l1 - l0) / 2 or v.max() - v.min() > 1: continue
+            R = np.rint(np.median(v)); r[l0:l1] = R if 2 <= abs(R) <= MAXSHIFT else 0
+            runs.append((l0, l1))
         da = r / 2; db = da - r                                           # a + da meets b + db where ha + r = hb
         s = dict(a=a, b=b, ax=ax, lo=lo, hi=hi, first=first, da=da, db=db)
         C.seams.append(s)
@@ -339,7 +381,13 @@ def plan(C, log=print):
             ta = C.top(a, first - 1, lo, last + 1, hi); tb = C.top(b, first, lo, last + 1, hi)
         tsteps = np.stack([np.where((ka[:, k - first] != kb[:, k - first]) & (ta[:, k - first] > NONE) & (tb[:, k - first] > NONE),
                                     tb[:, k - first] - ta[:, k - first], gb[:, k - first] - ga[:, k - first]) for k in ks], 1)
-        pick = np.where(valid, np.abs(tsteps), 10 ** 6).argmin(1)        # the first minimum: ties go to the boundary
+        cost = np.where(valid, np.abs(tsteps), 10 ** 6)
+        pick = cost.argmin(1)                                            # the first minimum: ties go to the boundary
+        # one cut across a road, where it costs least over the whole run (a cut that wanders from line to line inside
+        # a road leaves a jagged riser across the lanes)
+        for l0, l1 in runs:
+            ok_ = valid[l0:l1].all(0)
+            if ok_.any(): pick[l0:l1] = np.where(ok_, cost[l0:l1].sum(0), 10 ** 12).argmin()
         s["cut"] = ks[pick]
         L = np.arange(len(pick))
         ok = valid[:, 0] & (hb[:, 0] > NONE) & (ha[:, 0] > NONE)        # lines with ground on both sides of the boundary
@@ -357,6 +405,19 @@ def plan(C, log=print):
             f"lines (up to {st['largest_blend']} blocks); step at the boundary nonzero on {st['step_unblended_nonzero']} lines "
             f"({st['step_unblended_ge2']} by 2+), after the blend {st['step_blended_nonzero']} ({st['step_blended_ge2']}), at the "
             f"chosen cut {st['step_at_cut_nonzero']} ({st['step_at_cut_ge2']}); cut moved off the boundary on {st['cut_moved']} lines")
+
+
+def road_runs(C, a, b, ax, lo, hi, first, gap=2, least=3, most=ROAD_RUN):
+    """Runs [l0, l1) of lines (indices from lo) where a road crosses the seam: the column either side of the
+    boundary is carriageway in its own chunk. Gaps of up to gap lines are bridged; runs shorter than least are dropped,
+    and so are runs longer than most (a road along the seam, not across it: its share follows the seam)."""
+    if ax == 0: m = C.road(a, lo, first - 1, hi, first)[0] | C.road(b, lo, first, hi, first + 1)[0]
+    else: m = C.road(a, first - 1, lo, first, hi)[:, 0] | C.road(b, first, lo, first + 1, hi)[:, 0]
+    idx = np.nonzero(m)[0]; out = []
+    for l in idx.tolist():
+        if out and l - out[-1][1] <= gap: out[-1][1] = l + 1
+        else: out.append([l, l + 1])
+    return [(l0, l1) for l0, l1 in out if least <= l1 - l0 <= most]
 
 
 CLS_M = {0: 11.0, 1: 11.0, 2: 8.0, 3: 7.0, 4: 6.5}   # roads.json class -> carriageway metres (road_grade.py DEFAULT_M)
@@ -559,6 +620,34 @@ def taper(F, UP, own):
     return np.where(ok, np.clip(G - U, 0, LIFT_MAX), 0).astype(np.int32)
 
 
+def edge_risers(up, fp, lx, lz, T, edge, u_all, top, shk, sy):
+    """Risers for the drawn top of a tile's columns on an owner or shift edge (edge: [direction, P, P] pack-local, per
+    DIRS): a roof, wall top, parapet or deck edge that stands over the neighbour's highest surface (u_all, top:
+    [P + 2, P + 2] joined y, NONE where none) needs its side faces over the step, as the ground's risers (keyed to the
+    height tiles, which hold drivable surfaces only) give them only down at the ground. At most EDGE_DEPTH blocks
+    down from the top, so no curtain hangs under a deck, and never into the ground's own riser. up, fp: the tile's
+    top faces before the move and their footprints. Returns [(pack-local x, z, final y0, final y1, dir, top before
+    the move)], as sew()'s risers."""
+    out = []
+    sub = edge[:, lz:lz + T, lx:lx + T]
+    if not sub.any() or not len(up): return out
+    ux0, uz0, ux1, uz1 = fp; uy = up["y"].astype(np.int32)
+    for cz, cx in zip(*[a.tolist() for a in np.nonzero(sub.any(0))]):
+        hit = (ux0 <= cx) & (cx < ux1) & (uz0 <= cz) & (cz < uz1)
+        if not hit.any(): continue
+        y = int(uy[hit].max())                        # the column's drawn top, chunk-local, before the move
+        x, z = lx + cx, lz + cz
+        Y = y + int(shk[z, x]) + sy                   # joined, after the move (lifts are left to their own risers)
+        g = int(top[z + 1, x + 1])
+        for e, (dz, dx, d) in enumerate(DIRS):
+            if not sub[e, cz, cx]: continue
+            n = int(u_all[z + 1 + dz, x + 1 + dx])
+            if n <= NONE or n >= Y: continue
+            y0 = max(n + 1, Y - EDGE_DEPTH + 1, g + 1 if g > NONE else n + 1)
+            if y0 <= Y: out.append((x, z, y0 - sy, Y - sy, d, y))
+    return out
+
+
 def owners(C, X0, Z0, X1, Z1):
     """Owner chunk index of each built column in [Z0:Z1, X0:X1]; -1 where no chunk has it."""
     W, D = X1 - X0, Z1 - Z0
@@ -599,7 +688,7 @@ def sew(info, read_pack, read_h, log=print, roads=None):
     """The seam edits for a join. Returns ({(chunk index, pack id): edit}, stats); an edit is a dict with the new pack
     bytes ("blob"), tile table ("tiles"), quad count ("quads") and height tile bytes ("hbytes"). roads: the joined road
     graph with nodes in the built frame, for lift_roads() (None leaves raised roads as the chunks graded them)."""
-    C = Chunks(info, read_h)
+    C = Chunks(info, read_h); C.read_pack = read_pack
     plan(C, log)
     lst = lift_roads(C, roads, log)
     boxes = [(fx, fz, fx + f.shape[1], fz + f.shape[0]) for fx, fz, f in C.lifts]
@@ -624,6 +713,7 @@ def sew(info, read_pack, read_h, log=print, roads=None):
             # the ground each column shows once every chunk is cut to what it owns, blended and lifted (the ground moves
             # with a lift where the whole column does), and the highest surface likewise
             top = np.full(own.shape, NONE, np.int32); shall = np.zeros(own.shape, np.int32)
+            hig = np.full(own.shape, NONE, np.int32); hsh = np.zeros(own.shape, np.int32)   # highest surface, its move
             upr = np.full(own.shape, NONE, np.int32); up0 = np.full(own.shape, NONE, np.int32)
             if L.any(): Fk, layk = C.floor(k, *R), C.layers(k, *R)
             for j in set(np.unique(own).tolist()) - {-1}:
@@ -638,6 +728,10 @@ def sew(info, read_pack, read_h, log=print, roads=None):
                 else: gsh = shj
                 top = np.where(own == j, np.where(hj > NONE, hj + gsh, NONE), top)
                 shall = np.where(own == j, gsh, shall)
+                l1 = C.layers(j, *R)[1]
+                tsh = shj + (np.where(l1 >= C.floor(j, *R), L, 0) if L.any() else 0)
+                hig = np.where(own == j, np.where(l1 > 1, l1 + info[j]["sy"] + tsh, NONE), hig)
+                hsh = np.where(own == j, tsh, hsh)
             shk = sh[1:-1, 1:-1]; gk = shall[1:-1, 1:-1]; Lk = L[1:-1, 1:-1]
             # risers: an owned column above a neighbour owned by another chunk, or moved by a different shift, needs
             # side faces down to that neighbour's ground
@@ -650,6 +744,11 @@ def sew(info, read_pack, read_h, log=print, roads=None):
                 sel = mine & (no >= 0) & diff & (t > NONE) & (nb > NONE) & (t > nb)
                 for z, x in zip(*[a.tolist() for a in np.nonzero(sel)]):
                     need.append((x, z, int(nb[z, x]) + 1 - i["sy"], int(t[z, x]) - i["sy"], d, int(t[z, x]) - i["sy"] - int(gk[z, x])))
+            # columns whose drawn top may stand over a neighbour cut from another chunk or moved apart (see edge_risers())
+            edge = np.stack([mine & (own[1 + dz:P + 1 + dz, 1 + dx:P + 1 + dx] >= 0)
+                             & ((own[1 + dz:P + 1 + dz, 1 + dx:P + 1 + dx] != k) | (hsh[1 + dz:P + 1 + dz, 1 + dx:P + 1 + dx] != hsh[1:-1, 1:-1]))
+                             for dz, dx, d in DIRS])   # [direction, z, x]: the neighbour that way is another chunk's or moved apart
+            u_all = np.maximum(hig, top)
             if Lk.any():
                 # a lifted deck (over a lower surface, so not covered by the ground's risers) above the same deck next
                 # to it, lifted less: the faces of the step
@@ -661,7 +760,7 @@ def sew(info, read_pack, read_h, log=print, roads=None):
                     for z, x in zip(*[a.tolist() for a in np.nonzero(sel)]):
                         need.append((x, z, int(nu[z, x]) + 1 - i["sy"], int(u[z, x]) - i["sy"], d, int(layk[1, z + 1, x + 1])))
                 tot["columns_lifted"] += int((mine & (Lk > 0)).sum())
-            if mine.all() and not shk.any() and not need and not Lk.any(): continue
+            if mine.all() and not shk.any() and not need and not Lk.any() and not edge.any(): continue
             buf = read_pack(i, p)
             blob = bytearray(); tiles = []; nq = 0
             byt = {}
@@ -672,6 +771,7 @@ def sew(info, read_pack, read_h, log=print, roads=None):
                 ownt, sht = mine[lz:lz + T, lx:lx + T], shk[lz:lz + T, lx:lx + T]
                 rs = byt.pop((tx, tz), [])
                 up = q[q["d"] == 0]; ux0, uz0, ux1, uz1 = footprint(up)   # top faces before the move, for colours
+                rs = rs + edge_risers(up, (ux0, uz0, ux1, uz1), lx, lz, T, edge, u_all, top, shk, i["sy"])
                 if Lk.any():
                     q2, b2, ncut = reshape_lift(q, b, ownt, sht, Lk[lz:lz + T, lx:lx + T], Fk[1:-1, 1:-1][lz:lz + T, lx:lx + T])
                 else: q2, b2, ncut = reshape(q, b, ownt, sht)

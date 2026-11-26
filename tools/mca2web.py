@@ -647,6 +647,11 @@ def _flat_roof_buildings():
         allp = np.concatenate(outer)
         out.append((e["id"], t, outer, inner, (allp[:, 0].min(), allp[:, 0].max(), allp[:, 1].min(), allp[:, 1].max())))
     FR["b"] = out
+    # the chunk's own bbox (--bounds), in grid coordinates: past it lies the lap that a neighbouring chunk bakes too
+    if BOUNDS:
+        bs, bw, bn, be = BOUNDS
+        (xw, zn), (xe, zs) = pj(bw, bn), pj(be, bs)
+        FR["own"] = (xw - minx, xe - minx, zn - minz, zs - minz)
     # the block nearest a roof:colour, for a roof that Arnis left out
     FR["roofmats"] = [(colour(n)[0], mat(*colour(n))) for n in FR_ROOF_NAMES]
     return out
@@ -705,6 +710,11 @@ def flat_roofs(wg, dmat, dshape, inworld, rx, rz, st):
         if not inworld[sl].all():
             if mine: st["world_edge"] += 1
             continue
+        # a building across the chunk's own edge: the neighbour's bake has it cut by its world edge and leaves it as it
+        # is, and the seam takes some of its columns from each, so a roof laid here would end in a ragged step
+        if "own" in FR and not (FR["own"][0] <= bx0 - 1 and bx1 + 1 <= FR["own"][1] and FR["own"][2] <= bz0 - 1 and bz1 + 1 <= FR["own"][3]):
+            if mine: st["seam"] = st.get("seam", 0) + 1
+            continue
         zz, xx = np.mgrid[z0:z1, x0:x1]
         F = _inside(outer, xx + .5, zz + .5) & ~_inside(inner, xx + .5, zz + .5)
         if F.sum() < 12: continue
@@ -733,22 +743,28 @@ def flat_roofs(wg, dmat, dshape, inworld, rx, rz, st):
             roofm = int(np.bincount(m, minlength=256).argmax())
         else:                                              # none: the block nearest the roof colour of the bake
             roofm = _nearest_roof(t.get("roof:colour", "")) or mat(*colour("light_gray_concrete"))
-        jobs.append(dict(sl=sl, F=F, I=I, tall=tall, Tc=Tc, roofm=roofm, mine=mine, flat=flat,
+        edge = tall & (tp == Tc) & ~I                       # the wall's own block, at its top
+        wallm = int(np.bincount(wg[Tc][sl][edge], minlength=256).argmax()) if edge.any() else 0
+        jobs.append(dict(sl=sl, F=F, I=I, tall=tall, Tc=Tc, roofm=roofm, wallm=wallm, mine=mine, flat=flat,
                          box=(z0 - oz, z1 - oz, x0 - ox, x1 - ox)))
     # Attached buildings whose walls end one block apart (OSM heights a few decimetres apart, rounded) would keep a step
     # with its own wall and coping between their roofs: the lower one is brought up to its neighbour. Only neighbours
-    # that touch it count, and only one block, so the answer does not depend on how far a row of buildings reaches.
+    # that touch it count, and only one block, so the answer does not depend on how far a row of buildings reaches; and
+    # only a neighbour built in the same wall block (parts of one building): two buildings that look different keep
+    # their own heights and the wall between them.
     for a in jobs:
         za0, za1, xa0, xa1 = a["box"]
         grow = ndimage.binary_dilation(a["F"], cross, iterations=2)   # walls drawn on the outline: rasters a block or two apart
         for b in jobs:
-            if b["Tc"] != a["Tc"] + 1: continue
+            if b["Tc"] != a["Tc"] + 1 or b["wallm"] != a["wallm"]: continue
             zb0, zb1, xb0, xb1 = b["box"]
             if zb0 >= za1 or zb1 <= za0 or xb0 >= xa1 or xb1 <= xa0: continue
             z0_, z1_, x0_, x1_ = max(za0, zb0), min(za1, zb1), max(xa0, xb0), min(xa1, xb1)
             if (grow[z0_ - za0:z1_ - za0, x0_ - xa0:x1_ - xa0] & b["F"][z0_ - zb0:z1_ - zb0, x0_ - xb0:x1_ - xb0]).any():
                 a["up"] = True; break
     rmat = np.zeros((Sz, Sx), dtype=np.uint8)              # the roof block laid in each column
+    wlo = np.full((Sz, Sx), 999, dtype=np.int32)           # the wall blocks of the buildings whose roof that is (least
+    whi = np.full((Sz, Sx), -1, dtype=np.int32)            # and greatest, where outlines overlap)
     near = np.zeros((Sz, Sx), dtype=bool)                  # within two blocks of a footprint whose roof was laid
     for j in jobs:
         sl, F, I, Tc, up = j["sl"], j["F"], j["I"], j["Tc"], j.get("up", False)
@@ -763,9 +779,20 @@ def flat_roofs(wg, dmat, dshape, inworld, rx, rz, st):
             wall = (j["tall"] & (tp == Tc) & ~I) & (wg[L][sl] == 0)
             w[wall] = wg[Tc][sl][wall]
             put |= wall
+            # the coping slab on the wall goes up with it (else the new block hides it, and the wall loses its cap)
+            zz, xx = np.nonzero(wall)
+            zz, xx = zz + sl[0].start - M, xx + sl[1].start - M
+            k = (zz >= 0) & (zz < PACK) & (xx >= 0) & (xx < PACK)
+            zz, xx = zz[k], xx[k]
+            if len(zz) and L + 1 < Hh:
+                hit = (dmat[L, zz, xx] != 0) & slab[dshape[L, zz, xx]] & (dmat[L + 1, zz, xx] == 0)
+                zz, xx = zz[hit], xx[hit]
+                dmat[L + 1, zz, xx] = dmat[L, zz, xx]; dshape[L + 1, zz, xx] = dshape[L, zz, xx]; dmat[L, zz, xx] = 0
         lay[sl][put] = np.maximum(lay[sl][put], L)
         w[put & (w == 0)] = j["roofm"]
         r = rmat[sl]; r[(put | I) & (r == 0)] = j["roofm"]
+        k = put | I
+        wl, wh = wlo[sl], whi[sl]; wl[k] = np.minimum(wl[k], j["wallm"]); wh[k] = np.maximum(wh[k], j["wallm"])
         near[sl] |= ndimage.binary_dilation(F, cross, iterations=2)
         if j["mine"]:
             st["flat" if j["flat"] else "roofless"] += 1
@@ -786,6 +813,21 @@ def flat_roofs(wg, dmat, dshape, inworld, rx, rz, st):
     zz, xx = np.nonzero(slit)
     wg[Ld[zz, xx], zz, xx] = Rm[zz, xx]; lay[zz, xx] = Ld[zz, xx]; rmat[zz, xx] = Rm[zz, xx]
     st["slits"] += int(slit[c].sum())
+    # A one-block gap between two walls that stand flush with their roofs (two outlines a block apart, each with its
+    # own wall) would be a slot down to the ground between two parapets: it is closed at the wall top, in the roof's block
+    top = tops()
+    Lw = ndimage.grey_dilation(lay, footprint=box3)
+    Rm5 = ndimage.grey_dilation(rmat, footprint=np.ones((5, 5), bool))
+    flush = (lay < 0) & (Lw >= 0) & (top == Lw)
+    for dz, dx in ((1, 0), (0, 1)):
+        a_, b_ = nb(flush, dz, dx), nb(flush, -dz, -dx)
+        ta, tb = nb(top, dz, dx), nb(top, -dz, -dx)
+        lvl = np.minimum(ta, tb)
+        gap = near & (lay < 0) & ~flush & a_ & b_ & (top < lvl) & (np.abs(ta - tb) <= 1) & (lvl < Hh) & (Rm5 > 0)
+        zz, xx = np.nonzero(gap)
+        wg[lvl[zz, xx], zz, xx] = Rm5[zz, xx]
+        top[zz, xx] = lvl[zz, xx]; flush[zz, xx] = True
+        st["slits"] += int(gap[c].sum())
     # A wall between two roofs (every side covered up to the roof level) loses its coping slab, and its top block takes
     # the roof's block, so attached buildings read as one roof; walls on the outside keep both
     top = tops()
@@ -794,6 +836,10 @@ def flat_roofs(wg, dmat, dshape, inworld, rx, rz, st):
     cov = near & (L >= 0) & (top == L)
     for dz, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
         cov &= nb(top, dz, dx) >= L
+    # only between roofs of buildings in the same wall block: a wall between two that look different stays, with its cap
+    # (looked for three blocks around: across a wall, a closed gap and the other wall)
+    laid, box7 = lay >= 0, np.ones((7, 7), bool)
+    cov &= ndimage.grey_dilation(np.where(laid, whi, -1), footprint=box7) == -ndimage.grey_dilation(np.where(laid, -wlo, -999), footprint=box7)
     zz, xx = np.nonzero(cov & (lay < 0) & (Rm > 0))
     wg[L[zz, xx], zz, xx] = Rm[zz, xx]
     st["party"] += int((cov & (lay < 0) & (Rm > 0))[c].sum())
@@ -814,7 +860,7 @@ def flat_roofs(wg, dmat, dshape, inworld, rx, rz, st):
         dmat[y[hit], zz[hit], xx[hit]] = 0
         st["fixtures"] += int(hit.sum())
 
-FRS = dict(flat=0, roofless=0, raised=0, pitched=0, low=0, cut=0, world_edge=0, cols=0, slits=0, party=0, copings=0, fixtures=0)
+FRS = dict(flat=0, roofless=0, raised=0, pitched=0, low=0, cut=0, world_edge=0, seam=0, cols=0, slits=0, party=0, copings=0, fixtures=0)
 BSS = dict(buildings=0, cut=0, world_edge=0, shaded=0, cols=0, cols_shaded=0, blocks=0)
 RFS = dict(pits=0, fill_fill=0, skip_fill=0, fill_soft=0, skip_soft=0, red=0, red_blocks=0, leaf_cleared=0, log_cleared=0)
 packs = []; total = 0; nquads = 0; nboxes = 0; faces = 0; nleafcut = 0

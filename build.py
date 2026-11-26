@@ -511,6 +511,7 @@ def join(area, chunks, out, seam_tol=6, log=print, sew_seams=True):
                      slot=(gx[c["col"]], gz[c["row"]], gx.get(c["col"] + 1, big), gz.get(c["row"] - 1, big)))
         names = [m["rgb"] + m["kind"] for m in info[0]["meta"]["materials"]]
         seams.DIRT = names.index("#86603fsolid") if "#86603fsolid" in names else 0
+        seams.ROAD = frozenset(names.index(c + "solid") for c in getattr(seams, "ROAD_RGB", ()) if c + "solid" in names)
         def read_pack(i, p): return (i["dir"] / "data" / f"{p['id']}.{ext}").read_bytes()
         def read_h(i, p): return read_gz_array(i["dir"] / "data" / f"{p['h']}.bin", i["dir"] / "data" / f"{p['h']}.json")
         # the joined road graph in the built frame, so seams.py can follow a deck or ramp across a seam (lift_roads())
