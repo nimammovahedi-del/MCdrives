@@ -283,6 +283,7 @@ def regrade():
     solid_lut = (k256 == 1) | (k256 == 3)
     block_lut = solid_lut.copy()                      # what fills a block for headroom: not leaves, not water
     carr_lut = lut(["gray_concrete_powder", "cyan_terracotta", "white_concrete", "yellow_concrete"])
+    red_lut = lut(["red_terracotta", "red_concrete"])   # cycle paths: lifted on earth, so road_fixes() still mutes them
     gr = road_grade.Grader(W, D, H, log=print)
     def padded(rx, rz):
         z = np.load(os.path.join(TMP, f"{rx}_{rz}.npz"))
@@ -303,7 +304,7 @@ def regrade():
     nr = nc = 0
     for (rx, rz) in sorted(REG):
         (g, dm, ds), present, o, n = padded(rx, rz)
-        a, b = gr.apply_region((rx - rx0) * PACK, (rz - rz0) * PACK, g, dm, ds, fill_id, pave_id, carr_lut, block_lut)
+        a, b = gr.apply_region((rx - rx0) * PACK, (rz - rz0) * PACK, g, dm, ds, fill_id, pave_id, carr_lut, block_lut, red_lut)
         nr += a; nc += b
         if a or b:
             # the stored y range may have to grow by what was raised

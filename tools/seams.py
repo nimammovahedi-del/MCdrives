@@ -31,7 +31,8 @@ disagreement (else the blend moved the deck up on one side and down on the other
 the cut through them goes where the decks meet. And each chunk grades a deck or ramp that crosses into its neighbour
 on its own (tools/road_grade.py), so the two sides can still meet at different levels: lift_roads() follows every
 raised road across a seam on the joined road graph and lifts its lower side to an even grade (only ever up, only
-the carriageway, only the deck where a road passes under it).
+the carriageway, only the deck where a road passes under it), tapered into the surface beside it (taper()) and
+lowered, or left out, where that surface cannot take it without a wall.
 """
 import gzip
 from collections import OrderedDict
@@ -49,6 +50,7 @@ LIFT_MAX = 10   # never lift a road surface by more than this
 LIFT_REACH = LIFT_SRC + LIFT_MAX * 12   # how far along the road from the seam a lift can reach
 DECK_GAP = 3    # a column whose highest surface stands this many blocks over its lowest is a deck over a lower surface
 NOLIFT = -10 ** 6   # floor of a column that moves whole when lifted
+LIFT_EDGE = 2   # columns past the lifted carriageway over which a lift tapers out into the surface beside it (taper())
 
 QT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("w", "u1"), ("h", "u1"), ("d", "u1"), ("m", "u1")])
 BT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("m", "u1"), ("x0", "u1"), ("y0", "u1"), ("z0", "u1"),
@@ -372,7 +374,7 @@ def lift_roads(C, roads, log=print):
     Fills C.lifts with (X0, Z0, lift field) per lifted crossing. Returns stats."""
     from collections import defaultdict
     C.lifts = []
-    st = dict(crossings=0, raised=0, lifted=0, lift_cols=0, largest_lift=0)
+    st = dict(crossings=0, raised=0, lifted=0, dropped=0, lift_cols=0, largest_lift=0)
     if not roads or not C.seams: return st
     nodes = np.asarray(roads["nodes"], float); E = roads["edges"]; names = roads.get("names", [])
     inc = defaultdict(list)
@@ -438,8 +440,9 @@ def lift_roads(C, roads, log=print):
                 for j in (s["a"], s["b"]):
                     hit |= C.deck(j, a0, b0, qx.max() + 1, qz.max() + 1)[qz - b0, qx - a0]
                 if hit.sum() < 6: continue
-            X0, Z0 = int(np.floor(px.min())) - 10, int(np.floor(pz.min())) - 10
-            X1, Z1 = int(np.floor(px.max())) + 11, int(np.floor(pz.max())) + 11
+            pad = 10 + LIFT_EDGE + 2   # the carriageway, the edge the lift may taper over, and a ring of unlifted columns
+            X0, Z0 = int(np.floor(px.min())) - pad, int(np.floor(pz.min())) - pad
+            X1, Z1 = int(np.floor(px.max())) + pad + 1, int(np.floor(pz.max())) + pad + 1
             own = owners(C, X0, Z0, X1, Z1)
             UP = np.full(own.shape, NONE, np.int32); LO = np.full(own.shape, NONE, np.int32)
             for j in set(np.unique(own).tolist()) - {-1}:
@@ -477,24 +480,83 @@ def lift_roads(C, roads, log=print):
                 a_ = k + 1
                 while a_ < len(S) and lift[a_] > 0 and not keep[a_]: keep[a_] = True; a_ += 1
             lift = np.where(keep, lift, 0)
-            F = np.zeros(own.shape, np.int32)
+            # the carriageway of each lifted station: columns within its half-width at the road's level
             gz, gx = np.mgrid[0:own.shape[0], 0:own.shape[1]]
+            disc = {}
             for k in np.nonzero(lift)[0]:
                 r = W[k] + 0.5; cx, cz = px[k] - X0, pz[k] - Z0
                 a0, a1 = max(0, int(cz - r)), min(own.shape[0], int(cz + r) + 2)
                 b0, b1 = max(0, int(cx - r)), min(own.shape[1], int(cx + r) + 2)
                 d2 = (gx[a0:a1, b0:b1] + 0.5 - cx) ** 2 + (gz[a0:a1, b0:b1] + 0.5 - cz) ** 2
-                at = (d2 <= r * r) & (np.abs(UP[a0:a1, b0:b1] - P[k]) <= 1) & (own[a0:a1, b0:b1] >= 0)
-                sub = F[a0:a1, b0:b1]; np.maximum(sub, np.where(at, lift[k], 0), out=sub)
+                disc[k] = (a0, a1, b0, b1, (d2 <= r * r) & (np.abs(UP[a0:a1, b0:b1] - P[k]) <= 1) & (own[a0:a1, b0:b1] >= 0))
+
+            def field(lift):
+                F = np.zeros(own.shape, np.int32)
+                for k, (a0, a1, b0, b1, at) in disc.items():
+                    if lift[k] > 0: sub = F[a0:a1, b0:b1]; np.maximum(sub, np.where(at, lift[k], 0), out=sub)
+                return F
+            # a lift the surface around it cannot take without a wall (taper() lowers it there) is lowered for the
+            # whole width of the road, and tapers back up along the road at GRADE, so the carriageway stays level
+            # across: lifting less (or not at all) where the lift cannot be made clean
+            want = lift
+            T = taper(field(lift), UP, own)
+            cap = np.array([min(lift[k], int(T[d[0]:d[1], d[2]:d[3]][d[4]].min())) if k in disc and d[4].any() else lift[k]
+                            for k, d in ((k, disc.get(k)) for k in range(len(S)))])
+            if (cap < lift).any():
+                lift = np.minimum(lift, np.floor((cap[None, :] + np.abs(S[:, None] - S[None, :]) * GRADE).min(1) + 1e-6)).astype(int)
+                if lift[mid].max(initial=0) < 2:
+                    st["dropped"] += 1
+                    log(f"seams: left {names[e[2]] if e[2] < len(names) else 'a road'} across {C.info[s['a']]['id']}|{C.info[s['b']]['id']} "
+                        f"at ({xc[0]:.0f}, {xc[1]:.0f}) unlifted: the ground around it cannot take a lift of {int(want[mid].max())} cleanly")
+                    continue
+                T = taper(field(lift), UP, own)
+            F = T
             if not F.any(): continue
             C.lifts.append((X0, Z0, F))
             st["lifted"] += 1; st["lift_cols"] += int((F > 0).sum()); st["largest_lift"] = max(st["largest_lift"], int(lift.max()))
             nm = names[e[2]] if e[2] < len(names) else ""
             log(f"seams: lifted {nm or 'a road'} across {C.info[s['a']]['id']}|{C.info[s['b']]['id']} at "
                 f"({xc[0]:.0f}, {xc[1]:.0f}): step {int(P[c0] - P[c0 - 1]) if c0 > 0 and not np.isnan(P[c0 - 1] + P[c0]) else '?'} "
-                f"at the seam, up to {int(lift.max())} blocks over {int(keep.sum())} blocks of road, {int((F > 0).sum())} columns")
+                f"at the seam, up to {int(lift.max())} blocks over {int((lift > 0).sum())} blocks of road, {int((F > 0).sum())} columns"
+                + (f" (lowered from {int(want.max())}: the ground beside it cannot take more)" if want.max() > lift.max() else ""))
     log("seams: raised roads across seams: " + ", ".join(f"{k} {v:,}" for k, v in st.items()))
     return st
+
+
+def taper(F, UP, own):
+    """A lift field that never cuts a surface: side-by-side columns of one surface (tops within a block of each other)
+    are still within a block of each other once lifted. The lift spreads over the surface around it (one block less
+    per column, at most LIFT_EDGE columns past the columns lifted, so a railing, kerb, shoulder or lane the centre-line test missed
+    goes up with the deck and a pit inside the lifted carriageway is filled); where the surface goes on further than
+    that (a plaza or the road beyond the lift's end), the lift is lowered instead until it tapers out within the edge.
+    So a lift that cannot be made clean is made smaller, never left as a wall or a slit. F, UP (the highest surface
+    before the lift, NONE where none), own: [Z, X] over the same columns."""
+    if not F.any(): return F
+    ok = (UP > NONE) & (own >= 0)
+    sx = ok[:, 1:] & ok[:, :-1] & (np.abs(UP[:, 1:] - UP[:, :-1]) <= 1)   # (z, x) and (z, x + 1) are one surface
+    sz = ok[1:, :] & ok[:-1, :] & (np.abs(UP[1:, :] - UP[:-1, :]) <= 1)   # (z, x) and (z + 1, x)
+
+    def nb(v, fill, op):
+        """op over v at each column's same-surface neighbours (fill where it has none)."""
+        o = np.full(v.shape, fill, v.dtype)
+        o[:, :-1] = np.where(sx, op(o[:, :-1], v[:, 1:]), o[:, :-1]); o[:, 1:] = np.where(sx, op(o[:, 1:], v[:, :-1]), o[:, 1:])
+        o[:-1, :] = np.where(sz, op(o[:-1, :], v[1:, :]), o[:-1, :]); o[1:, :] = np.where(sz, op(o[1:, :], v[:-1, :]), o[1:, :])
+        return o
+    zone = F > 0
+    for _ in range(LIFT_EDGE): zone |= nb(zone, False, np.logical_or) & ok
+    zone[[0, -1], :] = False; zone[:, [0, -1]] = False   # the ring of the box stays as it is
+    # on the lifted surface heights (side-by-side columns of a surface may already be a block apart, as on a slope)
+    U = np.where(ok, UP, 0).astype(np.int64); BIG = 10 ** 6
+    G = U + F
+    for _ in range(sum(F.shape)):   # spread: at most a block down per column, within the zone
+        H = np.where(zone, np.maximum(G, nb(G, -BIG, np.maximum) - 1), U)
+        if (H == G).all(): break
+        G = H
+    for _ in range(2 * sum(F.shape)):   # limit (both run until nothing changes; the box bounds them): at most a block over any neighbour of the same surface
+        H = np.maximum(U, np.minimum(G, nb(G, BIG, np.minimum) + 1))
+        if (H == G).all(): break
+        G = H
+    return np.where(ok, np.clip(G - U, 0, LIFT_MAX), 0).astype(np.int32)
 
 
 def owners(C, X0, Z0, X1, Z1):

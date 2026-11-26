@@ -20,9 +20,12 @@ ways of the bake, and only ever raises road surfaces or opens space under an upp
      so between a junction and a deck the climb is as even as the room there allows. Where a chain crosses the side
      of the chunk (with --bounds), it is held to a level its neighbour works out alike from the data both share
      (Grader.boundaries()), so a bridge or ramp across a chunk boundary is graded on both sides to meet there.
+     A ramp is not lengthened beside another road's carriageway that stood level with it and is not lifted with it
+     (Grader._beside()): that would stand as a wall between the two.
   4. Every cross-section of a chain is levelled to one height. Overlapping or side-by-side carriageways on one surface
      are levelled to the higher one: a chain that another lifts is required to reach that level there and re-graded,
-     so it ramps up to it instead of being left a step below. Carriageway that no chain's kerbs cover (deck widening)
+     so it ramps up to it instead of being left a step below (the lift is handed on, not the levels, so the levelling
+     does not ratchet; see _own_and_level()). Carriageway that no chain's kerbs cover (deck widening)
      follows the chain whose margin it is in; a surface with another road surface close over it is not lifted.
   5. Surface columns are raised (what stands on the surface - markings, railings, posts - moves up with it, and the
      gap is filled with stone bricks like Arnis's own ramp fill); under an upper road over a lower one everything
@@ -539,6 +542,8 @@ class Grader:
         # ---- grade each chain
         for c in self.C:
             self._grade(c)
+        st["beside_pins"] = self._beside()
+        for c in self.C:
             st["chains_raised"] += bool((c["t"] > c["h"]).any())
         tick("graded")
         self._own_and_level(st)
@@ -548,7 +553,11 @@ class Grader:
     def _grade(self, c):
         """Target level per bin of a chain from its height above reference ground and its requirements."""
         # requirements (a level to clear a road below, or a neighbour's level) are absolute and spread at GRADE in
-        # absolute terms; a deck's own height is relative to the reference ground and spreads relative to it
+        # absolute terms; a deck's own height is relative to the reference ground and spreads relative to it.
+        # A level to clear a road below is a must (req); a level asked by a road levelled with this one (lreq) is
+        # met only as far as the chain's junctions let it ramp there (the cap below, from its must levels), as a
+        # deck's own height is: held to it next to a junction, the chain would drop to the junction's level in a
+        # bin or two, a staircase steeper than Arnis's own
         h, gref, reqa, nb = c["h"], c["gref"], c["req"], c["nb"]
         e = h - gref
         req = reqa - gref
@@ -568,12 +577,11 @@ class Grader:
         dil = np.where(src, e, -np.inf)
         for b, T, raised in bpins:   # a boundary the deck model lifts ramps away from it like a deck
             if raised: dil[b] = max(dil[b], T - gref[b])
-        dila = reqa.copy()
-        if np.isfinite(dil).any() or np.isfinite(dila).any():
-            for a in (dil, dila):
+        dila = reqa.copy(); dill = c["lreq"].copy() if "lreq" in c else np.full(nb, -np.inf)
+        if np.isfinite(dil).any() or np.isfinite(dila).any() or np.isfinite(dill).any():
+            for a in (dil, dila, dill):
                 for i in range(1, nb): a[i] = max(a[i], a[i - 1] - GRADE)
                 for i in range(nb - 2, -1, -1): a[i] = max(a[i], a[i + 1] - GRADE)
-            dil = np.maximum(dil, dila - gref)
             # junctions, and where the chain leaves the world, keep their level; a chunk boundary holds its level T
             pv = {int(min(nb - 1, round(sv))): None for nd, sv in zip(c["nodes"], c["s"]) if nd in self.junction}
             if bpins:
@@ -586,16 +594,31 @@ class Grader:
                 for k in (0, -1):
                     x, z = c["pts"][k]
                     if not (1 <= x < self.W - 1 and 1 <= z < self.D - 1): pv.setdefault(int(inw[0] if k == 0 else inw[-1]), None)
-            cap = np.full(nb, np.inf); idx = np.arange(nb)
-            for pb, v in pv.items():
-                v = e[pb] if v is None else v
-                d = np.abs(idx - pb).astype(float); d[pb] = np.inf
-                gs = max(GRADE, float(np.max((need - v) / d)))
-                cap = np.minimum(cap, v + gs * np.abs(idx - pb))
-            p = np.maximum(need, np.minimum(dil, cap))
+            idx = np.arange(nb)
+            def capof(pv):
+                cap = np.full(nb, np.inf)
+                for pb, v in pv.items():
+                    # a junction keeps its level, or the level required of it there (by a road crossing under it, or
+                    # one levelled with it): what it is held to is where its neighbours ramp from, not a 1-bin spike
+                    v = (e[pb] if not np.isfinite(need[pb]) else max(e[pb], need[pb])) if v is None else v
+                    d = np.abs(idx - pb).astype(float); d[pb] = np.inf
+                    q = (need - v) / d
+                    # each side climbs as steeply as that side needs (a deck on one side does not lift the other)
+                    gl = max(GRADE, float(np.max(q[:pb], initial=-np.inf))); gr = max(GRADE, float(np.max(q[pb + 1:], initial=-np.inf)))
+                    cap = np.minimum(cap, v + np.where(idx < pb, gl, gr) * np.abs(idx - pb))
+                return cap
+            # bins beside a road not lifted with this one (_beside()) hold a deck's ramp and the ramp up to a level it
+            # must reach, not a level asked of it by a road levelled with it
+            dil = np.maximum(dil, dila - gref)
+            if c.get("beside"): dil = np.minimum(dil, capof({int(b): None for b in c["beside"]}))
+            p = np.maximum(need, np.minimum(np.maximum(dil, dill - gref), capof(pv)))
         else:
             p = need
-        t = np.maximum(np.round(gref + np.where(np.isfinite(p), p, e)), h)
+        tf = np.maximum(gref + np.where(np.isfinite(p), p, e), h)
+        # the level before rounding, which levelling passes on (a rounded level handed on carries a lift half a block
+        # further each time, so a ramp's tail would run on along two overlapping chains)
+        c["tf"] = np.maximum(tf, c["tf"]) if "tf" in c else tf
+        t = np.round(tf)
         if "t" in c: t = np.maximum(t, c["t"])
         t = np.minimum(t, h + MAX_RAISE)
         if bpins:   # the boundary contract: T at each crossing, and level past it
@@ -604,6 +627,58 @@ class Grader:
             fill = c["bfill"]
             t = np.where(beyond, np.where(np.isnan(fill), h, np.maximum(h, fill)), t)
         c["t"] = t
+
+    def _beside(self, reach=16):
+        """Where a chain's grading lifts it beside another road's carriageway that stood level with it (within
+        `reach` blocks past its kerbs) and is not lifted with it, the lift would stand there as a wall between the two
+        (a ramp lengthened back along the road it leaves, or along a frontage road or a slip lane next to it): those
+        bins keep their level as a junction does (pins in _grade()), so the ramp climbs from past them, no steeper than
+        Arnis built it. Side-by-side carriageways lifted alike are left to be levelled together. Returns how many bins
+        were pinned."""
+        W, D = self.W, self.D
+        lvl = np.full(W * D, -1, np.int16); tlv = np.full(W * D, -np.inf, np.float32); who = np.full(W * D, -1, np.int32)
+        for ci, c in enumerate(self.C):
+            lev, car = self.levels_at(c["pix"])
+            inner = np.abs(c["plat"]) <= c["phw"]
+            own = np.full(len(c["pix"]), -1, dtype=np.int64)
+            for k in range(NLEV):
+                m = (lev[k] >= 0) & (np.abs(lev[k] - c["hb"]) <= 1) & car[k]
+                own = np.where(m, np.maximum(own, lev[k]), own)
+            m = inner & (own >= 0)
+            p = c["pix"][m]; tv = c["tf"][c["b"][m]]
+            hi = tv > tlv[p]
+            tlv[p[hi]] = tv[hi]; lvl[p[hi]] = own[m][hi]; who[p[hi]] = ci
+        n = 0
+        for ci, c in enumerate(self.C):
+            lift = c["tf"] - c["h"]
+            cand = np.flatnonzero(lift >= 1.5)
+            if not len(cand): continue
+            bins = cand + 0.5
+            bx = np.interp(bins, c["s"], c["pts"][:, 0]); bz = np.interp(bins, c["s"], c["pts"][:, 1])
+            seg = np.clip(np.searchsorted(c["s"], bins) - 1, 0, len(c["pts"]) - 2)
+            d = c["pts"][seg + 1] - c["pts"][seg]; d = d / np.maximum(1e-9, np.hypot(*d.T))[:, None]
+            hw = np.maximum(c["hw"][seg], c["hw"][seg + 1])
+            hit = np.zeros(len(cand), bool)
+            for side in (1, -1):
+                for k in range(1, reach + 1):
+                    x = np.floor(bx - side * d[:, 1] * (hw + k)).astype(np.int64)
+                    z = np.floor(bz + side * d[:, 0] * (hw + k)).astype(np.int64)
+                    ok = (x >= 0) & (x < W) & (z >= 0) & (z < D)
+                    p = np.where(ok, z * W + x, 0)
+                    o = who[p]
+                    hit |= ok & (o >= 0) & (o != ci) & (np.abs(lvl[p] - c["h"][cand]) <= 1) & (c["tf"][cand] - tlv[p] >= 1.5)
+            if hit.any():
+                keep = {k: c[k] for k in ("t", "tf")}
+                c["beside"] = set(cand[hit].tolist())
+                c.pop("t"); c.pop("tf")
+                self._grade(c)
+                # ... unless that makes the chain climb steeper than Arnis did anywhere (a level it must reach, to
+                # clear a road below, next to bins held down): then it keeps its lengthened ramp
+                if np.abs(np.diff(c["t"])).max(initial=0) > max(1, np.abs(np.diff(np.round(c["h"]))).max(initial=0)):
+                    c.update(keep); c.pop("beside")
+                else:
+                    n += int(hit.sum())
+        return n
 
     def _own_and_level(self, st):
         # ---- own surface pixels: the highest surface within a block of the chain's level; carriageway inside the
@@ -627,30 +702,45 @@ class Grader:
         # the same way lifts (inside its kerbs or at its 2-block margin) is required to reach that level there, and
         # re-graded, so it ramps up to it at GRADE instead of being left a step below. A road crossing at an angle
         # only levels a 1-block difference (overlaps at junctions), so a raised ramp never drags up the roads it meets.
-        for _ in range(6):
-            keys, tv = self._claims(final=False); changed = 0
+        # What is passed on is the lift, not the level: a parallel chain is lifted by as much as the most lifted chain
+        # on that surface was (to at most that chain's level), handed on before rounding; a crossing chain is levelled
+        # to at most a block over its own baked level, from the levels before levelling. Levelling freely to the
+        # levels as they stand after each pass ratchets: two chains overlapping on a slope, whose 1-block terrain steps fall at
+        # different places, lift each other a step further down the slope on every pass; a rounded lift handed back
+        # and forth runs half a block further along both on every pass; roads meeting at a junction lift each other a
+        # block a pass, into a hump that their arms then ramp down from, standing over the paving, medians and roads
+        # beside them.
+        keys, tv = self._claims(final=False)
+        for _ in range(8):
             dkeys, dtv = self._claims(final=False, by_dir=True)
+            lkeys, dtr = self._claims(final=False, by_dir=True, lift=True)
+            changed = 0
             for c in self.C:
                 inner = (c["own"] >= 0) & (np.abs(c["plat"]) <= c["phw"])
                 if not inner.any(): continue
                 kk = c["pix"][inner] * KEY + c["own"][inner]
                 got = tv[np.searchsorted(keys, kk)]
-                bb = c["b"][inner]; cur = c["t"][bb]
-                par = np.full(len(kk), -np.inf)
+                bb = c["b"][inner]; cur = c["t"][bb]; base = np.round(c["h"][bb])
+                par = np.full(len(kk), -np.inf); lift = np.zeros(len(kk))
                 for dd in (-1, 0, 1):
                     q = kk * NDIR + (c["dir"][bb] + dd) % NDIR
                     j = np.minimum(np.searchsorted(dkeys, q), len(dkeys) - 1)
-                    par = np.where(dkeys[j] == q, np.maximum(par, dtv[j]), par)
-                got = np.where((got > cur) & (got - cur <= 1), got, np.minimum(got, par))
+                    hit = dkeys[j] == q
+                    par = np.where(hit, np.maximum(par, dtv[j]), par)
+                    j = np.minimum(np.searchsorted(lkeys, q), len(lkeys) - 1)
+                    lift = np.where(lkeys[j] == q, np.maximum(lift, dtr[j]), lift)
+                par = np.minimum(par, base + lift)
+                got = np.maximum(np.where((got > cur) & (got - cur <= 1) & (got <= base + 1), got, -np.inf), par)
                 up = got > cur
                 if not up.any(): continue
                 best = np.full(c["nb"], -np.inf); np.maximum.at(best, bb[up], got[up])
-                r = best > c["t"]
+                r = best > c["tf"] + 1e-6
                 if not r.any(): continue
-                c["req"] = np.where(r, np.maximum(c["req"], best), c["req"])
-                before = c["t"].copy()
+                lreq = c.get("lreq", np.full(c["nb"], -np.inf))
+                c["lreq"] = np.where(r, np.maximum(lreq, best), lreq)
+                before = c["tf"].copy()
                 self._grade(c)
-                changed += int((c["t"] != before).sum())
+                changed += int((c["tf"] > before + 1e-6).sum())
             st["levelled_bins"] += changed
             if not changed: break
 
@@ -689,16 +779,26 @@ class Grader:
         c = self.C[i]; k = int(np.searchsorted(c["pix"], p))
         return c[key][c["b"][k]] if key in ("t", "h") else c[key][k]
 
-    def _claims(self, final=True, by_dir=False):
-        """Level each chain claims per (pixel, surface level): the highest. With final, a margin pixel that is
-        carriageway takes the level of the chain(s) whose kerbs it lies inside, and only carriageway no chain's
-        kerbs cover (deck widening, square deck stamps) takes the margin claim."""
+    def _claims(self, final=True, by_dir=False, lift=False):
+        """Level each chain claims per (pixel, surface level): the highest. With final, a pixel at a chain's margin
+        takes the level of the chain(s) whose kerbs it lies inside, and only what no chain's kerbs cover (verges,
+        railings, deck widening, square deck stamps) takes the margin claim: a lane line or kerb block inside one road
+        is not lifted with the margin of a road lifted beside it, into a ridge along the lanes. With lift, the most
+        any chain there was lifted over its own baked level instead."""
         ks, vs, own = [], [], []
         for c in self.C:
             m = c["own"] >= 0
             k = c["pix"][m] * KEY + c["own"][m]
             if by_dir: k = k * NDIR + c["dir"][c["b"][m]]
-            ks.append(k); vs.append(c["t"][c["b"][m]]); own.append(~c["mcar"][m])
+            bm = c["b"][m]
+            v = c["tf"][bm] if "tf" in c and not final else c["t"][bm]
+            inner = np.abs(c["plat"][m]) <= c["phw"][m]
+            if final:   # a verge, kerb or railing at the margin keeps its height over the road: it moves up by the
+                # road's lift, and is not levelled up to the road (a row of teeth along a road where it is not lifted)
+                soft = ~inner & ~c["mcar"][m]
+                v = np.where(soft, c["own"][m] + np.maximum(0, c["t"][bm] - np.round(c["h"][bm])), v)
+            ks.append(k); vs.append(v - np.round(c["h"][bm]) if lift else v)
+            own.append(inner)
         ks, vs, own = map(np.concatenate, (ks, vs, own))
         if not final: return _segmax(ks, vs)
         ki, vi = _segmax(ks[own], vs[own])
@@ -789,8 +889,11 @@ class Grader:
         return st
 
     # ---- pass 2: apply to one region's grids in place (y in the same frame as scan_region)
-    def apply_region(self, ox, oz, g, dm, ds, fill_id, pave_id, carr_lut, block_lut):
+    def apply_region(self, ox, oz, g, dm, ds, fill_id, pave_id, carr_lut, block_lut, earth_lut=None):
+        """earth_lut: surface blocks lifted on a fill of the block under them instead of stone bricks (cycle paths,
+        which mca2web.py road_fixes() recognises by the terrain they lie on, and mutes)."""
         P = g.shape[1]
+        if earth_lut is None: earth_lut = np.zeros(256, dtype=bool)
         if not hasattr(self, "_ops"):
             ops = [(p // self.W, p % self.W, y0, d) for p, v in self.raises.items() for y0, d in v]
             ops.sort(key=lambda o: (o[0], o[1], -o[2]))     # per column, the highest surface first
@@ -801,7 +904,7 @@ class Grader:
             m = (a[:, 0] >= oz) & (a[:, 0] < oz + P) & (a[:, 1] >= ox) & (a[:, 1] < ox + P)
             r = a[m].copy(); r[:, 0] -= oz; r[:, 1] -= ox
             return r
-        nr = _raise(g, dm, ds, mine(self._ops), block_lut, fill_id)
+        nr = _raise(g, dm, ds, mine(self._ops), block_lut, fill_id, earth_lut)
         nc = _carve(g, dm, ds, mine(self._cv), block_lut, carr_lut, pave_id)
         return nr, nc
 
@@ -810,7 +913,7 @@ from numba import njit
 
 
 @njit(cache=True)
-def _raise(g, dm, ds, ops, block_lut, fill):
+def _raise(g, dm, ds, ops, block_lut, fill, earth_lut):
     """Lifts the surface at (z, x, y0) by d: the stack standing on it (up to the first 3 free blocks, at most 10 high)
     moves up with it and the gap is filled; never into a block, and leaving 3 free blocks over the moved stack."""
     H = g.shape[0]; n = 0
@@ -828,10 +931,11 @@ def _raise(g, dm, ds, ops, block_lut, fill):
         while a + room < H and room < d + 3 and not (block_lut[g[a + room, z, x]] or dm[a + room, z, x] != 0): room += 1
         dd = min(d, room - 3)
         if dd <= 0: continue
+        f = g[y0 - 1, z, x] if earth_lut[g[y0, z, x]] and y0 > 0 and block_lut[g[y0 - 1, z, x]] else fill
         for y in range(a - 1, y0 - 1, -1):
             g[y + dd, z, x] = g[y, z, x]; dm[y + dd, z, x] = dm[y, z, x]; ds[y + dd, z, x] = ds[y, z, x]
         for y in range(y0, y0 + dd):
-            g[y, z, x] = fill; dm[y, z, x] = 0; ds[y, z, x] = 0
+            g[y, z, x] = f; dm[y, z, x] = 0; ds[y, z, x] = 0
         n += dd
     return n
 
