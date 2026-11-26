@@ -723,7 +723,11 @@ def build_chunk(area, chunk, args, work, overhang=0):
     data = site / "data"
     if step("convert", lambda: (data / "meta.json").exists()):
         shutil.rmtree(site, ignore_errors=True); data.mkdir(parents=True)
-        run([sys.executable, ROOT / "tools" / "mca2web.py", world_dir(), data] + (["--b64"] if args.b64 else []), log)
+        # with the OSM data of the bake, road surfaces are re-graded along the roads (tools/road_grade.py)
+        # (the enriched copy when the bake used one, as its ways are the ones Arnis built)
+        baked_osm = work / "osm_enriched.json" if area.get("enrich") and not args.osm and (work / "osm_enriched.json").exists() else osm
+        grade = ["--osm", baked_osm] if baked_osm.exists() and not area.get("no_road_grade") else []
+        run([sys.executable, ROOT / "tools" / "mca2web.py", world_dir(), data] + (["--b64"] if args.b64 else []) + grade, log)
         times["convert"] = time.time() - times["convert"]
 
     # street addresses for search, in the same frame as roads.json; optional, so a network hiccup never fails a build.
