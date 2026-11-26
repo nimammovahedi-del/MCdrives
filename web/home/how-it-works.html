@@ -4,86 +4,99 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>How It Works · Map Craft</title>
-<meta name="description" content="Search, directions, live traffic, blocky cars and day and night driving: what Map Craft can do.">
-<meta name="theme-color" content="#1b1c1f">
-<link rel="stylesheet" href="assets/home.css">
+<meta name="description" content="Search, directions, turn-by-turn driving, live traffic, a 3D city and blocky cars: how Map Craft works.">
+<meta name="theme-color" content="#111214">
+<link rel="stylesheet" href="assets/site.css">
 </head>
-<body class="page" data-page="works">
-<header class="top">
-  <a class="home" href="./" aria-label="Map Craft home"><canvas class="logo" data-text="MAP CRAFT" data-px="4" data-stack="0" data-tone="light" aria-hidden="true"></canvas></a>
-  <a class="btn primary" href="map"><canvas class="ico" data-i="car"></canvas>Drive on Web</a>
-  <a class="btn" href="map?mode=orbit"><canvas class="ico" data-i="map"></canvas>View Map</a>
-  <a class="btn here" href="how-it-works">How It Works</a>
-  <a class="btn" href="how-its-built">How It's Built</a>
-</header>
+<body>
+<header class="nav"><div class="wrap">
+  <a class="logo-link" href="./" aria-label="Map Craft home"><canvas class="logo" aria-hidden="true"></canvas></a>
+  <a class="l on" href="how-it-works" aria-current="page">How it works</a><a class="l" href="how-its-built">How it's built</a><a class="l" href="map?mode=orbit">View map</a>
+  <a class="cta" href="map"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg>Drive on Web</a>
+</div></header>
 <main>
-  <h1>How It Works</h1>
-  <p class="lede">Map Craft is a driving map where the whole city is built out of blocks. Type where you're going, and you drive there through a block-for-block copy of the real streets, with turn-by-turn directions and live traffic.</p>
+<div class="hero wrap center">
+  <div class="glow" style="width:640px;height:420px;background:#ffd23a;left:50%;top:120px;transform:translateX(-50%)"></div>
+  <div class="eyebrow">How it works</div>
+  <h1 class="h1" style="margin:14px 0 14px">The same Irvine. <span class="lane">In blocks.</span></h1>
+  <p class="lede">Every road, building and tree comes from real map data and sits where it really is. Drag the slider to compare.</p>
+  <div class="cmp auto" tabindex="0" role="slider" aria-label="Compare the road map with the block world" aria-valuemin="0" aria-valuemax="100">
+    <img src="assets/img/map-top.jpg" alt="Road map of the Irvine Spectrum area">
+    <img class="b" src="assets/img/blocks-top.jpg" alt="The same area built from blocks">
+    <div class="k"><i><svg viewBox="0 0 22 22" aria-hidden="true"><path d="M8 6l-5 5 5 5M14 6l5 5-5 5" fill="none" stroke="#111" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></i></div>
+    <span class="tag l">Road map</span><span class="tag r">Map Craft <b>blocks</b></span>
+  </div>
+  <div class="facts" style="text-align:left">
+    <div class="fact"><b>1 block ≈ 1 meter</b><span>The whole city is true to scale.</span></div>
+    <div class="fact"><b>Real lane counts</b><span>Roads are as wide as their lanes.</span></div>
+    <div class="fact"><b>LiDAR ground</b><span>Hills and ramps sit at their real height.</span></div>
+  </div>
+</div>
 
-  <section class="feat panel">
-    <div>
-      <h2>Search anything</h2>
-      <p>Find places, streets and real street addresses across Irvine. Search forgives typos and nicknames, so a misspelled "irvine spectrm" still finds Irvine Spectrum Center.</p>
-      <p>Pick a result and you'll see it on the map, with Go now and Add stop.</p>
-    </div>
-    <div class="shots"><img src="assets/img/search.jpg" alt="Search results list on a phone" loading="lazy" width="390" height="844"></div>
-  </section>
+<section><div class="wrap">
+  <div class="sec-head"><div><div class="eyebrow">Your first drive</div><h2 class="h2" style="margin-top:12px">Four levels. About a minute.</h2></div>
+    <p class="lede">Everything you need is on one screen. Tap a level to see that part up close.</p></div>
+  <div class="road">
+    <button class="lv" data-open="search"><span class="pin">1</span><div class="c"><div class="im"><img src="assets/img/p-search.jpg" alt="" loading="lazy"></div>
+      <div class="bd"><div class="eyebrow">Level 1</div><h3 class="h3">Find a place</h3><p>Type a place, a street or a real address. Typos and nicknames are fine.</p><div class="goal"><i></i>Search "spectrm"</div></div></div></button>
+    <button class="lv" data-open="directions"><span class="pin">2</span><div class="c"><div class="im"><img src="assets/img/p-whereto.jpg" alt="" loading="lazy"></div>
+      <div class="bd"><div class="eyebrow">Level 2</div><h3 class="h3">Plan the route</h3><p>Pick where you start and where you're going, and see the drive time before you leave.</p><div class="goal"><i></i>Start a trip</div></div></div></button>
+    <button class="lv" data-open="drive"><span class="pin">3</span><div class="c"><div class="im"><img src="assets/img/p-drive.jpg" alt="" loading="lazy"></div>
+      <div class="bd"><div class="eyebrow">Level 3</div><h3 class="h3">Drive it</h3><p>Follow the arrows painted on your lane and the block chevrons over the road.</p><div class="goal"><i></i>Make three turns</div></div></div></button>
+    <button class="lv" data-open="traffic"><span class="pin">4</span><div class="c"><div class="im"><img src="assets/img/reroute.jpg" alt="" loading="lazy" style="object-position:bottom"></div>
+      <div class="bd"><div class="eyebrow">Level 4</div><h3 class="h3">Beat the traffic</h3><p>When a crash blocks the road ahead, take the faster way.</p><div class="goal"><i></i>Accept a reroute</div></div></div></button>
+  </div>
+</div></section>
 
-  <section class="feat flip panel">
-    <div>
-      <h2>Directions with drive time</h2>
-      <p>Set a From and a To, or start from your own location, and see the route and how long it takes before you leave.</p>
-      <p>Your location stays on your device and is only used to place the blue dot.</p>
-    </div>
-    <div class="shots"><img src="assets/img/directions.jpg" alt="Directions panel with a route drawn on the map" loading="lazy" width="1280" height="800"></div>
-  </section>
-
-  <section class="feat panel">
-    <div>
-      <h2>Turn-by-turn, the blocky way</h2>
-      <p>A big next-turn card, the street name, distance and arrival time, with arrows painted onto the lanes and block chevrons floating over the road ahead.</p>
-      <p>The camera follows behind the car like a game, and you can drag to look around, then snap back.</p>
-    </div>
-    <div class="shots"><img src="assets/img/drive.jpg" alt="Driving view with the next-turn card and the route on the road" loading="lazy" width="1280" height="760"></div>
-  </section>
-
-  <section class="feat flip panel">
-    <div>
-      <h2>Live traffic</h2>
-      <p>Road speeds from freeway sensors, lane closures, and crashes reported by the Highway Patrol show up on the map and in your route.</p>
-      <p>When something blocks the road ahead, Map Craft offers you a faster way.</p>
-    </div>
-    <div class="shots"><img src="assets/img/speeds.jpg" alt="Map colored by live traffic speed" loading="lazy" width="390" height="844"><img src="assets/img/reroute.jpg" alt="Crash ahead card offering a faster route" loading="lazy" width="390" height="844"></div>
-  </section>
-
-  <section class="feat panel">
-    <div>
-      <h2>A map you can explore</h2>
-      <p>Switch to the drawn 2D map to see the whole city at once, with a key, incident signs and a minimap while you drive.</p>
-      <p>Or fly around the 3D city in View Map and tap any street to drive there.</p>
-    </div>
-    <div class="shots"><img src="assets/img/spectrum-close.jpg" alt="3D block view of Irvine Spectrum from above" loading="lazy" width="1280" height="760"></div>
-  </section>
-
-  <section class="feat flip panel">
-    <div>
-      <h2>Pick your ride</h2>
-      <p>Choose from a garage of original blocky cars: a sedan, an SUV, a pickup, a wedge-shaped EV, a police cruiser, a taxi, a sports car and an ice cream truck.</p>
-    </div>
-    <div class="shots"><img src="assets/img/vehicles.jpg" alt="Row of blocky cars to choose from" loading="lazy" width="1200" height="570"></div>
-  </section>
-
-  <section class="feat panel">
-    <div>
-      <h2>Day and night</h2>
-      <p>The sky follows the real sun in Irvine: blue skies with block clouds by day, stars and headlights by night. Pick the menu style you like, too.</p>
-    </div>
-    <div class="shots"><img src="assets/img/night.jpg" alt="Three phone screens driving at night" loading="lazy" width="1210" height="868"></div>
-  </section>
-
-  <div class="cta"><a class="btn primary" href="map"><canvas class="ico" data-i="car"></canvas>Drive on Web</a><a class="btn" href="how-its-built">How It's Built</a></div>
+<section id="features"><div class="wrap">
+  <div class="sec-head"><div><div class="eyebrow">Every feature, up close</div><h2 class="h2" style="margin-top:12px">One app. Eight ways to get around.</h2></div>
+    <p class="lede">Every screen here is a real capture of Map Craft running on Irvine.</p></div>
+  <div class="tabs" role="tablist"><button class="tab" role="tab" data-k="search"><i class="blk"></i>Search</button><button class="tab" role="tab" data-k="directions"><i class="blk"></i>Directions</button><button class="tab" role="tab" data-k="drive"><i class="blk"></i>Drive</button><button class="tab" role="tab" data-k="traffic"><i class="blk"></i>Traffic</button><button class="tab" role="tab" data-k="map"><i class="blk"></i>Map</button><button class="tab" role="tab" data-k="explore"><i class="blk"></i>Explore</button><button class="tab" role="tab" data-k="cars"><i class="blk"></i>Cars</button><button class="tab" role="tab" data-k="night"><i class="blk"></i>Day & night</button></div>
+  <div class="panes">
+  <div class="pane" data-k="search" role="tabpanel" aria-label="Search">
+    <div class="side"><div class="eyebrow">01 · Search</div><h3 class="h2">Search that forgives you</h3><p class="mu">Places, streets and real street addresses across Irvine, all searchable from one box. Misspell it and Map Craft asks if you meant the right place.</p><ul><li><i class="blk"></i>2,835 places and every street address</li><li><i class="blk"></i>Fixes typos: "spectrm" finds Irvine Spectrum</li><li><i class="blk"></i>Results show the kind of place and how far it is</li><li><i class="blk"></i>Go now, or add it as a stop</li></ul></div>
+    <div class="dev"><div class="phone"><div class="scr"><img src="assets/img/p-search.jpg" alt="Search results for a misspelled Irvine Spectrum" loading="lazy"></div></div></div>
+  </div>
+  <div class="pane" data-k="directions" role="tabpanel" aria-label="Directions">
+    <div class="side"><div class="eyebrow">02 · Directions</div><h3 class="h2">Know before you go</h3><p class="mu">Set a From and a To, or start from where you are, and the route and drive time appear on the map right away.</p><ul><li><i class="blk"></i>From your location or any place</li><li><i class="blk"></i>Swap start and destination in one tap</li><li><i class="blk"></i>Drive time from usual and live road speeds</li><li><i class="blk"></i>Your location stays in your browser</li></ul></div>
+    <div class="dev"><div class="laptop"><div class="lid"><div class="scr"><img src="assets/img/directions.jpg" alt="Directions panel with the route drawn on the map" loading="lazy"></div></div><div class="base"></div></div></div>
+  </div>
+  <div class="pane" data-k="drive" role="tabpanel" aria-label="Drive">
+    <div class="side"><div class="eyebrow">03 · Drive</div><h3 class="h2">Turn by turn, the blocky way</h3><p class="mu">A big next-turn card, the street name and distance, arrows painted onto your lane and block chevrons floating over the road ahead.</p><ul><li><i class="blk"></i>Next turn and the one after it</li><li><i class="blk"></i>Arrival time, distance left and speed</li><li><i class="blk"></i>Drag to look around, tap Re-center to snap back</li><li><i class="blk"></i>A minimap in the corner while you drive</li></ul></div>
+    <div class="dev"><div class="laptop"><div class="lid"><div class="scr"><img src="assets/img/d-drive.jpg" alt="Driving view with the next-turn card and the route on the lane" loading="lazy"></div></div><div class="base"></div></div></div>
+  </div>
+  <div class="pane" data-k="traffic" role="tabpanel" aria-label="Traffic">
+    <div class="side"><div class="eyebrow">04 · Traffic</div><h3 class="h2">Live traffic, rerouted</h3><p class="mu">Freeway sensor speeds, lane closures and Highway Patrol incidents show up on the map and change your route.</p><ul><li><i class="blk"></i>Roads colored by live speed</li><li><i class="blk"></i>Crashes and closures marked with road signs</li><li><i class="blk"></i>A faster way offered when the road ahead is blocked</li><li><i class="blk"></i>Refreshed every minute while you drive</li></ul></div>
+    <div class="dev"><div class="phone" style="width:270px"><div class="scr"><img src="assets/img/speeds.jpg" alt="Live traffic speeds on the map" loading="lazy"></div></div><div class="phone" style="width:270px"><div class="scr"><img src="assets/img/reroute.jpg" alt="Crash ahead card with a faster way" loading="lazy"></div></div></div>
+  </div>
+  <div class="pane" data-k="map" role="tabpanel" aria-label="Map">
+    <div class="side"><div class="eyebrow">05 · Map</div><h3 class="h2">A whole city at a glance</h3><p class="mu">Switch to the 2D map to see where you are, where you're going and what's around, then jump straight back to driving.</p><ul><li><i class="blk"></i>Zoom out to all of Irvine</li><li><i class="blk"></i>Tap anywhere to drop a pin and go</li><li><i class="blk"></i>A map key for every symbol</li><li><i class="blk"></i>Back to driving in one tap</li></ul></div>
+    <div class="dev"><div class="phone"><div class="scr"><img src="assets/img/p-map.jpg" alt="The 2D map with the route and freeway labels" loading="lazy"></div></div></div>
+  </div>
+  <div class="pane" data-k="explore" role="tabpanel" aria-label="Explore">
+    <div class="side"><div class="eyebrow">06 · Explore</div><h3 class="h2">Fly over Irvine in 3D</h3><p class="mu">Leave the car and fly around the block city. Tap any street and Map Craft drives you there.</p><ul><li><i class="blk"></i>Pan, zoom and turn the whole city</li><li><i class="blk"></i>Every building where it really stands</li><li><i class="blk"></i>Tap a street to start a trip there</li><li><i class="blk"></i>Open it any time from View map</li></ul></div>
+    <div class="dev"><div class="laptop"><div class="lid"><div class="scr"><img src="assets/img/spectrum-close.jpg" alt="Irvine Spectrum seen from above in blocks" loading="lazy"></div></div><div class="base"></div></div></div>
+  </div>
+  <div class="pane" data-k="cars" role="tabpanel" aria-label="Cars">
+    <div class="side"><div class="eyebrow">07 · Cars</div><h3 class="h2">Pick your ride</h3><p class="mu">A garage of original blocky cars. Your choice is remembered next time.</p><ul><li><i class="blk"></i>Sedan, SUV, pickup and a wedge-shaped EV</li><li><i class="blk"></i>Police cruiser, taxi and a sports car</li><li><i class="blk"></i>An ice cream truck, because why not</li><li><i class="blk"></i>Headlights come on at night</li></ul></div>
+    <div class="dev"><div class="laptop"><div class="lid"><div class="scr"><img src="assets/img/vehicles.jpg" alt="A row of blocky cars to choose from" loading="lazy" style="object-position:center"></div></div><div class="base"></div></div></div>
+  </div>
+  <div class="pane" data-k="night" role="tabpanel" aria-label="Day & night">
+    <div class="side"><div class="eyebrow">08 · Day & night</div><h3 class="h2">Drive at any hour</h3><p class="mu">The sky follows the real sun over Irvine: blue skies and block clouds by day, a dark sky and headlights at night.</p><ul><li><i class="blk"></i>Follows the real time of day</li><li><i class="blk"></i>Or pick day or night yourself</li><li><i class="blk"></i>Clean, readable menus in either light</li><li><i class="blk"></i>The same look on phone and desktop</li></ul></div>
+    <div class="dev"><div class="phone"><div class="scr"><img src="assets/img/p-night.jpg" alt="Driving at night" loading="lazy"></div></div></div>
+  </div>
+  </div>
+</div></section>
+<div class="band"><div class="wrap">
+  <h2 class="h2">Ready to drive?</h2>
+  <p class="lede" style="margin:12px auto 0">It runs in your browser, on your phone or your computer. Nothing to install.</p>
+  <div class="row"><a class="cta lg" href="map"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg>Drive on Web</a><a class="cta lg ghost" href="map?mode=orbit">View the 3D map</a></div>
+</div></div>
 </main>
-<div class="foot2"><a href="./">Home</a> · <a href="legal">Legal &amp; Privacy</a> · Map data © OpenStreetMap contributors · Not affiliated with any game</div>
-<script src="assets/home.js"></script>
+<footer><div class="wrap">
+  <span>Map Craft · Irvine beta · Map data © OpenStreetMap contributors · Not affiliated with any game</span>
+  <nav><a href="./">Home</a><a href="how-it-works">How it works</a><a href="how-its-built">How it's built</a><a href="legal">Legal &amp; Privacy</a></nav>
+</div></footer>
+<script src="assets/site.js"></script>
 </body>
 </html>

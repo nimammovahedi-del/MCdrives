@@ -4,70 +4,104 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>How It's Built · Map Craft</title>
-<meta name="description" content="How Map Craft turns real map data into a drivable block city: data sources, the build pipeline and the browser viewer.">
-<meta name="theme-color" content="#1b1c1f">
-<link rel="stylesheet" href="assets/home.css">
+<meta name="description" content="How Map Craft turns open map data into a drivable block city: data sources, the build pipeline, streaming and live traffic.">
+<meta name="theme-color" content="#111214">
+<link rel="stylesheet" href="assets/site.css">
 </head>
-<body class="page" data-page="built">
-<header class="top">
-  <a class="home" href="./" aria-label="Map Craft home"><canvas class="logo" data-text="MAP CRAFT" data-px="4" data-stack="0" data-tone="light" aria-hidden="true"></canvas></a>
-  <a class="btn primary" href="map"><canvas class="ico" data-i="car"></canvas>Drive on Web</a>
-  <a class="btn" href="map?mode=orbit"><canvas class="ico" data-i="map"></canvas>View Map</a>
-  <a class="btn" href="how-it-works">How It Works</a>
-  <a class="btn here" href="how-its-built">How It's Built</a>
-</header>
+<body>
+<header class="nav"><div class="wrap">
+  <a class="logo-link" href="./" aria-label="Map Craft home"><canvas class="logo" aria-hidden="true"></canvas></a>
+  <a class="l" href="how-it-works">How it works</a><a class="l on" href="how-its-built" aria-current="page">How it's built</a><a class="l" href="map?mode=orbit">View map</a>
+  <a class="cta" href="map"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg>Drive on Web</a>
+</div></header>
 <main>
-  <h1>How It's Built</h1>
-  <p class="lede">Every block in Map Craft comes from real, open map data. A build pipeline turns that data into a block world about one meter per block, slices it into small pieces your browser can stream, and adds a road network you can actually navigate.</p>
-
+<div class="hero wrap">
+  <div class="glow" style="width:560px;height:420px;background:#5fae3c;left:-80px;top:60px"></div>
+  <div class="eyebrow">How it's built</div>
+  <h1 class="h1" style="margin:14px 0 16px;max-width:900px">From open map data to a city <span class="lane">you can drive.</span></h1>
+  <p class="lede">Map Craft is built by a pipeline that runs from start to finish with one command. Here's what it does, what it uses, and how a 1.2 GB city fits in a phone's browser.</p>
   <div class="stats">
-    <div class="panel"><b>220 km²</b><span>of Irvine, in blocks</span></div>
-    <div class="panel"><b>41</b><span>chunks built in parallel</span></div>
-    <div class="panel"><b>2,835</b><span>searchable places, plus street addresses</span></div>
-    <div class="panel"><b>3,276</b><span>live freeway speed sensors in Orange County</span></div>
+    <div class="stat"><b>220 km²</b><span>of Irvine, rebuilt in blocks</span></div>
+    <div class="stat"><b>307M</b><span>block faces drawn from real data</span></div>
+    <div class="stat"><b>116,339</b><span>road segments in the routing graph</span></div>
+    <div class="stat"><b>2,835</b><span>places to search, plus every address</span></div>
   </div>
+</div>
 
-  <div class="steps">
-    <section class="step panel">
-      <h2>Gather the data</h2>
-      <p>Roads, lanes, buildings, parks and water come from OpenStreetMap. Building footprints, places and addresses are filled in from Overture Maps. Ground height comes from USGS 3DEP LiDAR scans, so hills and freeway ramps sit at the right level.</p>
-      <div class="chips"><span>OpenStreetMap</span><span>Overture Maps</span><span>USGS 3DEP LiDAR</span><span>OpenAddresses</span></div>
-    </section>
-    <section class="step panel">
-      <h2>Bake the blocks</h2>
-      <p>The open-source Arnis generator turns that data into a block world. The city is cut into 41 chunks that build at the same time on GitHub's servers, then joined back together so the ground lines up across every seam.</p>
-      <div class="chips"><span>Arnis (Apache-2.0)</span><span>GitHub Actions</span><span>Python</span></div>
-    </section>
-    <section class="step panel">
-      <h2>Make it streamable</h2>
-      <p>Our converter keeps only the block faces you can see, merges them into large flat pieces, and packs the city into 512 × 512 block squares with matching height tiles. Your browser only downloads the squares around your car, which keeps it smooth on a mid-range phone.</p>
-      <div class="chips"><span>Greedy meshing</span><span>Binary packs</span><span>Height tiles</span></div>
-    </section>
-    <section class="step panel">
-      <h2>Build the road network</h2>
-      <p>A routing graph is made from the real streets, including one-way roads, ramps and gated streets. Places and addresses get an arrival point on their own street, so directions end at the right driveway, not on the freeway next door.</p>
-      <div class="chips"><span>Road graph</span><span>A* routing</span><span>Arrival points</span></div>
-    </section>
-    <section class="step panel">
-      <h2>Drive it in the browser</h2>
-      <p>The viewer is written with three.js and WebGL. It streams the city around you, draws the route on the lanes, and runs the camera, sky, cars and the 2D map, all in a normal web page with no install.</p>
-      <div class="chips"><span>three.js</span><span>WebGL</span><span>No install</span></div>
-    </section>
-    <section class="step panel">
-      <h2>Add live traffic</h2>
-      <p>A small server collects freeway sensor speeds and lane closures from Caltrans, live incidents from the California Highway Patrol, and traffic incidents from TomTom, every few minutes. The app uses them to color the map, slow down jammed roads in routing, and offer a reroute.</p>
-      <div class="chips"><span>Caltrans PeMS</span><span>Caltrans closures</span><span>CHP incidents</span><span>TomTom</span><span>Cloudflare Workers</span></div>
-    </section>
-    <section class="step panel">
-      <h2>Publish</h2>
-      <p>Each finished build is published automatically to Cloudflare Pages. The same pipeline can rebuild the city whenever the map data improves, and it's designed to grow from Irvine to all of Orange County.</p>
-      <div class="chips"><span>Cloudflare Pages</span><span>One-command build</span></div>
-    </section>
+<section><div class="wrap">
+  <div class="sec-head"><div><div class="eyebrow">The pipeline</div><h2 class="h2" style="margin-top:12px">Six steps, one command.</h2></div>
+    <p class="lede">The same build runs on GitHub's servers and publishes the finished city automatically.</p></div>
+  <div class="pipe">
+    <div class="stage"><div class="ic"><canvas class="ico" data-i="data"></canvas></div><div class="n">STEP 01</div><h3 class="h3">Gather open data</h3><p>Roads, lanes, buildings, parks and water from OpenStreetMap; places and addresses from Overture; ground height from USGS LiDAR.</p><div class="chips"><span>OSM</span><span>Overture</span><span>USGS 3DEP</span></div></div>
+    <div class="stage"><div class="ic"><canvas class="ico" data-i="bake"></canvas></div><div class="n">STEP 02</div><h3 class="h3">Bake the blocks</h3><p>The open-source Arnis generator turns the data into a block world, about one meter per block, in 41 chunks built side by side.</p><div class="chips"><span>Arnis</span><span>GitHub Actions</span></div></div>
+    <div class="stage"><div class="ic"><canvas class="ico" data-i="pack"></canvas></div><div class="n">STEP 03</div><h3 class="h3">Pack for streaming</h3><p>Only visible block faces are kept, merged into large flat pieces and packed into 512 × 512 block squares with height tiles.</p><div class="chips"><span>Greedy meshing</span><span>Binary packs</span></div></div>
+    <div class="stage"><div class="ic"><canvas class="ico" data-i="graph"></canvas></div><div class="n">STEP 04</div><h3 class="h3">Build the road graph</h3><p>Every street becomes a routing graph with one-ways, ramps, gated streets and an arrival point for each place.</p><div class="chips"><span>A* routing</span><span>Arrival points</span></div></div>
+    <div class="stage"><div class="ic"><canvas class="ico" data-i="view"></canvas></div><div class="n">STEP 05</div><h3 class="h3">Drive in the browser</h3><p>A three.js viewer streams the squares around the car and draws the route, camera, sky, cars and 2D map.</p><div class="chips"><span>three.js</span><span>WebGL</span></div></div>
+    <div class="stage"><div class="ic"><canvas class="ico" data-i="live"></canvas></div><div class="n">STEP 06</div><h3 class="h3">Add live traffic</h3><p>A small server gathers Caltrans, CHP and TomTom feeds every few minutes, and the app routes around trouble.</p><div class="chips"><span>Cloudflare Workers</span></div></div>
   </div>
+</div></section>
 
-  <div class="cta"><a class="btn primary" href="map"><canvas class="ico" data-i="car"></canvas>Drive on Web</a><a class="btn" href="how-it-works">How It Works</a></div>
+<section><div class="wrap">
+  <div class="sec-head"><div><div class="eyebrow">Where the data comes from</div><h2 class="h2" style="margin-top:12px">Seven open and public sources.</h2></div>
+    <p class="lede">No scraping and no proprietary maps. Each source does one job well.</p></div>
+  <div class="card" style="overflow-x:auto"><table class="matrix">
+    <thead><tr><th>Source</th><th>Roads & lanes</th><th>Buildings</th><th>Places</th><th>Addresses</th><th>Ground height</th><th>Live traffic</th></tr></thead><tbody>
+      <tr><td><b>OpenStreetMap</b><small>Community map of the world</small></td><td><i class="dot "></i></td><td><i class="dot "></i></td><td><i class="dot g"></i></td><td></td><td></td><td></td></tr>
+      <tr><td><b>Overture Maps</b><small>Open map data from Overture Maps Foundation</small></td><td></td><td><i class="dot "></i></td><td><i class="dot g"></i></td><td><i class="dot g"></i></td><td></td><td></td></tr>
+      <tr><td><b>OpenAddresses</b><small>Public address points</small></td><td></td><td></td><td></td><td><i class="dot g"></i></td><td></td><td></td></tr>
+      <tr><td><b>USGS 3DEP LiDAR</b><small>Laser scans of the ground</small></td><td></td><td></td><td></td><td></td><td><i class="dot b"></i></td><td></td></tr>
+      <tr><td><b>Caltrans</b><small>Freeway sensors and lane closures</small></td><td></td><td></td><td></td><td></td><td></td><td><i class="dot r"></i></td></tr>
+      <tr><td><b>California Highway Patrol</b><small>Live incident reports</small></td><td></td><td></td><td></td><td></td><td></td><td><i class="dot r"></i></td></tr>
+      <tr><td><b>TomTom</b><small>Traffic incidents</small></td><td></td><td></td><td></td><td></td><td></td><td><i class="dot r"></i></td></tr>
+    </tbody></table></div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="two">
+    <div class="card">
+      <div class="eyebrow">The city in 41 chunks</div>
+      <h3 class="h2" style="font-size:30px;margin:10px 0 10px">Built in parallel, joined at the seams.</h3>
+      <p class="mu" style="margin-bottom:20px">Irvine is cut into a grid of 5.4 km² chunks. Only the 41 that touch the city are built, at the same time, then stitched back together so roads and ground line up across every seam (6,652 road nodes joined). Brighter chunks hold more detail.</p>
+      <div class="chunkmap" id="chunkmap" aria-label="Map of the built chunks"></div>
+      <div class="legend"><span>Less detail</span><span class="ramp"></span><span>More detail</span></div>
+      <p class="tip" id="chunktip">Point at a chunk to see its size.</p>
+      <script type="application/json" id="chunkdata">[["r0c2", 6850985, 28.4, 5.4], ["r0c3", 7597038, 30.88, 5.4], ["r1c0", 9595864, 37.78, 5.4], ["r1c1", 7460811, 30.81, 5.4], ["r1c2", 9266336, 37.12, 5.4], ["r1c3", 7252372, 29.6, 5.4], ["r1c4", 4675020, 20.83, 5.4], ["r1c5", 7252855, 28.82, 5.4], ["r1c6", 6820459, 28.24, 5.4], ["r2c0", 7025380, 27.11, 5.4], ["r2c1", 9992598, 38.32, 5.4], ["r2c2", 10691499, 41.55, 5.4], ["r2c3", 5458034, 22.9, 5.4], ["r2c4", 6840962, 27.18, 5.4], ["r2c5", 5110751, 21.04, 5.4], ["r2c6", 6180423, 25.6, 5.4], ["r3c0", 6918594, 26.59, 5.4], ["r3c1", 8594909, 33.25, 5.4], ["r3c2", 10662661, 41.74, 5.4], ["r3c3", 9780973, 38.69, 5.4], ["r3c4", 6619363, 26.37, 5.4], ["r3c5", 3937542, 17.79, 5.4], ["r3c6", 5579000, 24.28, 5.4], ["r3c7", 4518637, 20.07, 5.4], ["r4c0", 5845529, 23.5, 5.4], ["r4c1", 4972659, 20.51, 5.4], ["r4c2", 6879385, 28.64, 5.4], ["r4c3", 9499417, 37.97, 5.4], ["r4c4", 9445222, 37.61, 5.4], ["r4c5", 7462254, 31.15, 5.4], ["r4c6", 7810845, 31.03, 5.4], ["r4c7", 7844612, 31.46, 5.4], ["r5c3", 8303069, 33.17, 5.4], ["r5c4", 10875763, 43.84, 5.4], ["r5c5", 7597669, 31.59, 5.4], ["r5c6", 6300326, 25.81, 5.4], ["r6c4", 9579221, 38.64, 5.4], ["r6c5", 8840892, 34.58, 5.4], ["r6c6", 7292810, 29.08, 5.4], ["r7c4", 9194532, 36.44, 5.4], ["r7c5", 4206519, 18.55, 5.4]]</script>
+    </div>
+    <div class="card">
+      <div class="eyebrow">Why it runs on a phone</div>
+      <h3 class="h2" style="font-size:30px;margin:10px 0 10px">A 1.2 GB city, a few MB at a time.</h3>
+      <p class="mu" style="margin-bottom:26px">The whole city would never fit in a phone's browser. So it's split into 1,025 squares, and Map Craft only loads the ones around your car, dropping them again as you drive away.</p>
+      <div class="bars">
+        <div class="bar"><div class="lbl"><span>The whole city</span><b>1.19 GB</b></div><div class="tr"><i style="width:100%;--c:#ff8a3d"></i></div></div>
+        <div class="bar"><div class="lbl"><span>One square (512 × 512 blocks)</span><b>1.2 MB</b></div><div class="tr"><i style="width:0.60%;--c:#5fae3c"></i></div></div>
+        <div class="bar"><div class="lbl"><span>Loaded around your car, about</span><b>15 MB</b></div><div class="tr"><i style="width:1.27%"></i></div></div>
+      </div>
+      <p class="mu" style="font-size:13px;margin-top:22px">About 13 squares sit within 750 blocks of the car at any time. Average square size from the current Irvine build.</p>
+    </div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="sec-head"><div><div class="eyebrow">Live traffic</div><h2 class="h2" style="margin-top:12px">Fresh every minute.</h2></div>
+    <p class="lede">The app never calls the traffic feeds itself. One small server collects them for everyone and keeps any keys secret.</p></div>
+  <div class="card"><div class="loop">
+    <div class="node"><h3 class="h3">Public feeds</h3><ul><li>CHP incidents<span>~1 min</span></li><li>Caltrans lane closures<span>5 min</span></li><li>Caltrans freeway speeds<span>5 min</span></li><li>TomTom incidents<span>20 min</span></li></ul></div>
+    <div class="wire"></div>
+    <div class="node"><h3 class="h3">Traffic server</h3><ul><li>Trims to Orange County<span>edge</span></li><li>Caches for every driver<span>1 call</span></li><li>Keeps keys private<span>secret</span></li></ul></div>
+    <div class="wire"></div>
+    <div class="node"><h3 class="h3">Map Craft</h3><ul><li>Colors roads by speed<span>map</span></li><li>Avoids slow roads<span>routing</span></li><li>Offers a faster way<span>reroute</span></li></ul></div>
+  </div></div>
+</div></section>
+<div class="band"><div class="wrap">
+  <h2 class="h2">See it for yourself.</h2>
+  <p class="lede" style="margin:12px auto 0">Everything on this page runs in your browser. Pick a destination and drive.</p>
+  <div class="row"><a class="cta lg" href="map"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg>Drive on Web</a><a class="cta lg ghost" href="map?mode=orbit">View the 3D map</a></div>
+</div></div>
 </main>
-<div class="foot2"><a href="./">Home</a> · <a href="legal">Legal &amp; Privacy</a> · Map data © OpenStreetMap contributors · Not affiliated with any game</div>
-<script src="assets/home.js"></script>
+<footer><div class="wrap">
+  <span>Map Craft · Irvine beta · Map data © OpenStreetMap contributors · Not affiliated with any game</span>
+  <nav><a href="./">Home</a><a href="how-it-works">How it works</a><a href="how-its-built">How it's built</a><a href="legal">Legal &amp; Privacy</a></nav>
+</div></footer>
+<script src="assets/site.js"></script>
 </body>
 </html>
