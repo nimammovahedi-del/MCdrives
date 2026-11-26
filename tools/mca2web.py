@@ -331,6 +331,10 @@ def _road_fix_tables():
         terrain=lut(["grass_block", "dirt", "coarse_dirt", "rooted_dirt", "podzol", "mud", "sand", "red_sand", "gravel", "stone",
                      "andesite", "diorite", "granite", "deepslate", "tuff", "clay", "moss_block", "dirt_path"]),
         red=lut(["red_terracotta", "red_concrete"]),
+        # Arnis lays sand ground as sand over two blocks of sandstone; a cycle path on a beach or a sandy river bank
+        # replaces the sand, so its red lies on that sandstone (a roof on a sandstone wall has more wall, glass or
+        # bricks below; the colour also covers smooth, cut and chiseled sandstone)
+        sandstone=lut(["sandstone"]),
         log=lut([w + "_log" for w in WOODS]),
         leaf=np.array([k == "leaves" for _, _, k in MATS] + [False] * (256 - len(MATS))),
         path=MAT_ID[(PATH_MUTED, "solid")])
@@ -399,7 +403,13 @@ def road_fixes(wg, centre, st):
     for d in range(6):
         alive &= (ty - d >= 0) & T["red"][wg[np.maximum(ty - d, 0), zz, xx]]
         run += alive
-    red = (run > 0) & T["terrain"][wg[np.maximum(ty - run, 0), zz, xx]] & (ty - run >= 0)
+    under = lambda k: wg[np.maximum(ty - run - k, 0), zz, xx]
+    # the sand-ground profile: at most two red blocks on exactly two blocks of sandstone, then terrain or at least four
+    # blocks of air (below the terrain shell); a roof on sandstone has a wall, glass or a floor a few blocks down
+    hollow = (under(2) == 0) & (under(3) == 0) & (under(4) == 0) & (under(5) == 0)
+    sand = ((run <= 2) & T["sandstone"][under(0)] & T["sandstone"][under(1)] & (T["terrain"][under(2)] | hollow)
+            & (ty - run - 5 >= 0))
+    red = (run > 0) & (T["terrain"][wg[np.maximum(ty - run, 0), zz, xx]] | sand) & (ty - run >= 0)
     for d in range(6):
         rz, rx = np.nonzero(red & (run > d))
         wg[ty[rz, rx] - d, rz, rx] = T["path"]
