@@ -66,7 +66,7 @@
     const pic = one('.dn', dn), bs = all('.seg button', dn), clock = one('.clock', dn);
     const h = +new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/Los_Angeles' }).format(new Date()), autoNight = h < 6 || h >= 18;
     const set = m => { const night = m === 'night' || (m === 'auto' && autoNight); pic.classList.toggle('night', night);
-      bs.forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m)); clock.textContent = m === 'auto' ? (night ? 'Auto · night now in Irvine' : 'Auto · day now in Irvine') : (night ? 'Night' : 'Day'); };
+      bs.forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m)); clock.textContent = m === 'auto' ? (night ? 'Auto · night now in OC' : 'Auto · day now in OC') : (night ? 'Night' : 'Day'); };
     bs.forEach(b => b.addEventListener('click', () => set(b.dataset.m)));
     set('day');
   }
@@ -92,7 +92,7 @@
       if (s < Infinity) hits.push([s + (p[1] === 'mall' ? -0.3 : 0) + nm.length / 400, p]);
     }
     hits.sort((a, b) => a[0] - b[0]);
-    if (!hits.length) { res.innerHTML = '<li class="none">Nothing found. Try another place in Irvine.</li>'; return; }
+    if (!hits.length) { res.innerHTML = '<li class="none">Nothing found. Try another place in Orange County.</li>'; return; }
     if (hits[0][0] >= 1.5) dym.innerHTML = `Did you mean <b>${hits[0][1][0]}</b>?`;
     res.innerHTML = hits.slice(0, 5).map(([, p]) => `<li><a href="map?place=${encodeURIComponent(p[0])}"><i></i><b>${p[0]}</b><span>${KIND[p[1]] || p[1][0].toUpperCase() + p[1].slice(1)}</span></a></li>`).join('');
   };
@@ -138,14 +138,16 @@
     g.classList.toggle('f', !!l); g.querySelectorAll('.src').forEach(s => s.classList.toggle('lit', !!l && s.dataset.ls.split(' ').includes(l))); }));
 })();
 
-// chunk map (41 built chunks of the 8x8 grid, shaded by detail)
+// chunk map (the built chunks of the area's grid, trimmed to their extent, shaded by detail)
 (() => {
   const cm = document.getElementById('chunkmap'); if (!cm) return;
   const rows = JSON.parse(document.getElementById('chunkdata').textContent), by = Object.fromEntries(rows.map(r => [r[0], r]));
   const q = rows.map(r => r[1]), lo = Math.min(...q), hi = Math.max(...q), tip = document.getElementById('chunktip');
   const S = [[207, 227, 194], [111, 174, 90], [47, 125, 50], [20, 64, 26]];
   const ramp = t => { const f = t * 3, i = Math.min(2, Math.floor(f)), u = f - i; return `rgb(${S[i].map((v, k) => Math.round(v + (S[i + 1][k] - v) * u)).join(',')})`; };
-  for (let r = 7; r >= 0; r--) for (let c = 0; c < 8; c++) {
+  const rc = rows.map(r => r[0].match(/r(\d+)c(\d+)/).slice(1).map(Number)), R0 = Math.min(...rc.map(v => v[0])), R1 = Math.max(...rc.map(v => v[0])), C0 = Math.min(...rc.map(v => v[1])), C1 = Math.max(...rc.map(v => v[1]));
+  cm.style.gridTemplateColumns = `repeat(${C1 - C0 + 1}, 1fr)`; cm.style.aspectRatio = `${C1 - C0 + 1} / ${R1 - R0 + 1}`; if (C1 - C0 > 12) cm.style.gap = '1px';
+  for (let r = R1; r >= R0; r--) for (let c = C0; c <= C1; c++) {
     const id = `r${r}c${c}`, d = document.createElement('div'), row = by[id];
     if (row) { d.className = 'k'; d.style.background = ramp((row[1] - lo) / (hi - lo));
       const say = () => { tip.innerHTML = `<b>${(row[1] / 1e6).toFixed(1)}M faces</b> · ${row[2].toFixed(0)} MB · ${row[3]} km²`; };
@@ -175,4 +177,15 @@
     el.querySelector('.fill').style.width = Math.max(0.5, mb / city * 100) + '%';
   };
   inp.addEventListener('input', draw); draw();
+})();
+
+// before/after fixes on How It's Built
+(() => {
+  const el = document.querySelector('[data-fixes]'); if (!el) return;
+  const D = JSON.parse(document.getElementById('fixdata').textContent), bs = [...el.querySelectorAll('.seg button')];
+  const [a, b] = el.querySelectorAll('.cmp img'), cap = el.querySelector('.cp');
+  const show = k => { a.src = `assets/img/fix-${k}-before.jpg`; b.src = `assets/img/fix-${k}-after.jpg`; cap.textContent = D[k].c;
+    bs.forEach(x => x.setAttribute('aria-pressed', x.dataset.k === k)); };
+  bs.forEach(x => x.addEventListener('click', () => show(x.dataset.k)));
+  show(bs[0].dataset.k);
 })();
