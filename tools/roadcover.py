@@ -6,6 +6,7 @@ Reads Overture Maps transportation tiles (zoom 13, HTTP range requests) and, wit
 Overture divisions tiles for the county outline. For each chunk of the area's grid it reports the
 kilometres of drivable road and the share of the chunk inside the county. A chunk is kept when it
 has at least --min-km of road and its centre or a tenth of its area is inside the county.
+--cities "A,B" keeps the chunks of those cities instead (a batch of a county build).
 --write stores the kept ids as "keep" in the area file, the list build.py reads.
 """
 import sys, json, math, gzip, argparse
@@ -62,7 +63,7 @@ def rings(g):
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("area"); ap.add_argument("--county"); ap.add_argument("--min-km", type=float, default=0.3)
+    ap = argparse.ArgumentParser(); ap.add_argument("area"); ap.add_argument("--county"); ap.add_argument("--cities", help="comma-separated city names; keeps chunks in any of them instead of the county"); ap.add_argument("--min-km", type=float, default=0.3)
     ap.add_argument("--out"); ap.add_argument("--write", action="store_true"); ap.add_argument("--zoom", type=int, default=13)
     a = ap.parse_args()
     import build
@@ -89,19 +90,25 @@ def main():
                     if c: road[c] = road.get(c, 0.0) + d
     # The county's land outline, kept per tile: a tile's polygon is clipped to the tile, so a point is
     # tested against the pieces of its own tile only (even-odd over every piece's edges).
-    segs, ZC = {}, 8
-    if a.county:
+    segs, ZC, found = {}, 8, set()
+    if a.cities: ZC = 10   # city outlines start at zoom 10; counties are there from 8
+    cities = set(c.strip() for c in a.cities.split(",")) if a.cities else None
+    if a.county or cities:
         for layers, ll in tiles(reader("divisions.pmtiles"), ZC, area["bbox"]):
             lay = layers.get("division_area")
             if not lay: continue
             ext = lay.get("extent", 4096); key = tile_of(*ll(ext / 2, ext / 2, ext), ZC)
             for f in lay["features"]:
                 p = f["properties"]
-                if p.get("subtype") != "county" or p.get("class") != "land" or p.get("@name") != a.county: continue
+                if p.get("class") != "land" or not (p.get("subtype") == "county" and p.get("@name") == a.county
+                                                     or cities and p.get("subtype") == "locality" and p.get("@name") in cities): continue
+                if cities and p.get("subtype") == "county": continue
+                found.add(p.get("@name"))
                 for rg in rings(f["geometry"]):
                     q = [ll(x, y, ext) for x, y in rg]
                     segs.setdefault(key, []).extend((x0, y0, x1, y1) for (x0, y0), (x1, y1) in zip(q, q[1:]))
-        if not segs: sys.exit(f"no county outline named {a.county} found in the divisions tiles")
+        if not segs: sys.exit(f"no outline named {a.county or a.cities} found in the divisions tiles")
+        if cities and cities - found: print("no outline found for: " + ", ".join(sorted(cities - found)), file=sys.stderr)
     def inside(lon, lat):
         return sum(1 for x0, y0, x1, y1 in segs.get(tile_of(lon, lat, ZC), ()) if (y0 > lat) != (y1 > lat) and lon < x0 + (lat - y0) * (x1 - x0) / (y1 - y0)) % 2 == 1
     out, keep, km2 = [], [], 0.0
