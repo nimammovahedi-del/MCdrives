@@ -54,7 +54,7 @@ const G = await (await fetch('roads.json')).json();
 const BASE = meta.base ?? '';
 async function loadBin(name) {
   if (meta.ext === 'bin') return (await fetch(`${BASE}data/${name}.bin`)).arrayBuffer();
-  const { base64 } = await (await fetch(`data/${name}.json`)).json();
+  const { base64 } = await (await fetch(`${BASE}data/${name}.json`)).json();
   const bin = atob(base64), out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out.buffer;
