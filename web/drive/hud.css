@@ -338,3 +338,23 @@ body.dirs-route #recenter, body.dirs-route #menuBtn { display: none !important; 
 #dirs.panel { background: linear-gradient(var(--panel), var(--panel)), var(--lo, #18181b); }
 .di-sign { display: flex; align-items: center; gap: 8px; font-size: 15px; margin-top: 4px; } .di-sign canvas.pix { width: 22px; height: auto; flex: none; }
 .di-sign span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* live location panel: speed and the road you are on, while the car follows the phone's GPS (no trip),
+   or a slim status line during a trip when the GPS is weak or lost */
+#gpsBox { position: absolute; z-index: 6; display: none; align-items: center; gap: 10px; padding: 6px 6px 6px 8px; font-family: var(--f-text); color: var(--ink); box-sizing: border-box; max-width: calc(100% - 92px); }
+#gpsBox.show { display: flex; }
+#gpsBox .gb-spd { width: 68px; height: 60px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+#gpsBox .gb-spd b { font-size: 30px; line-height: 1; font-weight: 700; font-family: var(--f-num); }
+#gpsBox .gb-spd i { font-style: normal; font-size: 12px; margin-top: 2px; }
+#gpsBox .gb-t { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+#gpsBox .gb-road { font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#gpsBox .gb-st { font-size: 13px; opacity: .8; margin-top: 2px; }
+#gpsBox.warn .gb-st { color: var(--warn-hi); opacity: 1; }
+#gpsBox .gb-x { width: 40px; height: 40px; flex: none; }
+#gpsBox.slim .gb-spd, #gpsBox.slim .gb-road { display: none; }
+body.L-phone #gpsBox { left: 8px; right: 8px; max-width: none; top: calc(96px + env(safe-area-inset-top)); }
+body.L-phone #gpsBox.slim { bottom: calc(118px + env(safe-area-inset-bottom)); }
+body.L-phoneland #gpsBox, body.L-car #gpsBox { left: 8px; top: 88px; width: 340px; }
+body.L-desktop #gpsBox { left: 16px; top: 104px; width: 420px; }
+body.L-desktop #gpsBox.slim { bottom: 120px; }
+body.mapmode #gpsBox { display: none !important; }
