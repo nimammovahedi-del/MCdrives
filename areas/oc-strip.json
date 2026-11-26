@@ -25,5 +25,10 @@
     "r14c12",
     "r14c13",
     "r14c14"
-  ]
+  ],
+  "r2": {
+    "bucket": "mcmaps-world",
+    "url": "https://mcmaps-data.immigration-605.workers.dev/",
+    "keep": 2
+  }
 }
