@@ -7,7 +7,9 @@ Tiles are grouped into one "pack" file per 512x512-block region so the viewer ca
 Memory stays flat however large the world is: regions are decoded one at a time into a temp
 cache, then each region is meshed with a margin borrowed from its eight neighbours.
 
-    mca2web.py WORLD_DIR OUT_DIR [--b64]     (--b64 wraps packs as base64 JSON for hosts that refuse .bin)
+    mca2web.py WORLD_DIR OUT_DIR [--b64] [--osm OSM.json [--no-flat-roofs]]
+        --b64 wraps packs as base64 JSON for hosts that refuse .bin; --osm (the OSM data of the bake) re-grades the roads
+        and lays the flat roofs flush with their walls (flat_roofs()), which --no-flat-roofs leaves as baked
 
 Beside each pack p_<i>_<j> goes its height tile h_<i>_<j> (named in meta.json as the pack's "h"):
 gzipped int16 [2, PACK, PACK] over the pack's columns, [0] the lowest drivable surface and [1] the
@@ -19,11 +21,13 @@ import nbtlib
 
 WORLD, OUT = sys.argv[1], sys.argv[2]
 B64 = '--b64' in sys.argv[3:]
-# --osm OSM.json: the OSM data the world was baked from; road surfaces are then re-graded along it (road_grade.py)
+# --osm OSM.json: the OSM data the world was baked from; road surfaces are then re-graded along it (road_grade.py),
+# and its building footprints drive flat_roofs()
 OSM = sys.argv[sys.argv.index('--osm') + 1] if '--osm' in sys.argv else None
 GRADE_ONLY = '--grade-only' in sys.argv   # debugging: stop after the re-grade, writing its stats and top maps
 # --bounds S,W,N,E: the chunk's own bbox without build.py's lap, where it meets its neighbours (road_grade.py boundaries())
 BOUNDS = tuple(float(v) for v in sys.argv[sys.argv.index('--bounds') + 1].split(',')) if '--bounds' in sys.argv else None
+NO_ROOFS = '--no-flat-roofs' in sys.argv   # leave Arnis's flat roofs as baked (see flat_roofs())
 PACK, MARGIN = 512, 64
 TILE = 64
 os.makedirs(OUT, exist_ok=True)
@@ -588,6 +592,222 @@ def building_shades(wg, dmat, inworld, rx, rz, st):
         sel = cols & (Y > gc[None])
         before = dmat[sel]; dmat[sel] = lut[v][before]; st["blocks"] += int((dmat[sel] != before).sum())
 
+# ---- Flat roofs. Arnis gives a flat-roofed building a roof one block below the top of its walls, and on the walls a
+# one-block parapet with a coping slab: from above, every building is a ring of wall standing one and a half blocks over
+# its roof. Where buildings touch (rows of shops, OSM footprints that overlap) each keeps its own ring, so walls run
+# across the joined roof; thin and diagonal footprints are more wall than roof. Seen from the air that reads as roofless
+# ruins. A few buildings get no roof at all (only the walls and the ground floor). Driven by the OSM footprints of the
+# bake (--osm), this pass lays the roof of each flat-roofed building one block higher, flush with the top of its walls,
+# in the roof's own block (its colour), so only the coping slab rims the edge; covers a roofless one the same way (in
+# the block nearest its OSM roof:colour); brings a building up one block to an attached neighbour one block taller; roofs
+# over the one-block slits between two outlines; and where a wall runs between two roofs, takes off its coping and gives
+# its top block the roof's block. Pitched roofs (a roof not one block under the wall top), open structures (FR_SKIP),
+# courtyards (inner rings) and buildings cut by a region window or the edge of the world are left as they are.
+FR_SKIP = {"roof", "carport", "parking", "stadium", "construction", "grandstand", "ruins", "canopy", "bridge", "shelter",
+           "tent", "greenhouse", "transformer_tower", "storage_tank", "silo", "no", "demolished", "abandoned", "proposed"}
+FR_PAD = 3
+FR_ROOF_NAMES = ["smooth_stone", "white_concrete", "light_gray_concrete", "gray_concrete", "white_terracotta", "light_gray_terracotta",
+                 "polished_andesite", "stone_bricks", "bricks", "sandstone", "terracotta", "black_concrete", "brown_terracotta",
+                 "red_terracotta", "cyan_terracotta", "quartz_block"]
+FR = {}
+def _flat_roof_buildings():
+    """OSM building footprints of the bake, in grid coordinates: [(id, tags, [outer rings], [inner rings], bbox)]."""
+    if "b" in FR: return FR["b"]
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import road_grade
+    pj = road_grade.projection(WORLD)
+    d = json.load(open(OSM))
+    ll = {e["id"]: (e["lon"], e["lat"]) for e in d["elements"] if e["type"] == "node"}
+    ways = {e["id"]: e for e in d["elements"] if e["type"] == "way"}
+    def ring(w):
+        pts = [pj(*ll[n]) for n in w.get("nodes", []) if n in ll]
+        return np.array([(x - minx, z - minz) for x, z in pts], dtype=float) if len(pts) > 2 else None
+    out = []
+    for e in d["elements"]:
+        t = e.get("tags", {})
+        b = t.get("building")
+        if not b or "building:part" in t or b in FR_SKIP: continue
+        if t.get("roof:shape", "flat") != "flat" or t.get("amenity") == "parking" or t.get("parking"): continue
+        if any(k in t for k in ("min_height", "building:min_level", "min_level")): continue   # floating structures
+        if e["type"] == "way": outer, inner = [ring(e)], []
+        elif e["type"] == "relation":
+            mem = [(m.get("role"), ways.get(m["ref"])) for m in e.get("members", []) if m.get("type") == "way"]
+            outer = [ring(w) for r, w in mem if w is not None and r != "inner"]
+            inner = [ring(w) for r, w in mem if w is not None and r == "inner"]
+        else: continue
+        outer = [r for r in outer if r is not None]; inner = [r for r in inner if r is not None]
+        if not outer: continue
+        allp = np.concatenate(outer)
+        out.append((e["id"], t, outer, inner, (allp[:, 0].min(), allp[:, 0].max(), allp[:, 1].min(), allp[:, 1].max())))
+    FR["b"] = out
+    # the block nearest a roof:colour, for a roof that Arnis left out
+    FR["roofmats"] = [(colour(n)[0], mat(*colour(n))) for n in FR_ROOF_NAMES]
+    return out
+
+def _inside(rings, px, pz):
+    """Even-odd point in polygon over all rings."""
+    res = np.zeros(px.shape, dtype=bool)
+    for r in rings:
+        x0, z0, x1, z1 = r[:-1, 0], r[:-1, 1], r[1:, 0], r[1:, 1]
+        if not (r[0] == r[-1]).all(): x0, z0, x1, z1 = r[:, 0], r[:, 1], np.roll(r[:, 0], -1), np.roll(r[:, 1], -1)
+        for a, b, c, d in zip(x0, z0, x1, z1):
+            if b == d: continue
+            res ^= ((b > pz) != (d > pz)) & (px < a + (pz - b) * (c - a) / (d - b))
+    return res
+
+def _nearest_roof(hexcol):
+    try: c = int(str(hexcol).lstrip("#")[:6], 16)
+    except ValueError: return None
+    rgb = lambda v: np.array([(v >> 16) & 255, (v >> 8) & 255, v & 255], float)
+    return min(FR["roofmats"], key=lambda m: ((rgb(m[0]) - rgb(c)) ** 2).sum())[1]
+
+def flat_roofs(wg, dmat, dshape, inworld, rx, rz, st):
+    """Lays flat roofs flush with their walls, in place in wg (cubes, whole window) and dmat/dshape (centre region).
+    Every decision reads only the window's cube grid as it was before this pass, over the building's own footprint and
+    a few blocks around it, and a building is only touched when its padded footprint lies inside the window of every
+    region it reaches (as in building_shades), so each window that holds a building makes the same changes to it."""
+    Bs = _flat_roof_buildings()
+    Hh, Sz, Sx = wg.shape
+    ox, oz = (rx - rx0) * PACK - M, (rz - rz0) * PACK - M     # grid coordinates of window cell (0, 0)
+    cube = (kinds == 1) | (kinds == 3)
+    cube = np.concatenate([cube, np.zeros(256 - len(cube), bool)])
+    occ = wg[1:] != 0
+    g = np.where(occ.any(axis=0), occ.argmax(axis=0) + 3, Hh)  # ground surface, as in building_shades
+    del occ
+    solid = cube[wg]
+    top0 = np.where(solid.any(axis=0), Hh - 1 - solid[::-1].argmax(axis=0), -1)   # highest cube, before this pass
+    del solid
+    slab = np.array([False] + [len(sh) == 1 and sh[0] == (0, 0, 0, 16, 8, 16) for sh in SHAPES[1:]])
+    lay = np.full((Sz, Sx), -1, dtype=np.int32)            # roof level laid in each column (-1: none)
+    jobs = []
+    cross = ndimage.generate_binary_structure(2, 1)
+    for bid, t, outer, inner, (bx0, bx1, bz0, bz1) in Bs:
+        x0, x1 = int(math.floor(bx0)) - FR_PAD, int(math.ceil(bx1)) + FR_PAD + 1
+        z0, z1 = int(math.floor(bz0)) - FR_PAD, int(math.ceil(bz1)) + FR_PAD + 1
+        if x1 <= ox or z1 <= oz or x0 >= ox + Sx or z0 >= oz + Sz: continue
+        mine = (rx - rx0) * PACK <= (x0 + x1) // 2 < (rx - rx0 + 1) * PACK and (rz - rz0) * PACK <= (z0 + z1) // 2 < (rz - rz0 + 1) * PACK
+        # inside the window of every region the padded footprint reaches, so all of them agree
+        ok = all(q * PACK - M <= z0 + rz0 * PACK and z1 + rz0 * PACK <= (q + 1) * PACK + M and
+                 p * PACK - M <= x0 + rx0 * PACK and x1 + rx0 * PACK <= (p + 1) * PACK + M
+                 for q in range((z0 + rz0 * PACK) // PACK, (z1 - 1 + rz0 * PACK) // PACK + 1)
+                 for p in range((x0 + rx0 * PACK) // PACK, (x1 - 1 + rx0 * PACK) // PACK + 1) if (p, q) in REG)
+        if not ok or x0 < ox or z0 < oz or x1 > ox + Sx or z1 > oz + Sz:
+            if mine: st["cut"] += 1
+            continue
+        sl = (slice(z0 - oz, z1 - oz), slice(x0 - ox, x1 - ox))
+        if not inworld[sl].all():
+            if mine: st["world_edge"] += 1
+            continue
+        zz, xx = np.mgrid[z0:z1, x0:x1]
+        F = _inside(outer, xx + .5, zz + .5) & ~_inside(inner, xx + .5, zz + .5)
+        if F.sum() < 12: continue
+        I = ndimage.binary_erosion(F, cross)
+        if I.sum() < 6: continue
+        ring = ndimage.binary_dilation(F, cross) & ~I
+        tp, gr = top0[sl], g[sl]
+        gm = int(np.median(gr[F]))
+        tall = ring & (tp >= gr + 2)
+        if tall.sum() < 0.4 * ring.sum():
+            if mine: st["low"] += 1
+            continue
+        vals, cnt = np.unique(tp[tall], return_counts=True)
+        Tc = int(vals[cnt.argmax()])                       # the top of the walls (full blocks; the coping slab is above)
+        if cnt.max() < 0.4 * tall.sum() or Tc + 2 >= Hh: continue
+        ti = tp[I]
+        vals, cnt = np.unique(ti, return_counts=True)
+        R = int(vals[cnt.argmax()])
+        flat = R == Tc - 1 and cnt.max() >= 0.5 * len(ti)  # roof one block under the wall top: the parapet layout
+        open_ = (ti <= Tc - 2).mean() >= 0.5 and Tc >= gm + 2   # most of the inside lies two or more blocks lower
+        if not (flat or open_):
+            if mine: st["pitched"] += 1
+            continue
+        if flat or (cnt.max() >= 0.5 * len(ti) and R >= gm + 2):   # the roof's own block, where there is a roof
+            m = wg[R][sl][I & (tp == R)]
+            roofm = int(np.bincount(m, minlength=256).argmax())
+        else:                                              # none: the block nearest the roof colour of the bake
+            roofm = _nearest_roof(t.get("roof:colour", "")) or mat(*colour("light_gray_concrete"))
+        jobs.append(dict(sl=sl, F=F, I=I, tall=tall, Tc=Tc, roofm=roofm, mine=mine, flat=flat,
+                         box=(z0 - oz, z1 - oz, x0 - ox, x1 - ox)))
+    # Attached buildings whose walls end one block apart (OSM heights a few decimetres apart, rounded) would keep a step
+    # with its own wall and coping between their roofs: the lower one is brought up to its neighbour. Only neighbours
+    # that touch it count, and only one block, so the answer does not depend on how far a row of buildings reaches.
+    for a in jobs:
+        za0, za1, xa0, xa1 = a["box"]
+        grow = ndimage.binary_dilation(a["F"], cross, iterations=2)   # walls drawn on the outline: rasters a block or two apart
+        for b in jobs:
+            if b["Tc"] != a["Tc"] + 1: continue
+            zb0, zb1, xb0, xb1 = b["box"]
+            if zb0 >= za1 or zb1 <= za0 or xb0 >= xa1 or xb1 <= xa0: continue
+            z0_, z1_, x0_, x1_ = max(za0, zb0), min(za1, zb1), max(xa0, xb0), min(xa1, xb1)
+            if (grow[z0_ - za0:z1_ - za0, x0_ - xa0:x1_ - xa0] & b["F"][z0_ - zb0:z1_ - zb0, x0_ - xb0:x1_ - xb0]).any():
+                a["up"] = True; break
+    rmat = np.zeros((Sz, Sx), dtype=np.uint8)              # the roof block laid in each column
+    near = np.zeros((Sz, Sx), dtype=bool)                  # within two blocks of a footprint whose roof was laid
+    for j in jobs:
+        sl, F, I, Tc, up = j["sl"], j["F"], j["I"], j["Tc"], j.get("up", False)
+        tp = top0[sl]
+        L = Tc + 1 if up else Tc
+        if L >= Hh - 1: continue
+        # the roof goes on every inside column, and on the footprint's edge columns that carry wall or roof up there;
+        # a building brought up a block also gets its walls one block taller, in their own blocks
+        put = (I | (F & (tp >= Tc - 2))) & (wg[L][sl] == 0)
+        w = wg[L][sl]
+        if up:
+            wall = (j["tall"] & (tp == Tc) & ~I) & (wg[L][sl] == 0)
+            w[wall] = wg[Tc][sl][wall]
+            put |= wall
+        lay[sl][put] = np.maximum(lay[sl][put], L)
+        w[put & (w == 0)] = j["roofm"]
+        r = rmat[sl]; r[(put | I) & (r == 0)] = j["roofm"]
+        near[sl] |= ndimage.binary_dilation(F, cross, iterations=2)
+        if j["mine"]:
+            st["flat" if j["flat"] else "roofless"] += 1
+            st["raised"] += up
+            st["cols"] += int(put.sum())
+    c = (slice(M, M + PACK), slice(M, M + PACK))
+    def tops():
+        solid = cube[wg]
+        return np.where(solid.any(axis=0), Hh - 1 - solid[::-1].argmax(axis=0), -1)
+    def nb(a, dz, dx): return np.roll(np.roll(a, dz, 0), dx, 1)
+    box3 = np.ones((3, 3), bool)
+    # Walls drawn on two outlines that run a block apart leave a slit between two roofs: it is roofed over too
+    top = tops()
+    Ld = ndimage.grey_dilation(lay, footprint=box3)
+    Rm = ndimage.grey_dilation(rmat, footprint=box3)
+    hi = lambda dz, dx: nb(top, dz, dx) >= Ld
+    slit = near & (lay < 0) & (Ld >= 0) & (Ld < Hh) & (top < Ld) & (Rm > 0) & ((hi(1, 0) & hi(-1, 0)) | (hi(0, 1) & hi(0, -1)))
+    zz, xx = np.nonzero(slit)
+    wg[Ld[zz, xx], zz, xx] = Rm[zz, xx]; lay[zz, xx] = Ld[zz, xx]; rmat[zz, xx] = Rm[zz, xx]
+    st["slits"] += int(slit[c].sum())
+    # A wall between two roofs (every side covered up to the roof level) loses its coping slab, and its top block takes
+    # the roof's block, so attached buildings read as one roof; walls on the outside keep both
+    top = tops()
+    L = ndimage.grey_dilation(lay, footprint=box3)
+    Rm = ndimage.grey_dilation(rmat, footprint=box3)
+    cov = near & (L >= 0) & (top == L)
+    for dz, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        cov &= nb(top, dz, dx) >= L
+    zz, xx = np.nonzero(cov & (lay < 0) & (Rm > 0))
+    wg[L[zz, xx], zz, xx] = Rm[zz, xx]
+    st["party"] += int((cov & (lay < 0) & (Rm > 0))[c].sum())
+    cz, cx = np.nonzero(cov[c])
+    if len(cz):
+        y = L[c][cz, cx] + 1
+        ok = (y < Hh)
+        cz, cx, y = cz[ok], cx[ok], y[ok]
+        hit = (dmat[y, cz, cx] != 0) & slab[dshape[y, cz, cx]]
+        dmat[y[hit], cz[hit], cx[hit]] = 0
+        st["copings"] += int(hit.sum())
+    # rooftop fixtures that Arnis set on the old roof (daylight sensors, trapdoors) are now inside the new one
+    lc = lay[c]
+    zz, xx = np.nonzero(lc >= 0)
+    if len(zz):
+        y = lc[zz, xx]
+        hit = dmat[y, zz, xx] != 0
+        dmat[y[hit], zz[hit], xx[hit]] = 0
+        st["fixtures"] += int(hit.sum())
+
+FRS = dict(flat=0, roofless=0, raised=0, pitched=0, low=0, cut=0, world_edge=0, cols=0, slits=0, party=0, copings=0, fixtures=0)
 BSS = dict(buildings=0, cut=0, world_edge=0, shaded=0, cols=0, cols_shaded=0, blocks=0)
 RFS = dict(pits=0, fill_fill=0, skip_fill=0, fill_soft=0, skip_soft=0, red=0, red_blocks=0, leaf_cleared=0, log_cleared=0)
 packs = []; total = 0; nquads = 0; nboxes = 0; faces = 0; nleafcut = 0
@@ -622,6 +842,7 @@ for (rx, rz) in sorted(REG):
     dmat[cut & isleaf[dmat]] = 0
     nleafcut += ncut
     road_fixes(wg, (slice(M, M + PACK), slice(M, M + PACK)), RFS)
+    if OSM and not NO_ROOFS: flat_roofs(wg, dmat, dshape, inworld, rx, rz, FRS)
     building_shades(wg, dmat, inworld, rx, rz, BSS)
     # Only draw faces that touch air connected to the open sky: hides sealed interiors, the hollow
     # under the terrain shell and the world's cut edges (columns outside the world are not passable).
@@ -711,6 +932,7 @@ for (rx, rz) in sorted(REG):
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"canopy over roads removed: {nleafcut:,} leaf blocks")
 print("road fixes (region centres): " + ", ".join(f"{k} {v:,}" for k, v in RFS.items()))
+if OSM and not NO_ROOFS: print("flat roofs: " + ", ".join(f"{k} {v:,}" for k, v in FRS.items()))
 print("building shades: " + ", ".join(f"{k} {v:,}" for k, v in BSS.items()))
 print(f"greedy meshing: {nquads:,} quads (from {faces:,} block faces); {nboxes:,} detail boxes for partial blocks")
 
