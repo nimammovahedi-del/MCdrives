@@ -345,6 +345,10 @@ def load(rx, rz):
     return g, dm, ds, np.repeat(np.repeat(z["present"], 16, axis=0), 16, axis=1)
 
 from numba import njit
+# Longest side of a greedy quad, in multiples of its shortest. A sliver (a 1 x 22 strip of a roof cut by a diagonal
+# outline, say) that runs up to the camera is drawn with gaps by some rasterizers (Chrome's SwiftShader): a slit that
+# shows what lies under the surface. Capping the elongation costs about 4% more quads.
+QUAD_ASPECT = 8
 @njit(cache=True)
 def greedy(plane, out, n):
     # plane: 2D [v, u] material ids (0 = no face). Appends (u, v, w, h, mat) rectangles to out.
@@ -358,11 +362,12 @@ def greedy(plane, out, n):
             while u + w < U and plane[v, u + w] == m and not done[v, u + w] and w < 255: w += 1
             h = 1
             ok = True
-            while v + h < V and h < 255 and ok:
+            while v + h < V and h < 255 and h < QUAD_ASPECT * w and ok:
                 for k in range(w):
                     if plane[v + h, u + k] != m or done[v + h, u + k]:
                         ok = False; break
                 if ok: h += 1
+            w = min(w, QUAD_ASPECT * h)   # the rest of the run starts its own quad
             for dv in range(h):
                 for du in range(w):
                     done[v + dv, u + du] = True
