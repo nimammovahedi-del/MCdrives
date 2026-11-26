@@ -22,6 +22,9 @@ def hav(dlat, dlon, lat):
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 # the same projection as tools/roadgraph.py
 sz = math.floor(hav(N - S, 0, 0)); sx = math.floor(hav(0, E - W, (S + N) / 2))
+# --scale K: the bake's Arnis --scale (a chunk of a conformal area, see build.py frame()), which multiplies both
+K = float(sys.argv[sys.argv.index("--scale") + 1]) if "--scale" in sys.argv else 1.0
+if K != 1: sx *= K; sz *= K
 def xz(lon, lat): return ((lon - W) / (E - W) * sx, (1 - (lat - S) / (N - S)) * sz)
 
 sess = requests.Session()
