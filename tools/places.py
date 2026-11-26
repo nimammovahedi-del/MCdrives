@@ -205,7 +205,9 @@ class Placer:
             seg = LineString([A.nodes[e[0]], A.nodes[e[1]]])
             if not seg.intersects(area): continue
             part = seg.intersection(area)
-            q = part.interpolate(part.project(Point(x, z)))
+            if part.is_empty: continue
+            from shapely.ops import nearest_points
+            q = nearest_points(part, Point(x, z))[0]   # the overlap may be a point or a mix, which project() refuses
             d, t, px, pz = A.project(i, q.x, q.y)
             dd = (px - x) ** 2 + (pz - z) ** 2
             if best is None or dd < best[0]: best = (dd, i, t, px, pz)

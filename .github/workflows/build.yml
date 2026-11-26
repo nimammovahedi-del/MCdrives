@@ -9,6 +9,9 @@ on:
       only:
         description: Chunk ids to build, comma-separated (blank = all)
         default: ""
+      reuse:
+        description: Run id of an earlier build of this area whose chunks to reuse; with "only", just those chunks are rebuilt and the whole area is joined again
+        default: ""
       world:
         description: Also push each built chunk's raw world and OSM dump to a world/<area>-<chunk> branch (for debugging the converter)
         default: "false"
@@ -18,6 +21,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: build-${{ github.ref }}
@@ -55,7 +59,8 @@ jobs:
           echo "ids=$IDS" >> "$GITHUB_OUTPUT"
           echo "keep=$ALL" >> "$GITHUB_OUTPUT"
           # Joining needs every chunk of a multi-chunk area, so not after a partial "only" run.
-          echo "joined=$([ "$IDS" = "$ALL" ] && [ "$IDS" != '["all"]' ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          # ...unless "reuse" names the run that built the other chunks.
+          echo "joined=$( { [ "$IDS" = "$ALL" ] || [ -n "${{ inputs.reuse }}" ]; } && [ "$ALL" != '["all"]' ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "building $IDS of $ALL"
 
   chunk:
@@ -129,6 +134,14 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
 
+      - name: Collect the chunks of the earlier run
+        if: inputs.reuse != ''
+        uses: actions/download-artifact@v4
+        with:
+          path: chunks
+          pattern: "r*c*"
+          run-id: ${{ inputs.reuse }}
+          github-token: ${{ github.token }}
       - name: Collect the chunks
         uses: actions/download-artifact@v4
         with:
