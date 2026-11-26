@@ -1,0 +1,31 @@
+name: Deploy world data Worker
+
+# Creates the R2 bucket for the map's large world data (if it is not there yet) and deploys data-worker/,
+# the Worker that serves it. Needs R2 switched on for the Cloudflare account and the repository secret
+# CLOUDFLARE_API_TOKEN with "Workers Scripts: Edit" and "Workers R2 Storage: Edit". Does not touch the map build.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: data-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Bucket and Worker
+        working-directory: data-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "CLOUDFLARE_API_TOKEN not set"; exit 1; fi
+          npx --yes wrangler@4 r2 bucket create mcmaps-world || echo "bucket not created (it may exist already, or R2 is not switched on)"
+          npx --yes wrangler@4 r2 bucket list
+          npx --yes wrangler@4 deploy | tee ../deploy.log
+      - name: Where it lives
+        run: grep -o 'https://[^ ]*workers.dev' deploy.log | head -n 1

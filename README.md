@@ -65,6 +65,11 @@ puts them back together into one world at `build/<area>/site/`:
   translation. `build.py --plan` prints each chunk's offset and the error at its corners: the
   metres per degree of longitude depend on a bbox's mean latitude, so a chunk row's scale is
   slightly off the area's. Over the 343 km2 of `areas/irvine.json` the worst corner is 4.2 blocks out.
+  That error grows with the area's height (up to 9 blocks over the 63 km of Orange County), so a tall
+  area sets `"conformal": true`: its frame is then Mercator, 1 block = 1 metre in the chunk row
+  nearest the equator, and every other row is baked with Arnis `--scale` a fraction above 1 (at most
+  1.0064 for the county) so that its blocks fill its slot. The worst corner is then under 1.5 blocks
+  whatever the height. Turning it on or off for an area means re-baking its chunks.
 - Pack files are copied, never re-encoded: each keeps its bytes and gains a unique id and the
   offset of its chunk, which the viewer applies when it places the tile meshes. Material ids are
   the same in every world (`tools/mca2web.py` registers the whole palette up front), so one

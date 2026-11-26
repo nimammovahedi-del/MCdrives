@@ -1,0 +1,34 @@
+{
+  "name": "Orange County (seam test)",
+  "slug": "oc-strip",
+  "bbox": [
+    33.38,
+    -118.12,
+    33.95,
+    -117.41
+  ],
+  "lidar": true,
+  "max_chunk_km2": 6,
+  "conformal": true,
+  "arnis_args": [
+    "--lidar-max-mb",
+    "4000"
+  ],
+  "private_roads": true,
+  "enrich": [
+    "roof_colour"
+  ],
+  "keep": [
+    "r13c12",
+    "r13c13",
+    "r13c14",
+    "r14c12",
+    "r14c13",
+    "r14c14"
+  ],
+  "r2": {
+    "bucket": "mcmaps-world",
+    "url": "https://mcmaps-data.immigration-605.workers.dev/",
+    "keep": 2
+  }
+}

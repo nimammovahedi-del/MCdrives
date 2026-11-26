@@ -24,12 +24,22 @@ export const KIND_LABEL = { crash: 'Crash', closure: 'Road closed', fire: 'Fire'
 // latitude and longitude to the map's block frame (x east, z south) and back: the bbox spans the map's own width and depth
 export function geoFrame(meta) {
   const [S, W, Nn, E] = meta.bbox;
-  const sx = Math.floor(hav(0, E - W, (S + Nn) / 2)), sz = Math.floor(hav(Nn - S, 0, 0));
+  // metres from the map's box to a point outside it (0 inside)
+  const outside = (lat, lon) => hav(Math.max(0, S - lat, lat - Nn), Math.max(0, W - lon, lon - E), lat);
+  if (meta.lat0 != null) {   // a conformal join (build.py area_projection): Mercator, 1 block = 1 metre at lat0
+    const d = Math.PI / 180, r = R * Math.cos(meta.lat0 * d), y = lat => Math.asinh(Math.tan(lat * d)), yn = y(Nn);
+    return {
+      toXZ: (lat, lon) => ({ x: r * (lon - W) * d - meta.minx, z: r * (yn - y(lat)) - meta.minz }),
+      toLL: (x, z) => ({ lat: Math.atan(Math.sinh(yn - (z + meta.minz) / r)) / d, lon: W + (x + meta.minx) / r / d }),
+      outside,
+    };
+  }
+  const k = meta.scale || 1;   // one chunk of a conformal area, baked at Arnis --scale k
+  const sx = Math.floor(hav(0, E - W, (S + Nn) / 2)) * k, sz = Math.floor(hav(Nn - S, 0, 0)) * k;
   return {
     toXZ: (lat, lon) => ({ x: (lon - W) / (E - W) * sx - meta.minx, z: (1 - (lat - S) / (Nn - S)) * sz - meta.minz }),
     toLL: (x, z) => ({ lat: S + (1 - (z + meta.minz) / sz) * (Nn - S), lon: W + (x + meta.minx) / sx * (E - W) }),
-    // metres from the map's box to a point outside it (0 inside)
-    outside: (lat, lon) => hav(Math.max(0, S - lat, lat - Nn), Math.max(0, W - lon, lon - E), lat),
+    outside,
   };
 }
 

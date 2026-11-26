@@ -49,9 +49,12 @@ if (meta.name) { document.getElementById('areaname').textContent = meta.name + '
 const G = await (await fetch('roads.json')).json();
 
 // Binary data is plain .bin, or base64 inside JSON for hosts that only serve text types.
+// meta.base: where the packs, height tiles and map tiles live when they are too large for this host (an address
+// ending in '/', e.g. object storage); the small files (meta, roads, places, addresses) stay next to the page.
+const BASE = meta.base ?? '';
 async function loadBin(name) {
-  if (meta.ext === 'bin') return (await fetch(`data/${name}.bin`)).arrayBuffer();
-  const { base64 } = await (await fetch(`data/${name}.json`)).json();
+  if (meta.ext === 'bin') return (await fetch(`${BASE}data/${name}.bin`)).arrayBuffer();
+  const { base64 } = await (await fetch(`${BASE}data/${name}.json`)).json();
   const bin = atob(base64), out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out.buffer;
@@ -808,7 +811,7 @@ const mapBtns = createMapButtons(stageEl, {
   onRecenter: () => { if (mode !== 'nav') setMode('nav'); else dcam.recenter(); },
 });
 const chip = createChip(stageEl);
-const painter = createPainter({ G, N, meta });
+const painter = createPainter({ G, N, meta, base: BASE });
 { let look = params.get('map'); try { look ??= localStorage.mcMapLook; } catch {} if (painter.hasDrawn && (look === 'blocks' || look === 'drawn')) painter.style = look; }
 const mapView = createMapView({ stage: stageEl, painter, labels, onTap: (x, z) => { if (dirs?.open) return; const it = nearestIncident(x, z, 7 * mapView.mpp); if (it) showIncident(it); else placeAt(x, z); } });
 const miniEl = document.createElement('div'); miniEl.id = 'minimap'; miniEl.className = 'panel'; miniEl.title = 'Open the map'; stageEl.append(miniEl);

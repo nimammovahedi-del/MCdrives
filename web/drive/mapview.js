@@ -51,19 +51,24 @@ export function createPainter({ G, N, meta, base = '' }) {
   }
   // the built land: the area's chunks (a grid of equal cells; meta.chunks lists the built ones). Outside it, a
   // hatched "not built yet" ground, and the land has a dark rim and a shadow, so the map ends on purpose.
+  // (chunk offsets, like the map pictures and the packs, are in the world's own frame, the same as N)
   const land = (() => {
     const cs = meta.chunks ?? []; if (!cs.length) return null;
     const step = vs => { const u = [...new Set(vs)].sort((a, b) => a - b), d = u.slice(1).map((v, i) => v - u[i]), m = d.length ? Math.min(...d) : 0;
       return m ? (u[u.length - 1] - u[0]) / Math.round((u[u.length - 1] - u[0]) / m) : 0; };
-    const sx = step(cs.map(c => c.dx)) || meta.width, sz = step(cs.map(c => c.dz)) || meta.depth, mx = meta.minx ?? 0, mz = meta.minz ?? 0;
-    const have = new Set(cs.map(c => Math.round(c.dx / sx) + ',' + Math.round(c.dz / sz)));
-    const gx = i => Math.round(i * sx) - mx, gz = j => Math.round(j * sz) - mz, rects = [], edges = [];
-    for (const k of have) {
-      const [i, j] = k.split(',').map(Number); rects.push([gx(i), gz(j), gx(i + 1), gz(j + 1)]);
-      if (!have.has(`${i},${j - 1}`)) edges.push([gx(i), gz(j), gx(i + 1), gz(j)]);
-      if (!have.has(`${i},${j + 1}`)) edges.push([gx(i), gz(j + 1), gx(i + 1), gz(j + 1)]);
-      if (!have.has(`${i - 1},${j}`)) edges.push([gx(i), gz(j), gx(i), gz(j + 1)]);
-      if (!have.has(`${i + 1},${j}`)) edges.push([gx(i + 1), gz(j), gx(i + 1), gz(j + 1)]);
+    const sx = step(cs.map(c => c.dx)) || meta.width, sz = step(cs.map(c => c.dz)) || meta.depth;
+    const x0 = Math.min(...cs.map(c => c.dx)), z0 = Math.min(...cs.map(c => c.dz));
+    const cell = new Map(cs.map(c => [Math.round((c.dx - x0) / sx) + ',' + Math.round((c.dz - z0) / sz), c]));
+    // a chunk's far side is where the next one starts (or one step on, at the outside)
+    const right = (i, j, c) => cell.get(`${i + 1},${j}`)?.dx ?? c.dx + Math.round(sx), bottom = (i, j, c) => cell.get(`${i},${j + 1}`)?.dz ?? c.dz + Math.round(sz);
+    const rects = [], edges = [];
+    for (const [k, c] of cell) {
+      const [i, j] = k.split(',').map(Number), a = c.dx, b = c.dz, r = right(i, j, c), e = bottom(i, j, c);
+      rects.push([a, b, r, e]);
+      if (!cell.has(`${i},${j - 1}`)) edges.push([a, b, r, b]);
+      if (!cell.has(`${i},${j + 1}`)) edges.push([a, e, r, e]);
+      if (!cell.has(`${i - 1},${j}`)) edges.push([a, b, a, e]);
+      if (!cell.has(`${i + 1},${j}`)) edges.push([r, b, r, e]);
     }
     return { rects, edges };
   })();
@@ -110,7 +115,7 @@ export function createPainter({ G, N, meta, base = '' }) {
       } else { ctx.fillStyle = ground; ctx.fillRect(0, 0, w, h); }
       if (drawn) {
         // shrinking a picture blends it (smoothing on); enlarging keeps the crisp block pixels
-        const mx = meta.minx ?? 0, mz = meta.minz ?? 0, size = meta.pack ?? 512;
+        const mx = 0, mz = 0, size = meta.pack ?? 512;   // the pictures are in the world's own frame, like N
         // the picture that has about one of its pixels per canvas pixel
         ctx.imageSmoothingEnabled = cmpp > 1; ctx.imageSmoothingQuality = 'high';
         if (cmpp > 6 && IL.overview) { const o = IL.overview, e = img(o.file); if (e.ok) ctx.drawImage(e.im, X(o.x - mx), Z(o.z - mz), e.im.width * o.scale / cmpp, e.im.height * o.scale / cmpp); }
@@ -120,8 +125,8 @@ export function createPainter({ G, N, meta, base = '' }) {
         }
         ctx.imageSmoothingEnabled = false; trim();
       } else if (M) {
-        // image x/z are world blocks; the road graph (N) is shifted by meta.minx/minz
-        const mx = meta.minx ?? 0, mz = meta.minz ?? 0;
+        // image x/z are in the world's own frame, the same as N (roads.json is shifted into it by meta.minx/minz)
+        const mx = 0, mz = 0;
         if (mpp >= 10 && M.overview) { const o = M.overview, e = img(o.file); if (e.ok) ctx.drawImage(e.im, X(o.x - mx), Z(o.z - mz), e.im.width * o.scale / cmpp, e.im.height * o.scale / cmpp); }
         else for (const [file, wx, wz] of M.tiles) {
           const size = meta.pack ?? 512, tx = wx - mx, tz = wz - mz; if (tx > x1 || tz > z1 || tx + size < x0 || tz + size < z0) continue;

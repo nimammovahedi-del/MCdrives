@@ -1,0 +1,13 @@
+# Serves the map's large world data (packs, height tiles, map tiles) from the R2 bucket "mcmaps-world".
+# Deployed by .github/workflows/data-worker.yml with the repository secret CLOUDFLARE_API_TOKEN, which
+# needs "Workers Scripts: Edit" and "Workers R2 Storage: Edit". Lives at
+# https://mcmaps-data.<account subdomain>.workers.dev ; the build writes that address into meta.base.
+name = "mcmaps-data"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+account_id = "605419df56f382e24ff5b0e9f69da85f"
+workers_dev = true
+
+[[r2_buckets]]
+binding = "WORLD"
+bucket_name = "mcmaps-world"

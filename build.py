@@ -54,6 +54,20 @@ def split(bbox, max_km2):
     return out, rows, cols
 
 
+LAP_M = 3.0
+def lap(area, chunks):
+    """In a conformal area each chunk is baked LAP_M metres past its south and east sides. Arnis cuts a
+    world to whole blocks, so a chunk can end a block short of its neighbour, which shows as a line of
+    sky along the seam; with the lap, neighbours always overlap by a block or more and the later one
+    covers the seam. Everything made for a chunk uses this wider box; its north-west corner, which
+    places it, does not move."""
+    if frame(area) is None: return chunks
+    for c in chunks:
+        s, w, n, e = c["bbox"]
+        c["bbox"] = [round(s - LAP_M / 111320, 6), w, n, round(e + LAP_M / (111320 * math.cos(math.radians((s + n) / 2))), 6)]
+    return chunks
+
+
 def keep_chunks(area, chunks):
     """Drop the chunks an area does not want. "keep" in the area file lists chunk ids outright;
     "within" names an administrative boundary (e.g. {"name": "Irvine", "admin_level": "8"}) and keeps
@@ -99,23 +113,57 @@ def hav(dlat, dlon, lat):
     return EARTH * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def projection(bbox):
+def projection(bbox, scale=1.0):
     """Arnis's own projection for a bbox: the world's block size, and lon/lat -> block coordinates.
 
     It is linear inside one bbox, so a chunk's blocks differ from the parent area's by a
     translation - but the metres per degree of longitude depend on the bbox's mean latitude, so the
-    scale of a chunk row is not exactly the parent's. chunk_offset() measures what that costs."""
+    scale of a chunk row is not exactly the parent's. chunk_offset() measures what that costs.
+    scale is Arnis's --scale, which multiplies the whole metres of each side (so the size may be a
+    fraction; the world's last block is its integer part). tools/roadgraph.py, tools/addresses.py and
+    web/drive/traffic.js hold copies of this."""
     s, w, n, e = bbox
     sx = math.floor(hav(0, e - w, (s + n) / 2)); sz = math.floor(hav(n - s, 0, 0))
+    if scale != 1: sx *= scale; sz *= scale
     return sx, sz, lambda lon, lat: ((lon - w) / (e - w) * sx, (1 - (lat - s) / (n - s)) * sz)
 
 
-def chunk_offset(parent_bbox, bbox):
+def frame(area):
+    """The latitude lat0 of a "conformal" area's frame, or None for the plain frame of projection().
+
+    A tall area cannot use projection() for its chunks: a row far from the middle latitude is
+    several blocks wider or narrower than the slot that frame gives it, so its seams gap or overlap.
+    With "conformal": true in the area file the frame is Mercator, 1 block = 1 metre at lat0, and
+    every chunk is baked at chunk_scale() so that its blocks fit its slot in both directions.
+    lat0 is the middle of the chunk row nearest the equator, which makes every scale 1 or a little
+    more: below 1 Arnis narrows each road by a lane and rounds each building a block down."""
+    s, _, n, _ = area["bbox"]
+    rows = split(area["bbox"], area.get("max_chunk_km2", 4))[1]
+    if not area.get("conformal") or rows == 1: return None
+    return min((s + (n - s) * (r + .5) / rows for r in range(rows)), key=abs)
+
+
+def chunk_scale(lat0, bbox):
+    """Arnis's --scale for a chunk in the frame of lat0: 1 without one, and for the row at lat0."""
+    if lat0 is None: return 1.0
+    return round(math.cos(math.radians(lat0)) / math.cos(math.radians((bbox[0] + bbox[2]) / 2)), 6)
+
+
+def area_projection(bbox, lat0=None):
+    """The frame the chunks of an area are joined in: projection(), or Mercator true to scale at lat0."""
+    if lat0 is None: return projection(bbox)
+    s, w, n, e = bbox
+    r = EARTH * math.cos(math.radians(lat0)); y = lambda lat: math.asinh(math.tan(math.radians(lat)))
+    return (math.floor(r * math.radians(e - w)), math.floor(r * (y(n) - y(s))),
+            lambda lon, lat: (r * math.radians(lon - w), r * (y(n) - y(lat))))
+
+
+def chunk_offset(parent_bbox, bbox, lat0=None):
     """Where a chunk's block (0, 0) sits in the parent area's blocks, and the worst corner error.
 
     Returns (dx, dz, error in blocks). The error includes rounding the offset to whole blocks."""
-    _, _, pxz = projection(parent_bbox)
-    cx1, cz1, _ = projection(bbox)
+    _, _, pxz = area_projection(parent_bbox, lat0)
+    cx1, cz1, _ = projection(bbox, chunk_scale(lat0, bbox))
     s, w, n, e = bbox
     dx, dz = (round(v) for v in pxz(w, n))
     err = 0.0
@@ -304,8 +352,8 @@ def join(area, chunks, out, seam_tol=6, log=print):
     takes a column's height from the last pack in the list that has a surface there, as the merged
     height field of earlier joins did."""
     import numpy as np
-    parent = area["bbox"]
-    psx, psz, _ = projection(parent)
+    parent = area["bbox"]; lat0 = frame(area)
+    psx, psz, _ = area_projection(parent, lat0)
     site = out / "site"; data = site / "data"
     missing = [c["id"] for c in chunks if not (out / c["id"] / "site" / "data" / "meta.json").exists()]
     if missing: sys.exit(f"join: no converted chunk at {out}/<id>/site/data for: {', '.join(missing)}")
@@ -314,7 +362,10 @@ def join(area, chunks, out, seam_tol=6, log=print):
     for c in chunks:
         cs = out / c["id"] / "site"
         cm = json.loads((cs / "data" / "meta.json").read_text())
-        dx, dz, err = chunk_offset(parent, c["bbox"])
+        dx, dz, err = chunk_offset(parent, c["bbox"], lat0)
+        if cm.get("scale", 1) != chunk_scale(lat0, c["bbox"]):
+            sys.exit(f"join: chunk {c['id']} was baked at scale {cm.get('scale', 1)}, but this area's frame wants "
+                     f"{chunk_scale(lat0, c['bbox'])}. Re-bake it with --only {c['id']} --force.")
         info.append({"id": c["id"], "bbox": c["bbox"], "dir": cs, "meta": cm, "dx": dx, "dz": dz, "err": round(err, 2)})
     worst = max(i["err"] for i in info)
     log(f"join: {len(info)} chunks, projection error at chunk corners at most {worst:.2f} blocks")
@@ -442,7 +493,7 @@ def join(area, chunks, out, seam_tol=6, log=print):
     meta = {"tile": info[0]["meta"]["tile"], "pack": info[0]["meta"]["pack"], "ext": ext,
             "width": width, "depth": depth, "height": height, "minx": minx, "minz": minz, "miny": miny,
             "quads": quads, "bytes": total, "packs": packs, "materials": info[0]["meta"]["materials"],
-            "name": area["name"], "bbox": parent,
+            "name": area["name"], "bbox": parent, **({} if lat0 is None else {"lat0": lat0}),
             "chunks": [{"id": i["id"], "dx": i["sx"], "dz": i["sz"], "dy": i["sy"], "err": i["err"]} for i in info]}
     (data / "meta.json").write_text(json.dumps(meta))
     # overhead colour layer for the 2D map (optional: the map falls back to roads on parchment)
@@ -542,6 +593,7 @@ def build_chunk(area, chunk, args, work, overhang=0):
     bbox = chunk["bbox"]
     bstr = ",".join(f"{v:.6f}" for v in bbox)
     h, w = km(bbox)
+    scale = chunk_scale(frame(area), bbox)   # not 1 only in a conformal area
     work.mkdir(parents=True, exist_ok=True)
     site, log = work / "site", work / "build.log"
     world_parent, osm = work / "world", work / "osm.json"
@@ -559,6 +611,10 @@ def build_chunk(area, chunk, args, work, overhang=0):
         hits = [p.parent for p in world_parent.rglob("region") if any(p.glob("*.mca"))] if world_parent.exists() else []
         return hits[0] if hits else None
 
+    if redo and world_dir() and (world_dir() / "metadata.json").exists():
+        baked = json.loads((world_dir() / "metadata.json").read_text()).get("scale", 1)
+        if baked != scale: sys.exit(f"[{chunk['id']}] the world in {world_parent} was baked at scale {baked}, "
+                                    f"this area's frame wants {scale}: re-bake it with --force")
     if step("bake", lambda: world_dir() and osm.exists()):
         if args.world: sys.exit(f"--world {args.world} has no region files")
         shutil.rmtree(world_parent, ignore_errors=True); world_parent.mkdir(parents=True)
@@ -569,6 +625,7 @@ def build_chunk(area, chunk, args, work, overhang=0):
         # driver's seat. An area can set "props" to "all" or its own list to change that.
         opts.append("--props=" + area.get("props", NO_CARS))
         opts += area.get("arnis_args", [])
+        if scale != 1: opts.append(f"--scale={scale}")
         source = [f"--save-json-file={osm}"]
         if area.get("enrich") and not args.osm:
             enriched = enrich_osm(arnis, bstr, opts, osm, work, log, token_env(area, h * w), chunk["id"], area["enrich"])
@@ -587,19 +644,21 @@ def build_chunk(area, chunk, args, work, overhang=0):
     # street addresses for search, in the same frame as roads.json; optional, so a network hiccup never fails a build.
     # Fetched before the roads step, which reads them to learn a place's street from its house number.
     if not (data / "addresses.json").exists() or (STEPS.index("roads") >= redo):
-        try: run([sys.executable, ROOT / "tools" / "addresses.py", bstr, data / "addresses.json"], log)
+        try: run([sys.executable, ROOT / "tools" / "addresses.py", bstr, data / "addresses.json"] + (["--scale", scale] if scale != 1 else []), log)
         except BaseException as e: print(f"[{chunk['id']}] addresses skipped: {e}")
     if step("roads", lambda: (site / "roads.json").exists() and (site / "places.json").exists()):
         cmd = [sys.executable, ROOT / "tools" / "roadgraph.py", bstr, osm, site / "roads.json", "--places", site / "places.json"]
         if (data / "addresses.json").exists(): cmd += ["--addresses", data / "addresses.json"]
         if area.get("private_roads"): cmd.append("--keep-private")   # gated streets, used only to start or end a trip
         if overhang: cmd += ["--overhang", overhang]   # reach past the bbox so the join can sew seams
+        if scale != 1: cmd += ["--scale", scale]
         run(cmd, log)
         times["roads"] = time.time() - times["roads"]
 
     if step("site", lambda: (site / "map.html").exists()):
         meta = json.loads((data / "meta.json").read_text())
         meta.update(name=area["name"] + ("" if chunk["id"] == "all" else f" ({chunk['id']})"), bbox=bbox)
+        if scale != 1: meta["scale"] = scale
         (data / "meta.json").write_text(json.dumps(meta))
         copy_web(site)
         times["site"] = time.time() - times["site"]
@@ -647,15 +706,19 @@ def main():
 
     area = json.loads(Path(args.area).read_text())
     chunks, rows, cols = split(area["bbox"], area.get("max_chunk_km2", 4))
-    chunks = keep_chunks(area, chunks)
+    chunks = keep_chunks(area, lap(area, chunks))
     h, w = km(area["bbox"])
     if args.plan_ids:
         print(json.dumps([c["id"] for c in chunks])); return
     print(f"{area['name']}: {h:.2f} x {w:.2f} km = {h*w:.2f} km2 in {len(chunks)} chunk(s) ({rows} x {cols})")
     if args.plan:
+        lat0 = frame(area)
+        if lat0 is not None: print(f"conformal frame: 1 block = 1 metre at latitude {lat0:.6f}")
         for c in chunks:
-            dx, dz, err = chunk_offset(area["bbox"], c["bbox"])
-            print(" ", c["id"], ",".join(f"{v:.6f}" for v in c["bbox"]), f"at block ({dx}, {dz}), error {err:.2f}")
+            dx, dz, err = chunk_offset(area["bbox"], c["bbox"], lat0)
+            k = chunk_scale(lat0, c["bbox"])
+            print(" ", c["id"], ",".join(f"{v:.6f}" for v in c["bbox"]), f"at block ({dx}, {dz}),",
+                  *([f"scale {k},"] if k != 1 else []), f"error {err:.2f}")
         return
     overhang = OVERHANG if len(chunks) > 1 else 0
     out = Path(args.out) / area["slug"]
@@ -683,7 +746,7 @@ def main():
 
     # Chunks built elsewhere (one CI job each) have no report entry here, so fill them in.
     full, _, _ = split(area["bbox"], area.get("max_chunk_km2", 4))
-    full = keep_chunks(area, full)
+    full = keep_chunks(area, lap(area, full))
     have = {r["id"] for r in report["chunks"]}
     report["chunks"] += [s for s in (chunk_summary(area, c, out / c["id"]) for c in full if c["id"] not in have) if s]
     report["chunks"].sort(key=lambda r: (r["row"], r["col"]))
