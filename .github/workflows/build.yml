@@ -161,6 +161,42 @@ jobs:
           path: public
           retention-days: 14
           compression-level: 0
+      # Areas with "r2" in their file are too large for a git branch: the packs, height tiles and map tiles go to
+      # the R2 bucket under a prefix of their own, meta.json gets that address as "base", and only the small files
+      # are left for the branch. R2's S3 keys are derived from the API token (its id, and the SHA-256 of its value),
+      # so no further secret is needed. The two newest builds of the area are kept in the bucket.
+      - name: Move the world data to R2
+        if: needs.plan.outputs.joined == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          R2=$(python -c "import json,sys; print(json.dumps(json.load(open('areas/$AREA.json')).get('r2') or ''))")
+          if [ "$R2" = '""' ]; then echo "area has no r2 setting; the branch keeps everything"; exit 0; fi
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "CLOUDFLARE_API_TOKEN not set"; exit 1; fi
+          BUCKET=$(echo "$R2" | jq -r .bucket); URL=$(echo "$R2" | jq -r .url); KEEP=$(echo "$R2" | jq -r '.keep // 2')
+          ACCOUNT=$(sed -n 's/^account_id = "\(.*\)"/\1/p' data-worker/wrangler.toml)
+          ID=$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify | jq -r '.result.id // empty')
+          if [ -z "$ID" ]; then ID=$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/tokens/verify" | jq -r '.result.id // empty'); fi
+          if [ -z "$ID" ]; then echo "could not read the API token's id"; exit 1; fi
+          export AWS_ACCESS_KEY_ID="$ID" AWS_SECRET_ACCESS_KEY="$(printf %s "$CLOUDFLARE_API_TOKEN" | sha256sum | cut -d' ' -f1)" AWS_DEFAULT_REGION=auto
+          export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
+          echo "::add-mask::$AWS_SECRET_ACCESS_KEY"
+          EP="https://$ACCOUNT.r2.cloudflarestorage.com"
+          PREFIX="$AREA/$(date -u +%Y%m%dT%H%M)-${GITHUB_SHA::7}"
+          aws s3 sync public/data "s3://$BUCKET/$PREFIX/data" --endpoint-url "$EP" --exclude "*" --include "*.bin" --include "*.png" --only-show-errors
+          n=$(aws s3 ls "s3://$BUCKET/$PREFIX/data/" --endpoint-url "$EP" | wc -l); m=$(find public/data -name '*.bin' -o -name '*.png' | wc -l)
+          echo "uploaded $n of $m files to $PREFIX"
+          if [ "$n" != "$m" ]; then echo "upload incomplete"; exit 1; fi
+          find public/data \( -name '*.bin' -o -name '*.png' \) -delete
+          python - "$URL$PREFIX/" <<'PY'
+          import json, sys
+          m = json.load(open("public/data/meta.json")); m["base"] = sys.argv[1]
+          json.dump(m, open("public/data/meta.json", "w"), separators=(",", ":"))
+          PY
+          aws s3 ls "s3://$BUCKET/$AREA/" --endpoint-url "$EP" | awk '$1 == "PRE" {print $2}' | sort | head -n "-$KEEP" | while read -r old; do
+            echo "removing old build $AREA/$old"; aws s3 rm "s3://$BUCKET/$AREA/$old" --recursive --endpoint-url "$EP" --only-show-errors
+          done
+          du -sh public
       - name: Publish built site to a branch
         if: needs.plan.outputs.joined == 'true' || needs.plan.outputs.keep == '["all"]'
         run: |
