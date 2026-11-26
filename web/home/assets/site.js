@@ -23,19 +23,19 @@
   const tour = one('[data-tour]');
   if (tour) {
     const L = JSON.parse(one('#tourdata').textContent), btns = all('.lvb', tour), img = one('.frame img', tour), frame = one('.frame', tour);
-    const title = one('.info .h2', tour), tag = one('.info .tag', tour), goal = one('.goal', tour), goalT = one('.goal span', tour), calls = one('.calls', tour), prog = one('.prog i', tour), next = one('[data-next]', tour);
+    const title = one('.info .h2', tour), lead = one('.info .lead', tour), tag = one('.info .tag', tour), goal = one('.goal', tour), goalT = one('.goal span', tour), calls = one('.calls', tour), prog = one('.prog i', tour), next = one('[data-next]', tour);
     let cur = 0;
     const hi = n => { all('.pin', frame).forEach(p => p.classList.toggle('on', +p.dataset.n === n)); all('li', calls).forEach(li => li.classList.toggle('on', +li.dataset.n === n)); };
     const show = i => {
       cur = i; const d = L[i];
       btns.forEach((b, j) => { b.setAttribute('aria-selected', j === i); b.classList.toggle('done', j < i); });
-      img.src = d.img; img.style.objectPosition = d.pos || 'top'; tag.textContent = 'Level ' + (i + 1); title.textContent = d.title; goalT.textContent = d.goal;
+      img.src = d.img; img.style.objectPosition = d.pos || 'top'; tag.textContent = 'Level ' + (i + 1); title.textContent = d.title; if (lead) lead.textContent = d.lead || ''; goalT.textContent = d.goal;
       goal.classList.remove('ok'); prog.style.width = (i + 1) * 25 + '%';
       all('.pin', frame).forEach(p => p.remove()); calls.innerHTML = '';
-      d.pins.forEach(([x, y, label], j) => {
+      d.pins.forEach(([x, y, label, desc], j) => {
         const p = document.createElement('button'); p.className = 'pin'; p.dataset.n = j + 1; p.textContent = j + 1; p.style.left = x + '%'; p.style.top = y + '%'; p.setAttribute('aria-label', label);
         p.onmouseenter = p.onfocus = () => hi(j + 1); p.onclick = () => hi(j + 1); frame.append(p);
-        const li = document.createElement('li'); li.dataset.n = j + 1; li.innerHTML = `<span class="pn">${j + 1}</span>${label}`; li.onmouseenter = () => hi(j + 1); calls.append(li);
+        const li = document.createElement('li'); li.dataset.n = j + 1; li.innerHTML = `<span class="pn">${j + 1}</span><span><b>${label}</b>${desc ? `<small>${desc}</small>` : ''}</span>`; li.onmouseenter = () => hi(j + 1); calls.append(li);
       });
       next.innerHTML = i < L.length - 1 ? `Next level <svg viewBox="0 0 3 6" aria-hidden="true"><rect width="1" height="6" fill="currentColor"/><rect x="1" y="1" width="1" height="4" fill="currentColor"/><rect x="2" y="2" width="1" height="2" fill="currentColor"/></svg>` : 'Start over';
     };
@@ -51,7 +51,7 @@
     all('[data-feat]').forEach(c => c.addEventListener('click', () => {
       const f = JSON.parse(c.dataset.feat);
       const src = c.querySelector('img'); one('.im img', dlg).src = src.src; one('.im', dlg).classList.toggle('wide', src.naturalWidth > src.naturalHeight); one('.im img', dlg).alt = f.title;
-      one('.tag', dlg).textContent = f.tag; one('.h2', dlg).textContent = f.title;
+      one('.tag', dlg).textContent = f.tag; one('.h2', dlg).textContent = f.title; const dd = one('.d', dlg); if (dd) dd.textContent = f.d || '';
       one('.chips', dlg).innerHTML = f.chips.map(t => `<span>${t}</span>`).join('');
       one('[data-try]', dlg).href = f.href || 'map';
       dlg.showModal();
@@ -118,12 +118,12 @@
 (() => {
   const el = document.querySelector('[data-pipe]'); if (!el) return;
   const S = JSON.parse(document.getElementById('stepdata').textContent), bs = [...el.querySelectorAll('.step')];
-  const img = el.querySelector('.sv img'), tag = el.querySelector('.sv .tag'), h = el.querySelector('.sv .h2'), chips = el.querySelector('.sv .chips'), road = el.querySelector('.road');
+  const dsc = el.querySelector('.sv .d'), img = el.querySelector('.sv img'), tag = el.querySelector('.sv .tag'), h = el.querySelector('.sv .h2'), chips = el.querySelector('.sv .chips'), road = el.querySelector('.road');
   let cur = 0;
   const show = i => { cur = (i + S.length) % S.length; const s = S[cur];
     bs.forEach((b, j) => b.setAttribute('aria-selected', j === cur)); road.style.setProperty('--p', cur);
     img.style.opacity = 0; const n = new Image(); n.onload = () => { img.src = s.img; img.alt = s.t; img.classList.toggle('tall', n.naturalHeight > n.naturalWidth); img.style.opacity = 1; }; n.src = s.img;
-    tag.textContent = s.n; h.textContent = s.t; chips.innerHTML = s.chips.map(c => `<span>${c}</span>`).join(''); };
+    tag.textContent = s.n; h.textContent = s.t; if (dsc) dsc.textContent = s.d || ''; chips.innerHTML = s.chips.map(c => `<span>${c}</span>`).join(''); };
   bs.forEach((b, i) => b.addEventListener('click', () => show(i)));
   el.querySelector('[data-nextstep]').addEventListener('click', () => show(cur + 1));
   el.querySelector('[data-prev]').addEventListener('click', () => show(cur - 1));

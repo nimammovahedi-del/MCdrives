@@ -32,7 +32,7 @@
 </div>
 
 <section id="tour"><div class="wrap">
-  <div class="sh"><div><span class="tag">Your first drive</span><h2 class="h2">Four levels. One minute.</h2></div><span class=n>Tap the pins</span></div>
+  <div class="sh"><div><span class="tag">Your first drive</span><h2 class="h2">Four levels. One minute.</h2><p class="lead">A quick tour of a real trip, from searching for a place to dodging a crash. Tap a numbered pin to see what each part of the screen does.</p></div><span class=n>Tap the pins</span></div>
   <div class="card tour" data-tour>
     <div class="lvbar" role="tablist"><button class="lvb" role="tab"><span class="num">1</span><span><b>Find</b><small>Search</small></span></button><button class="lvb" role="tab"><span class="num">2</span><span><b>Plan</b><small>Directions</small></span></button><button class="lvb" role="tab"><span class="num">3</span><span><b>Drive</b><small>Turn by turn</small></span></button><button class="lvb" role="tab"><span class="num">4</span><span><b>Reroute</b><small>Live traffic</small></span></button></div>
     <div class="prog"><i></i></div>
@@ -41,44 +41,46 @@
       <div class="info">
         <div><span class="tag g">Level 1</span></div>
         <h3 class="h2"></h3>
+        <p class="lead"></p>
         <div class="goal"><i></i><span></span></div>
         <ol class="calls"></ol>
         <div class="row"><button class="btn" data-next></button><a class="btn alt" href="map">Try it live</a></div>
       </div>
     </div>
   </div>
-  <script type="application/json" id="tourdata">[{"img": "assets/img/p-search.jpg", "pos": "top", "title": "Find a place", "goal": "Search \"spectrm\"", "pins": [[63, 4.6, "Type anything"], [93, 12, "Typos get fixed"], [4, 17, "Tap a result to go"], [96, 22, "How far it is"]]}, {"img": "assets/img/p-whereto.jpg", "pos": "top", "title": "Plan the route", "goal": "Start a trip", "pins": [[62, 11.7, "Directions and drive time"], [62, 18.1, "Start from your location"], [96, 29, "Distance to each place"]]}, {"img": "assets/img/p-drive.jpg", "pos": "top", "title": "Drive it", "goal": "Make three turns", "pins": [[4, 2, "Your next turn"], [52, 13.5, "And the one after"], [58, 47, "Arrows on your lane"], [30, 73, "Minimap"], [4, 91, "Speed and arrival"]]}, {"img": "assets/img/reroute.jpg", "pos": "top", "title": "Beat the traffic", "goal": "Take the faster way", "pins": [[58, 64, "That's you"], [96, 82, "Crash ahead"], [4, 94, "Take the faster way"]]}]</script>
+  <script type="application/json" id="tourdata">[{"img": "assets/img/p-search.jpg", "pos": "top", "title": "Find a place", "lead": "Search any of 2,835 places, or any street address in Irvine.", "goal": "Search \"spectrm\"", "pins": [[63, 4.6, "Type anything", "A shop, a school, a street or a full address."], [93, 12, "Typos get fixed", "It suggests the closest match, so \"spectrm\" finds Spectrum."], [4, 17, "Tap a result to go", "Opens directions to that spot."], [96, 22, "How far it is", "Distance from where you are right now."]]}, {"img": "assets/img/p-whereto.jpg", "pos": "top", "title": "Plan the route", "lead": "See the route and the drive time before you leave.", "goal": "Start a trip", "pins": [[62, 11.7, "Directions and drive time", "Drive time uses live freeway speeds."], [62, 18.1, "Start from your location", "Or pick any other starting point."], [96, 29, "Distance to each place", "Helps you choose between nearby options."]]}, {"img": "assets/img/p-drive.jpg", "pos": "top", "title": "Drive it", "lead": "Turn-by-turn directions, like a real navigation app, in a city made of blocks.", "goal": "Make three turns", "pins": [[4, 2, "Your next turn", "The street name and how far away it is."], [52, 13.5, "And the one after", "So a quick second turn never catches you off guard."], [58, 47, "Arrows on your lane", "Shown on the road ahead of you."], [30, 73, "Minimap", "Your route from above."], [4, 91, "Speed and arrival", "Your speed, the time left and when you arrive."]]}, {"img": "assets/img/reroute.jpg", "pos": "top", "title": "Beat the traffic", "lead": "Live crashes and closures show up on the map, and Map Craft offers a way around them.", "goal": "Take the faster way", "pins": [[58, 64, "That's you", "Your car, on its way along the route."], [96, 82, "Crash ahead", "Reported live by the Highway Patrol."], [4, 94, "Take the faster way", "One tap switches to the new route."]]}]</script>
 </div></section>
 
 <section id="features"><div class="wrap">
-  <div class="sh"><div><span class="tag">Every feature</span><h2 class="h2">One app. Every way around.</h2></div><span class=n>Tap a card</span></div>
+  <div class="sh"><div><span class="tag">Every feature</span><h2 class="h2">One app. Every way around.</h2><p class="lead">Drive it, fly over it or read it like a map. Tap a card for a closer look, or try the search right here.</p></div><span class=n>Tap a card</span></div>
   <div class="bento">
-    <button class="card hit s3x4" data-feat="{&quot;tag&quot;: &quot;Traffic&quot;, &quot;title&quot;: &quot;Live road speeds&quot;, &quot;chips&quot;: [&quot;Freeway sensors&quot;, &quot;Updated every 5 min&quot;, &quot;Colors on the map&quot;], &quot;href&quot;: &quot;map&quot;}"><div class="m well"><img src="assets/img/speeds.jpg" alt="Live road speeds" loading="lazy" style="object-position:top"></div>
-      <div class="cap"><span class="tag">Traffic</span><h3 class="h3">Live road speeds</h3><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></div></button>
-    <button class="card hit s6x2" data-feat="{&quot;tag&quot;: &quot;Explore&quot;, &quot;title&quot;: &quot;Fly over Irvine in 3D&quot;, &quot;chips&quot;: [&quot;Pan, zoom and turn&quot;, &quot;Tap a street to go&quot;, &quot;Every building in place&quot;], &quot;href&quot;: &quot;map?mode=orbit&quot;}"><div class="m well"><img src="assets/img/spectrum-close.jpg" alt="Fly over Irvine in 3D" loading="lazy"></div>
-      <div class="cap"><span class="tag">Explore</span><h3 class="h3">Fly over Irvine in 3D</h3><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></div></button>
-    <button class="card hit s3x4" data-feat="{&quot;tag&quot;: &quot;Map&quot;, &quot;title&quot;: &quot;The whole city in 2D&quot;, &quot;chips&quot;: [&quot;Drop a pin&quot;, &quot;A key for every sign&quot;, &quot;One tap back to driving&quot;], &quot;href&quot;: &quot;map?mode=map&quot;}"><div class="m well"><img src="assets/img/p-map.jpg" alt="The whole city in 2D" loading="lazy" style="object-position:top"></div>
-      <div class="cap"><span class="tag">Map</span><h3 class="h3">The whole city in 2D</h3><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></div></button>
-    <button class="card hit s6x2" data-feat="{&quot;tag&quot;: &quot;Desktop&quot;, &quot;title&quot;: &quot;Big screen, same drive&quot;, &quot;chips&quot;: [&quot;Mouse and keyboard&quot;, &quot;Minimap&quot;, &quot;Same routes as phone&quot;], &quot;href&quot;: &quot;map&quot;}"><div class="m well"><img src="assets/img/d-drive.jpg" alt="Big screen, same drive" loading="lazy"></div>
-      <div class="cap"><span class="tag">Desktop</span><h3 class="h3">Big screen, same drive</h3><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></div></button>
+    <button class="card hit s3x4" data-feat="{&quot;tag&quot;: &quot;Traffic&quot;, &quot;title&quot;: &quot;Live road speeds&quot;, &quot;chips&quot;: [&quot;Freeway sensors&quot;, &quot;Updated every 5 min&quot;, &quot;Colors on the map&quot;], &quot;href&quot;: &quot;map&quot;, &quot;d&quot;: &quot;Freeways are colored by how fast traffic is moving now, from Caltrans road sensors.&quot;}"><div class="m well"><img src="assets/img/speeds.jpg" alt="Live road speeds" loading="lazy" style="object-position:top"></div>
+      <div class="cap"><span class="tag">Traffic</span><h3 class="h3">Live road speeds</h3><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></div><p class="cd">Freeways are colored by how fast traffic is moving now, from Caltrans road sensors.</p></button>
+    <button class="card hit s6x2" data-feat="{&quot;tag&quot;: &quot;Explore&quot;, &quot;title&quot;: &quot;Fly over Irvine in 3D&quot;, &quot;chips&quot;: [&quot;Pan, zoom and turn&quot;, &quot;Tap a street to go&quot;, &quot;Every building in place&quot;], &quot;href&quot;: &quot;map?mode=orbit&quot;, &quot;d&quot;: &quot;Orbit the whole city from above, then tap any street to start driving there.&quot;}"><div class="m well"><img src="assets/img/spectrum-close.jpg" alt="Fly over Irvine in 3D" loading="lazy"></div>
+      <div class="cap"><span class="tag">Explore</span><h3 class="h3">Fly over Irvine in 3D</h3><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></div><p class="cd">Orbit the whole city from above, then tap any street to start driving there.</p></button>
+    <button class="card hit s3x4" data-feat="{&quot;tag&quot;: &quot;Map&quot;, &quot;title&quot;: &quot;The whole city in 2D&quot;, &quot;chips&quot;: [&quot;Drop a pin&quot;, &quot;A key for every sign&quot;, &quot;One tap back to driving&quot;], &quot;href&quot;: &quot;map?mode=map&quot;, &quot;d&quot;: &quot;A flat map with a key for every sign. Drop a pin to drive to it.&quot;}"><div class="m well"><img src="assets/img/p-map.jpg" alt="The whole city in 2D" loading="lazy" style="object-position:top"></div>
+      <div class="cap"><span class="tag">Map</span><h3 class="h3">The whole city in 2D</h3><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></div><p class="cd">A flat map with a key for every sign. Drop a pin to drive to it.</p></button>
+    <button class="card hit s6x2" data-feat="{&quot;tag&quot;: &quot;Desktop&quot;, &quot;title&quot;: &quot;Big screen, same drive&quot;, &quot;chips&quot;: [&quot;Mouse and keyboard&quot;, &quot;Minimap&quot;, &quot;Same routes as phone&quot;], &quot;href&quot;: &quot;map&quot;, &quot;d&quot;: &quot;Drive with the keyboard on a laptop or desktop, with the same routes as on your phone.&quot;}"><div class="m well"><img src="assets/img/d-drive.jpg" alt="Big screen, same drive" loading="lazy"></div>
+      <div class="cap"><span class="tag">Desktop</span><h3 class="h3">Big screen, same drive</h3><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></div><p class="cd">Drive with the keyboard on a laptop or desktop, with the same routes as on your phone.</p></button>
     <div class="card s5x3 srch" data-search>
       <div class="top"><span class="tag">Search</span><span class="hint">Try a typo</span></div>
       <label class="box"><svg viewBox="0 0 8 8" aria-hidden="true"><path d="M1 0h3v1h1v3H4v1H1V4H0V1h1zM1 1v3h3V1zM4 5h1v1h1v1h1v1H6V7H5V6H4z" fill="currentColor"/></svg><input type="search" value="spectrm" aria-label="Search Irvine places" autocomplete="off" spellcheck="false"></label>
       <p class="dym"></p>
       <ul class="res"></ul>
     </div>
-    <button class="card hit s7x3" data-feat="{&quot;tag&quot;: &quot;Directions&quot;, &quot;title&quot;: &quot;Know before you go&quot;, &quot;chips&quot;: [&quot;From your location&quot;, &quot;Swap in one tap&quot;, &quot;Live drive time&quot;], &quot;href&quot;: &quot;map&quot;}"><div class="m well"><img src="assets/img/directions.jpg" alt="Directions panel" loading="lazy"></div>
-      <div class="cap"><span class="tag">Directions</span><h3 class="h3">Know before you go</h3><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></div></button>
+    <button class="card hit s7x3" data-feat="{&quot;tag&quot;: &quot;Directions&quot;, &quot;title&quot;: &quot;Know before you go&quot;, &quot;chips&quot;: [&quot;From your location&quot;, &quot;Swap in one tap&quot;, &quot;Live drive time&quot;], &quot;href&quot;: &quot;map&quot;, &quot;d&quot;: &quot;See the drive time, the route and the streets it uses before you go.&quot;}"><div class="m well"><img src="assets/img/directions.jpg" alt="Directions panel" loading="lazy"></div>
+      <div class="cap"><span class="tag">Directions</span><h3 class="h3">Know before you go</h3><span class="open"><svg viewBox="0 0 6 6" aria-hidden="true"><path d="M2 0h4v4H5V2H4v1H3v1H2v1H1v1H0V5h1V4h1V3h1V2h1V1H2z" fill="currentColor"/></svg></span></div><p class="cd">See the drive time, the route and the streets it uses before you go.</p></button>
   </div>
 </div></section>
 
 <section id="play"><div class="wrap">
-  <div class="sh"><div><span class="tag">Make it yours</span><h2 class="h2">Pick a car. Pick the sky.</h2></div><span class=n>Drag the car</span></div>
+  <div class="sh"><div><span class="tag">Make it yours</span><h2 class="h2">Pick a car. Pick the sky.</h2><p class="lead">Eight blocky cars, all drawn for Map Craft. Your pick is saved for the next time you drive.</p></div><span class=n>Drag the car</span></div>
   <div class="play">
     <div class="card" data-garage>
       <div class="top"><span class="tag">Garage</span><a class="btn sm" data-go href="map">Drive this car <svg viewBox="0 0 3 6" aria-hidden="true"><rect width="1" height="6" fill="currentColor"/><rect x="1" y="1" width="1" height="4" fill="currentColor"/><rect x="2" y="2" width="1" height="2" fill="currentColor"/></svg></a></div>
       <div class="garage well"><canvas aria-label="A blocky car you can turn by dragging"></canvas><div class="nm"><b></b><span></span></div><div class="hint">◀ Drag to turn ▶</div></div>
       <div class="cars" aria-label="Choose a car"></div>
+      <p class="cp">These are the same 3D models you drive in the app. Pick one, then press Drive this car.</p>
     </div>
     <div class="card" data-dn>
       <div class="top"><span class="tag">Sky</span><div class="seg" role="group" aria-label="Time of day">
@@ -86,13 +88,14 @@
         <button data-m="night"><svg viewBox="0 0 7 7"><path d="M2 0h3v1h1v1H4v1H3v2h1v1h2v1H2V6H1V5H0V2h1V1h1z" fill="currentColor"/></svg>Night</button>
         <button data-m="auto">Auto</button></div></div>
       <div class="dn"><img src="assets/img/p-drive.jpg" alt="Driving by day" loading="lazy"><img class="n" src="assets/img/p-night.jpg" alt="Driving at night" loading="lazy"><span class="tag w clock"></span></div>
+      <p class="cp">Drive by day or by night. Auto matches the real time of day in Irvine.</p>
     </div>
   </div>
 </div></section>
 
 <dialog class="dlg" aria-label="Feature"><button class="x" aria-label="Close">✕</button><div class="in">
   <div class="im well"><img alt=""></div>
-  <div class="tx"><div><span class="tag"></span></div><h3 class="h2"></h3><div class="chips"></div><div class="row"><a class="btn" data-try href="map">Try it <svg viewBox="0 0 3 6" aria-hidden="true"><rect width="1" height="6" fill="currentColor"/><rect x="1" y="1" width="1" height="4" fill="currentColor"/><rect x="2" y="2" width="1" height="2" fill="currentColor"/></svg></a></div></div>
+  <div class="tx"><div><span class="tag"></span></div><h3 class="h2"></h3><p class="d"></p><div class="chips"></div><div class="row"><a class="btn" data-try href="map">Try it <svg viewBox="0 0 3 6" aria-hidden="true"><rect width="1" height="6" fill="currentColor"/><rect x="1" y="1" width="1" height="4" fill="currentColor"/><rect x="2" y="2" width="1" height="2" fill="currentColor"/></svg></a></div></div>
 </div></dialog>
 <div class="band"><div class="pat" aria-hidden="true"></div><div class="wrap">
   <h2 class="h2">Ready to drive?</h2><p>Runs in your browser. Nothing to install.</p>
