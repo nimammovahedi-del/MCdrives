@@ -54,6 +54,20 @@ def split(bbox, max_km2):
     return out, rows, cols
 
 
+LAP_M = 3.0
+def lap(area, chunks):
+    """In a conformal area each chunk is baked LAP_M metres past its south and east sides. Arnis cuts a
+    world to whole blocks, so a chunk can end a block short of its neighbour, which shows as a line of
+    sky along the seam; with the lap, neighbours always overlap by a block or more and the later one
+    covers the seam. Everything made for a chunk uses this wider box; its north-west corner, which
+    places it, does not move."""
+    if frame(area) is None: return chunks
+    for c in chunks:
+        s, w, n, e = c["bbox"]
+        c["bbox"] = [round(s - LAP_M / 111320, 6), w, n, round(e + LAP_M / (111320 * math.cos(math.radians((s + n) / 2))), 6)]
+    return chunks
+
+
 def keep_chunks(area, chunks):
     """Drop the chunks an area does not want. "keep" in the area file lists chunk ids outright;
     "within" names an administrative boundary (e.g. {"name": "Irvine", "admin_level": "8"}) and keeps
@@ -683,7 +697,7 @@ def main():
 
     area = json.loads(Path(args.area).read_text())
     chunks, rows, cols = split(area["bbox"], area.get("max_chunk_km2", 4))
-    chunks = keep_chunks(area, chunks)
+    chunks = keep_chunks(area, lap(area, chunks))
     h, w = km(area["bbox"])
     if args.plan_ids:
         print(json.dumps([c["id"] for c in chunks])); return
@@ -723,7 +737,7 @@ def main():
 
     # Chunks built elsewhere (one CI job each) have no report entry here, so fill them in.
     full, _, _ = split(area["bbox"], area.get("max_chunk_km2", 4))
-    full = keep_chunks(area, full)
+    full = keep_chunks(area, lap(area, full))
     have = {r["id"] for r in report["chunks"]}
     report["chunks"] += [s for s in (chunk_summary(area, c, out / c["id"]) for c in full if c["id"] not in have) if s]
     report["chunks"].sort(key=lambda r: (r["row"], r["col"]))
