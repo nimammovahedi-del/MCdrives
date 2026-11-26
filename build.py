@@ -513,7 +513,14 @@ def join(area, chunks, out, seam_tol=6, log=print, sew_seams=True):
         seams.DIRT = names.index("#86603fsolid") if "#86603fsolid" in names else 0
         def read_pack(i, p): return (i["dir"] / "data" / f"{p['id']}.{ext}").read_bytes()
         def read_h(i, p): return read_gz_array(i["dir"] / "data" / f"{p['h']}.bin", i["dir"] / "data" / f"{p['h']}.json")
-        edits, seam_stats = seams.sew(info, read_pack, read_h, log)
+        # the joined road graph in the built frame, so seams.py can follow a deck or ramp across a seam (lift_roads())
+        rparts = [(i["id"], i["dx"], i["dz"], json.loads((i["dir"] / "roads.json").read_text()))
+                  for i in info if (i["dir"] / "roads.json").exists()]
+        sroads = None
+        if len(rparts) == len(info):
+            g, _, _ = join_roads(rparts, (psx, psz), seam_tol, log=lambda *a: None)
+            sroads = dict(g, nodes=[[x - minx, z - minz] for x, z in g["nodes"]])
+        edits, seam_stats = seams.sew(info, read_pack, read_h, log, roads=sroads)
 
     shutil.rmtree(site, ignore_errors=True); data.mkdir(parents=True)
     # ---- packs and height tiles: link the bytes, translate the ids and the placement

@@ -329,10 +329,20 @@ class Grader:
         h = np.full(nb, np.nan)
         single = [i for i in range(nb) if len(cand[i]) == 1]
         grade = [i for i in single if not np.isnan(gb[i]) and abs(next(iter(cand[i])) - gb[i]) <= 2]
-        pool = grade or single or [i for i in range(nb) if cand[i]]
+        # no stretch plainly at grade (a sliver of a road at the edge of the world, all of it under a deck that crosses
+        # it): where the road is no bridge and one of its levels is at the ground, it starts there, not on the deck
+        # over it, which it would otherwise claim (and hold down, with its boundary level)
+        atg = {}
+        if not grade:
+            seg = np.minimum(len(c["bridge"]) - 1, np.searchsorted(c["s"], np.arange(nb) + 0.5))
+            for i in range(nb):
+                if np.isnan(gb[i]) or c["bridge"][seg[i]]: continue
+                ys = [y for y in cand[i] if abs(y - gb[i]) <= 2]
+                if ys: atg[i] = min(ys, key=lambda y: (abs(y - gb[i]), -cand[i][y]))
+        pool = grade or list(atg) or single or [i for i in range(nb) if cand[i]]
         if not pool: return h
         start = min(pool, key=lambda i: abs(i - nb / 2))
-        h[start] = max(cand[start], key=cand[start].get)
+        h[start] = atg[start] if start in atg else max(cand[start], key=cand[start].get)
         for rng in (range(start + 1, nb), range(start - 1, -1, -1)):
             last, gap = h[start], 0
             for i in rng:
@@ -751,6 +761,26 @@ class Grader:
             if p not in self.carves or self.carves[p][1] < hi:
                 self.carves[p] = (min(yL, self.carves.get(p, (yL, 0))[0]), hi); opened += 1
         st["crossed_opened"] = opened
+        # ... and carriageway under a raised deck that no chain's kerbs cover (Arnis paves a road wider than the kerbs
+        # modelled here, and a junction's corners) gets the same headroom: where the raised surface stood over a lower
+        # carriageway with free blocks between them (a deck, not a ramp's fill), what is left of the old deck under the
+        # raised one is opened to HEADROOM free blocks, one row of deck kept under the surface
+        margin = 0
+        for p, rs in self.raises.items():
+            if p in self.carves: continue
+            z, x = divmod(p, self.W)
+            L = [(int(v), bool(cr)) for v, cr in zip(self.lev[:, z, x], self.carr[:, z, x]) if v >= 0]
+            for y0, dd in rs:
+                below = [v for v in L if v[0] < y0]
+                if not below: continue
+                yL, cr = max(below)
+                hi = min(y0 + dd - 2, yL + HEADROOM)
+                if not cr or hi <= yL: continue
+                occ = [bool((self.occ[y >> 3, z, x] >> (7 - (y & 7))) & 1) for y in range(yL + 1, y0)]
+                if len(occ) - sum(occ) < 2 or not any(occ[:hi - yL]): continue
+                self.carves[p] = (yL, hi); margin += 1
+                break
+        st["deck_margin_opened"] = margin
         st["raised_cols"] = len(self.raises)
         st["raised_blocks"] = int(d[m].sum())
         st["max_raise"] = int(d[m].max()) if m.any() else 0
