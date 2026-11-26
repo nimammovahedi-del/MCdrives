@@ -1,0 +1,37 @@
+{
+ "buildings": 57,
+ "roof_colours_written": 54,
+ "roof_colour_already": 0,
+ "roof_skipped": {
+  "plants": 1,
+  "shadow": 2
+ },
+ "no_height_before": 0,
+ "heights_filled": 0,
+ "levels_filled": 0,
+ "sources": {
+  "naip": {
+   "ok": true,
+   "tiles": 12,
+   "failed": 0,
+   "downloaded_mb": 7.8,
+   "seconds": 51.0
+  }
+ },
+ "naip_shift_m": [
+  1.0,
+  0.0
+ ],
+ "naip_shift_gain": 0.162,
+ "roof_colour_families": {
+  "light grey": 27,
+  "warm grey": 16,
+  "white": 3,
+  "grey": 3,
+  "dark grey": 2,
+  "taupe": 2,
+  "buff": 1
+ },
+ "ok": true,
+ "seconds": 51.1
+}
