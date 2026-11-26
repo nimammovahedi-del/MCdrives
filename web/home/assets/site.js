@@ -66,7 +66,7 @@
     const pic = one('.dn', dn), bs = all('.seg button', dn), clock = one('.clock', dn);
     const h = +new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/Los_Angeles' }).format(new Date()), autoNight = h < 6 || h >= 18;
     const set = m => { const night = m === 'night' || (m === 'auto' && autoNight); pic.classList.toggle('night', night);
-      bs.forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m)); clock.textContent = m === 'auto' ? (night ? 'Auto · night now in OC' : 'Auto · day now in OC') : (night ? 'Night' : 'Day'); };
+      bs.forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m)); clock.textContent = m === 'auto' ? (night ? 'Auto · night now in Orange County' : 'Auto · day now in Orange County') : (night ? 'Night' : 'Day'); };
     bs.forEach(b => b.addEventListener('click', () => set(b.dataset.m)));
     set('day');
   }
