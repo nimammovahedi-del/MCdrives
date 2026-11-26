@@ -331,6 +331,19 @@ def join_addresses(parts, area_size, log=print):
     log(f"  addresses: {len(out) // 4:,} on {len(streets):,} streets")
     return {"v": 1, "streets": streets, "a": out}
 
+
+def copy_web(site):
+    """Put the viewer and the homepage into a built site. The map app is served at /map (map.html, which
+    Cloudflare Pages also answers as /map); the homepage pages from web/home sit at the root, with their
+    css, js and images under /assets. Both share /vendor (three.js, fonts)."""
+    shutil.copy(ROOT / "web" / "index.html", site / "map.html")
+    shutil.copytree(ROOT / "web" / "vendor", site / "vendor", dirs_exist_ok=True)
+    shutil.copytree(ROOT / "web" / "drive", site / "drive", dirs_exist_ok=True)
+    home = ROOT / "web" / "home"
+    for f in home.glob("*.html"):
+        shutil.copy(f, site / f.name)
+    shutil.copytree(home / "assets", site / "assets", dirs_exist_ok=True)
+
 def join(area, chunks, out, seam_tol=6, log=print):
     """Write one site for the whole area from the per-chunk sites already in out/<id>/site.
 
@@ -486,9 +499,7 @@ def join(area, chunks, out, seam_tol=6, log=print):
     # overhead colour layer for the 2D map (optional: the map falls back to roads on parchment)
     r = subprocess.run([sys.executable, str(ROOT / "tools" / "maptiles.py"), str(site)], capture_output=True, text=True)
     log("join: " + (r.stdout.strip().splitlines() or [""])[-1] if r.returncode == 0 else f"join: map colour layer skipped ({r.stderr.strip()[-300:]})")
-    shutil.copy(ROOT / "web" / "index.html", site / "index.html")
-    shutil.copytree(ROOT / "web" / "vendor", site / "vendor", dirs_exist_ok=True)
-    shutil.copytree(ROOT / "web" / "drive", site / "drive", dirs_exist_ok=True)
+    copy_web(site)
     size = sum(f.stat().st_size for f in site.rglob("*") if f.is_file())
     return {"chunks": len(info), "blocks": [width, depth, height], "packs": len(packs), "quads": quads,
             "nodes": len(roads["nodes"]), "places": len(pl), "edges": len(roads["edges"]), "seam_nodes_merged": merged,
@@ -644,14 +655,12 @@ def build_chunk(area, chunk, args, work, overhang=0):
         run(cmd, log)
         times["roads"] = time.time() - times["roads"]
 
-    if step("site", lambda: (site / "index.html").exists()):
+    if step("site", lambda: (site / "map.html").exists()):
         meta = json.loads((data / "meta.json").read_text())
         meta.update(name=area["name"] + ("" if chunk["id"] == "all" else f" ({chunk['id']})"), bbox=bbox)
         if scale != 1: meta["scale"] = scale
         (data / "meta.json").write_text(json.dumps(meta))
-        shutil.copy(ROOT / "web" / "index.html", site / "index.html")
-        shutil.copytree(ROOT / "web" / "vendor", site / "vendor", dirs_exist_ok=True)
-        shutil.copytree(ROOT / "web" / "drive", site / "drive", dirs_exist_ok=True)
+        copy_web(site)
         times["site"] = time.time() - times["site"]
 
     meta = json.loads((data / "meta.json").read_text())
