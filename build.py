@@ -392,13 +392,13 @@ def copy_web(site):
         shutil.copy(f, site / f.name)
     shutil.copytree(home / "assets", site / "assets", dirs_exist_ok=True)
 
-def join(area, chunks, out, seam_tol=6, log=print):
+def join(area, chunks, out, seam_tol=6, log=print, sew_seams=True):
     """Write one site for the whole area from the per-chunk sites already in out/<id>/site.
 
     Packs and their height tiles are linked (never re-encoded) and given unique ids plus the offset
-    of their chunk, so nothing holds more than one chunk at a time. Where chunks overlap, the viewer
-    takes a column's height from the last pack in the list that has a surface there, as the merged
-    height field of earlier joins did."""
+    of their chunk, so nothing holds more than one chunk at a time. Where chunks overlap, tools/seams.py
+    gives each shared column to one chunk and rewrites the packs near the seams accordingly (sew_seams=False
+    leaves both copies drawn, as earlier joins did)."""
     import numpy as np
     parent = area["bbox"]; lat0 = frame(area)
     psx, psz, _ = area_projection(parent, lat0)
@@ -437,7 +437,7 @@ def join(area, chunks, out, seam_tol=6, log=print):
     def rect(i): return i["sx"], i["sz"], i["sx"] + i["meta"]["width"], i["sz"] + i["meta"]["depth"]
 
     def ground(i, x0, z0, x1, z1):
-        """Layer 0 of chunk i over its own columns [z0:z1, x0:x1], from its height tiles (or an older height.bin)."""
+        """The ground of chunk i over its own columns [z0:z1, x0:x1], from its height tiles (or an older height.bin)."""
         cm = i["meta"]; P = cm["pack"]
         if not all("h" in p for p in cm["packs"]):
             h0 = read_gz_array(i["dir"] / "data" / "height.bin", i["dir"] / "data" / "height.json")
@@ -447,7 +447,10 @@ def join(area, chunks, out, seam_tol=6, log=print):
         for p in cm["packs"]:
             ax, az, bx, bz = max(x0, p["x"]), max(z0, p["z"]), min(x1, p["x"] + P), min(z1, p["z"] + P)
             if bx <= ax or bz <= az: continue
-            t = read_gz_array(i["dir"] / "data" / f"{p['h']}.bin", i["dir"] / "data" / f"{p['h']}.json")[:P * P].reshape(P, P)
+            t = read_gz_array(i["dir"] / "data" / f"{p['h']}.bin", i["dir"] / "data" / f"{p['h']}.json")[:2 * P * P].reshape(-1, P, P)
+            # where the lowest surface is the world floor (sky under the terrain shell, common on hills) the
+            # ground is the top surface, as the viewer's groundY() reads it
+            t = np.where(t[0] > 1, t[0], t[-1])
             out[az - z0:bz - z0, ax - x0:bx - x0] = t[az - p["z"]:bz - p["z"], ax - p["x"]:bx - p["x"]]
         return out
     strips = {}
@@ -492,6 +495,26 @@ def join(area, chunks, out, seam_tol=6, log=print):
     for i in info: i["sy"] = i["meta"]["miny"] + i["lift"] - miny
     log(f"join: {width} x {depth} x {height} blocks, origin ({minx}, {minz}, {miny})")
 
+    # ---- seams (tools/seams.py): one owner per shared column, the two chunks' ground blended into each other across
+    # the seam, and the riser faces a remaining step needs; only the packs near a seam are rewritten
+    edits, seam_stats = {}, None
+    if sew_seams and all("h" in p for i in info for p in i["meta"]["packs"]):
+        import seams
+        full = split(parent, area.get("max_chunk_km2", 4))[0]
+        gx = {c["col"]: chunk_offset(parent, c["bbox"], lat0)[0] - minx for c in full if c["row"] == 0}
+        gz = {c["row"]: chunk_offset(parent, c["bbox"], lat0)[1] - minz for c in full if c["col"] == 0}
+        big = 10 ** 9
+        for c, i in zip(chunks, info):
+            ex, ez, _ = projection(c["bbox"], chunk_scale(lat0, c["bbox"]))
+            x0, z0 = i["dx"] - minx, i["dz"] - minz   # built column of the Arnis world's block (0, 0)
+            i.update(row=c["row"], col=c["col"], ext=(x0, z0, x0 + math.floor(ex) + 1, z0 + math.floor(ez) + 1),
+                     slot=(gx[c["col"]], gz[c["row"]], gx.get(c["col"] + 1, big), gz.get(c["row"] - 1, big)))
+        names = [m["rgb"] + m["kind"] for m in info[0]["meta"]["materials"]]
+        seams.DIRT = names.index("#86603fsolid") if "#86603fsolid" in names else 0
+        def read_pack(i, p): return (i["dir"] / "data" / f"{p['id']}.{ext}").read_bytes()
+        def read_h(i, p): return read_gz_array(i["dir"] / "data" / f"{p['h']}.bin", i["dir"] / "data" / f"{p['h']}.json")
+        edits, seam_stats = seams.sew(info, read_pack, read_h, log)
+
     shutil.rmtree(site, ignore_errors=True); data.mkdir(parents=True)
     # ---- packs and height tiles: link the bytes, translate the ids and the placement
     packs = []; used = set(); total = 0; hbytes = 0; quads = 0
@@ -500,7 +523,7 @@ def join(area, chunks, out, seam_tol=6, log=print):
         try: os.link(src, dst)
         except OSError: shutil.copy(src, dst)
         return dst.stat().st_size
-    for i in info:
+    for k, i in enumerate(info):
         cm, P = i["meta"], i["meta"]["pack"]
         old = None   # a chunk converted before height tiles existed: cut its height.bin into tiles here
         if not all("h" in p for p in cm["packs"]):
@@ -511,6 +534,14 @@ def join(area, chunks, out, seam_tol=6, log=print):
             while pid in used: pid += "_"
             hid = "h" + pid[1:] if pid.startswith("p_") else "h_" + pid
             used.add(pid)
+            e = edits.get((k, p["id"]))
+            if e is not None:   # a pack on a seam, cut to the columns this chunk owns (see tools/seams.py)
+                if not e["tiles"]: continue
+                (data / f"{pid}.{ext}").write_bytes(e["blob"]); (data / f"{hid}.{ext}").write_bytes(e["hbytes"])
+                total += len(e["blob"]); hbytes += len(e["hbytes"]); quads += e["quads"]
+                packs.append({"id": pid, "h": hid, "x": p["x"] + i["sx"], "z": p["z"] + i["sz"], "quads": e["quads"],
+                              "dx": i["sx"], "dz": i["sz"], "dy": i["sy"], "tiles": e["tiles"]})
+                continue
             total += put(i["dir"] / "data" / f"{p['id']}.{ext}", data / f"{pid}.{ext}"); quads += p["quads"]
             if old is None: hbytes += put(i["dir"] / "data" / f"{p['h']}.{ext}", data / f"{hid}.{ext}")
             else:
@@ -556,7 +587,8 @@ def join(area, chunks, out, seam_tol=6, log=print):
     size = sum(f.stat().st_size for f in site.rglob("*") if f.is_file())
     return {"chunks": len(info), "blocks": [width, depth, height], "packs": len(packs), "quads": quads,
             "nodes": len(roads["nodes"]), "places": len(pl), "edges": len(roads["edges"]), "seam_nodes_merged": merged,
-            "projection_error_blocks": round(worst, 2), "site_mb": round(size / 1e6, 2)}
+            "projection_error_blocks": round(worst, 2), "site_mb": round(size / 1e6, 2),
+            **({"seams": seam_stats} if seam_stats else {})}
 
 
 def find_arnis(arg):
@@ -754,6 +786,8 @@ def main():
     ap.add_argument("--no-join", action="store_true", help="build the chunks but do not join them")
     ap.add_argument("--seam-tol", type=int, default=6, metavar="BLOCKS",
                     help="how far apart two chunks' road nodes may be and still be the same junction (default 6)")
+    ap.add_argument("--no-seams", action="store_true",
+                    help="join without tools/seams.py: every chunk's overlap strip drawn as baked (for comparisons)")
     ap.add_argument("--serve", action="store_true", help="serve the result on http://localhost:8765 when done")
     args = ap.parse_args()
 
@@ -809,7 +843,7 @@ def main():
     missing = [c["id"] for c in full if not (out / c["id"] / "site" / "data" / "meta.json").exists()]
     if rows * cols > 1 and not args.no_join and not missing:
         tj = time.time()
-        report["join"] = join(area, full, out, args.seam_tol)
+        report["join"] = join(area, full, out, args.seam_tol, sew_seams=not args.no_seams)
         report["join"]["seconds"] = round(time.time() - tj, 1)
     elif rows * cols > 1:
         why = "--no-join" if args.no_join else f"{len(missing)} chunk(s) not built yet: {', '.join(missing[:6])}"
