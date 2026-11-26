@@ -80,7 +80,12 @@ if "--places" in sys.argv:
     ad = json.load(open(sys.argv[sys.argv.index("--addresses") + 1])) if "--addresses" in sys.argv else None
     lots = [[xz(*ll[n]) for n in e.get("nodes", []) if n in ll] for e in d["elements"]
             if e["type"] == "way" and (e.get("tags") or {}).get("amenity") == "parking"]
-    pl = places.build(places.extract(d["elements"], ll, xz), g, ad, lots)
+    items = places.extract(d["elements"], ll, xz)
+    # The OSM extract has whole ways that only touch the bbox, so a place's centre can lie well outside it.
+    # A single bake is the whole world: drop those. A chunk of a bigger area (--overhang) keeps them, since
+    # its neighbour may be built there; build.py join_places() clips to the chunks that were built.
+    if not OVER: items = [it for it in items if 0 <= it[2] <= sx and 0 <= it[3] <= sz]
+    pl = places.build(items, g, ad, lots)
     json.dump(pl, open(sys.argv[sys.argv.index("--places") + 1], "w"), separators=(",", ":"), ensure_ascii=False)
     print(f"{len(pl)} places, {sum(1 for r in pl if r[4] is not None)} routable")
 print(f"{len(nodes)} nodes, {len(E2)} edges, {len(names)} names, {len(comps)} components; kept {len(big)}")

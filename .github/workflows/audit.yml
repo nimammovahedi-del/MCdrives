@@ -18,6 +18,12 @@ on:
       seed:
         description: Changes which places are picked
         default: "1"
+      spots:
+        description: >-
+          Optional: re-photograph exact spots instead of sampling. A JSON file in this repo, a URL, or inline JSON:
+          a list of {x, z, label, yaw?, cat?, views?} in the area frame, or the index.json of an earlier audit
+          (for example https://raw.githubusercontent.com/OWNER/REPO/audit/AREA/index.json) to re-take the same pictures
+        default: ""
 
 permissions:
   contents: write
@@ -57,7 +63,9 @@ jobs:
           cp tools/survey.html site/
           (cd site && python3 -m http.server 8765 >/dev/null 2>&1 &)
           sleep 2
-          node tools/audit_shots.js http://localhost:8765 shots "${{ inputs.places }}" "${{ matrix.shard }}" "${{ inputs.shards }}" "${{ inputs.seed }}"
+          node tools/audit_shots.js http://localhost:8765 shots "${{ inputs.places }}" "${{ matrix.shard }}" "${{ inputs.shards }}" "${{ inputs.seed }}" ${SPOTS:+--spots "$SPOTS"}
+        env:
+          SPOTS: ${{ inputs.spots }}
       - uses: actions/upload-artifact@v4
         with:
           name: shots-${{ matrix.shard }}

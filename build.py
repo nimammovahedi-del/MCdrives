@@ -286,11 +286,46 @@ def join_roads(parts, area_size, seam_tol, log=print):
             by_id + by_dist, node_map)
 
 
-def join_places(info, node_map, roads, area_size, log=print):
+class Built:
+    """The built land of a joined area: the union of its chunks' rectangles, in the area frame.
+
+    rects: (x0, z0, x1, z1) per built chunk, each its slot in the area (chunk_offset() and the size of
+    projection() at the chunk's scale, the same box join_roads() keeps road nodes in). A point counts as
+    built when it lies in one of them, give or take tol blocks. A whole-rectangle area is one big union
+    of every chunk; a keep-list or "within" area has holes and ragged edges, and nothing past them exists
+    in the world, so search must not send a driver there."""
+    CELL = 1024
+
+    def __init__(self, rects):
+        self.rects = list(rects); self.grid = defaultdict(list)
+        for r in self.rects:
+            for gx in range(int(r[0] // self.CELL) - 1, int(r[2] // self.CELL) + 2):
+                for gz in range(int(r[1] // self.CELL) - 1, int(r[3] // self.CELL) + 2):
+                    self.grid[(gx, gz)].append(r)
+
+    def __call__(self, x, z, tol=0.0):
+        return any(x0 - tol <= x <= x1 + tol and z0 - tol <= z <= z1 + tol
+                   for x0, z0, x1, z1 in self.grid.get((int(x // self.CELL), int(z // self.CELL)), ()))
+
+
+def chunk_rect(i):
+    """A joined chunk's slot in the area frame (info entry from join())."""
+    w, d, _ = projection(i["bbox"], i["meta"].get("scale", 1))
+    return (i["dx"], i["dz"], i["dx"] + w, i["dz"] + d)
+
+
+def join_places(info, node_map, roads, area_size, log=print, built=None):
     """One places.json for the area: each chunk's places moved by its offset, nodes remapped to the
     joined graph (re-snapped when the node was dropped), the overlap between chunks de-duplicated.
-    A chunk without places.json counts as empty."""
-    items = []; asx, asz = area_size
+    A chunk without places.json counts as empty.
+
+    Only places whose centre lies on built land (built: a Built) are kept. A chunk's places.json holds
+    every named element of its OSM extract, and that extract has whole ways that only touch the chunk
+    (a park, a campus, a building on the edge), so their centres can lie hundreds of blocks past it; inside
+    the area that is the neighbour's land, but next to a chunk that was not built there is no world.
+    An arrival point on a road that the join dropped (the chunk graphs reach OVERHANG blocks past their
+    chunk, the joined graph stops at the built land) is moved to the nearest road of the joined graph."""
+    items = []; asx, asz = area_size; off = 0
     for ci, i in enumerate(info):
         pp = i["dir"] / "places.json"
         if not pp.exists(): log(f"  places: chunk {i['id']} has no places.json, treating as empty"); continue
@@ -299,38 +334,49 @@ def join_places(info, node_map, roads, area_size, log=print):
             x, z = round(x + i["dx"], 1), round(z + i["dz"], 1)
             # at: the arrival point (places.py), shifted like the place; older chunks have none
             at = [[round(at[0][0] + i["dx"], 1), round(at[0][1] + i["dz"], 1)]] if at and at[0] else []
-            if 0 <= x <= asx and 0 <= z <= asz: items.append([name, kind, x, z, None if nd is None else m(nd), al, *at])
+            if not (0 <= x <= asx and 0 <= z <= asz): continue
+            if built is not None and not built(x, z): off += 1; continue
+            items.append([name, kind, x, z, None if nd is None else m(nd), al, *at])
     n0 = len(items)
     snap = places.Snapper(roads)
     import arrival
     A = arrival.Graph(roads)
+    moved = 0
     for it in items:
         if len(it) > 6:   # the node at the arrival point's edge in the joined graph (the arrival point is on a road)
             r = A.snap(it[6][0], it[6][1], None)
-            if r is not None:
+            if built is not None and not built(it[6][0], it[6][1]):
+                # its road ran past the built land, where the join dropped it: arrive on the nearest road the
+                # joined graph has, as places.py does when nothing better is known
+                r = A.snap(it[2], it[3], None)
+                if r is not None: it[6] = [round(r["x"], 1), round(r["z"], 1)]; moved += 1
+            if r is not None:   # None: no road in range (a test area of scattered chunks)
                 e = roads["edges"][r["edge"]]
                 it[4] = r["node"] if r["node"] is not None else (e[0] if r["t"] < 0.5 else e[1])
         if it[4] is None: it[4] = snap(it[2], it[3])
     rows = places.dedupe(items, key=lambda it: (it[4] is not None, len(it[5])))
     rows.sort(key=lambda r: (r[0].lower(), r[2], r[3]))
-    log(f"  places: {n0} in the chunks -> {len(rows)} after overlap de-duplication, {sum(r[4] is not None for r in rows)} routable")
+    log(f"  places: {n0} in the chunks ({off} more outside the built chunks dropped) -> {len(rows)} after overlap "
+        f"de-duplication, {sum(r[4] is not None for r in rows)} routable, {moved} arrival points moved onto the joined roads")
     return rows
 
 
-def join_addresses(parts, area_size, log=print):
+def join_addresses(parts, area_size, log=print, built=None):
     """One address list for the area: per-chunk data/addresses.json (tools/addresses.py, in the chunk's
-    roads.json frame) shifted by the chunk offset like the roads, clipped to the area, overlap de-duplicated."""
+    roads.json frame) shifted by the chunk offset like the roads, clipped to the area and to the built
+    land (built: a Built), overlap de-duplicated."""
     asx, asz = area_size
-    streets, sidx, seen, out = [], {}, set(), []
+    streets, sidx, seen, out = [], {}, set(), []; off = 0
     for cid, dx, dz, d in parts:
         a = d["a"]
         for k in range(0, len(a), 4):
             st, num, x, z = d["streets"][a[k]], a[k + 1], a[k + 2] + dx, a[k + 3] + dz
             if not (0 <= x < asx and 0 <= z < asz) or (num, st) in seen: continue
+            if built is not None and not built(x, z): off += 1; continue
             seen.add((num, st))
             if st not in sidx: sidx[st] = len(streets); streets.append(st)
             out += [sidx[st], num, round(x), round(z)]
-    log(f"  addresses: {len(out) // 4:,} on {len(streets):,} streets")
+    log(f"  addresses: {len(out) // 4:,} on {len(streets):,} streets ({off} outside the built chunks dropped)")
     return {"v": 1, "streets": streets, "a": out}
 
 
@@ -485,18 +531,23 @@ def join(area, chunks, out, seam_tol=6, log=print):
         parts.append((i["id"], i["dx"], i["dz"], json.loads(rp.read_text())))
     roads, merged, node_map = join_roads(parts, (psx, psz), seam_tol, log)
     (site / "roads.json").write_text(json.dumps(roads, separators=(",", ":")))
+    # search sends drivers only to built land (the chunks of this join), never into a hole of a keep-list
+    built = Built(chunk_rect(i) for i in info)
     # ---- addresses for search (optional: a chunk without them is skipped)
     aparts = [(i["id"], i["dx"], i["dz"], json.loads((i["dir"] / "data" / "addresses.json").read_text()))
               for i in info if (i["dir"] / "data" / "addresses.json").exists()]
-    if aparts: (data / "addresses.json").write_text(json.dumps(join_addresses(aparts, (psx, psz), log), separators=(",", ":")))
-    pl = join_places(info, node_map, roads, (psx, psz), log)
+    if aparts: (data / "addresses.json").write_text(json.dumps(join_addresses(aparts, (psx, psz), log, built), separators=(",", ":")))
+    pl = join_places(info, node_map, roads, (psx, psz), log, built)
     (site / "places.json").write_text(json.dumps(pl, separators=(",", ":"), ensure_ascii=False))
 
     meta = {"tile": info[0]["meta"]["tile"], "pack": info[0]["meta"]["pack"], "ext": ext,
             "width": width, "depth": depth, "height": height, "minx": minx, "minz": minz, "miny": miny,
             "quads": quads, "bytes": total, "packs": packs, "materials": info[0]["meta"]["materials"],
             "name": area["name"], "bbox": parent, **({} if lat0 is None else {"lat0": lat0}),
-            "chunks": [{"id": i["id"], "dx": i["sx"], "dz": i["sz"], "dy": i["sy"], "err": i["err"]} for i in info]}
+            # w, d: the chunk's slot (chunk_rect()), so tools can tell built land from holes without the area file
+            "chunks": [{"id": i["id"], "dx": i["sx"], "dz": i["sz"], "dy": i["sy"], "err": i["err"],
+                        "w": round(chunk_rect(i)[2] - minx - i["sx"], 1), "d": round(chunk_rect(i)[3] - minz - i["sz"], 1)}
+                       for i in info]}
     (data / "meta.json").write_text(json.dumps(meta))
     # overhead colour layer for the 2D map (optional: the map falls back to roads on parchment)
     r = subprocess.run([sys.executable, str(ROOT / "tools" / "maptiles.py"), str(site)], capture_output=True, text=True)

@@ -296,7 +296,9 @@ function stream(pos) {
   if (now - lastStats > 500) { lastStats = now; $('stats').textContent = `(${(quadCount / 1e6).toFixed(2)}M faces loaded${loading ? ', streaming…' : ''})`; }
 }
 window.__stats = () => ({ quadCount, loaded: packs.filter(p => p.state === 2).length, packs: packs.length, heightTiles: hHeld() });
-window.__idle = () => loading === 0 && everLoaded && !packs.some(p => p.state === 0 && Math.hypot(Math.max(p.x - focus.x, 0, focus.x - p.x - meta.pack), Math.max(p.z - focus.z, 0, focus.z - p.z - meta.pack)) < streamR);
+// (around window.__free when it is set: focus only follows it on the next frame, and a call made before then would
+// answer for the previous spot)
+window.__idle = () => { const f = window.__free ?? focus; return loading === 0 && everLoaded && buildQ.length === 0 && !packs.some(p => p.state === 0 && Math.hypot(Math.max(p.x - f.x, 0, f.x - p.x - meta.pack), Math.max(p.z - f.z, 0, f.z - p.z - meta.pack)) < streamR); };
 const focus = new THREE.Vector3();
 
 // ---------- road graph and routing
@@ -489,7 +491,10 @@ function setMode(m) {
   mode = m; orbit.enabled = m === 'orbit'; snap = true;
   for (const [id, mm] of [['mNav', 'nav'], ['mOrbit', 'orbit'], ['mWalk', 'walk']]) $(id).classList.toggle('on', mm === m);
   $('banner').style.display = m === 'nav' ? 'flex' : 'none'; $('trip').style.display = m === 'nav' ? 'block' : 'none';
-  scene.fog.near = m === 'orbit' ? 700 : 250; scene.fog.far = m === 'orbit' ? 1500 : 850; streamR = m === 'orbit' ? 1300 : 750; camera.far = scene.fog.far + 50; camera.updateProjectionMatrix();
+  scene.fog.near = m === 'orbit' ? 700 : 250; scene.fog.far = m === 'orbit' ? 1500 : 850; streamR = m === 'orbit' ? 1300 : 750;
+  // ?r=N: a smaller streaming radius for audit photos (fewer packs to fetch, build and draw), with the fog pulled in to match
+  if (params.get('r') && m !== 'orbit') { streamR = +params.get('r'); scene.fog.far = streamR + 100; scene.fog.near = Math.min(250, streamR / 3); }
+  camera.far = scene.fog.far + 50; camera.updateProjectionMatrix();
   camera.fov = m === 'walk' ? 70 : 45; camera.updateProjectionMatrix();
   $('help').textContent = m === 'nav' ? 'The car follows the blue route. Pick a destination or try a random trip.' : m === 'orbit' ? 'Drag to rotate, scroll to zoom.' : 'Drag to look, WASD to walk, Shift to run.';
   if (m === 'orbit') { orbit.target.copy(car.position); camera.position.set(car.position.x - 250, car.position.y + 380, car.position.z + 420); orbit.update(); }
@@ -566,14 +571,61 @@ function frame() {
     }
     if (!window.__free) updateLabels(focus, curNm, nextNm);
   }
-  renderer.render(scene, camera);
+  // window.__hold: stream and build, but do not draw. Under software GL a frame of a dense neighbourhood takes
+  // seconds, which starves the mesh builds and makes page.screenshot time out; the audit draws once, in __shot.
+  if (!window.__hold) renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
+// one picture of the current view as a JPEG data URL, drawn on demand (the drawing buffer is preserved)
+window.__shot = (q = 0.82) => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', q); };
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 const wanted = dests.findIndex(d => d.name === (params.get('to') ?? 'Alton Parkway'));
-if (wanted >= 0) { $('dest').value = wanted; if (!await startTrip(dests[wanted].node)) await randomTrip(); } else await randomTrip();
+// ?notrip=1 (audit photos): no starting trip, whose height tiles along the whole route load before the page is ready
+if (params.get('notrip')) {}
+else if (wanted >= 0) { $('dest').value = wanted; if (!await startTrip(dests[wanted].node)) await randomTrip(); } else await randomTrip();
 setMode(params.get('mode') ?? 'nav');
 window.__api = { startTrip, randomTrip, along, groundY, smoothY, yAt, loadHeights: (x, z, r = 0) => Promise.all(packsNear(x, z, r).map(hload)), dests, trip: () => trip, setStart: n => { curNode = n; }, nodes: N, names: G.names };
+// window.__aim({x, z, yaw, h, pitch, deck}): point the free camera at (x, z) from yaw, h blocks up and pitch degrees down,
+// kept above the ground. Loads the height tiles under the target and the camera first. The target stands on the
+// drivable surface (the deck layer for a bridge), or on the top surface where there is none. The camera keeps its
+// distance behind the target, but rises (and so looks down more steeply) until the last 30% of its line of sight
+// to the target clears every top surface (terrain, roof, deck) by 2 blocks and the columns around the camera by 3:
+// on a slope rising behind the camera, below a cliff or a bridge deck it would otherwise sit inside the ground.
+// (Tree leaves are not in the height tiles, so a camera can still look through a canopy.)
+// yaws: other headings it may take instead (the first that needs no more than 2 blocks over the least raise wins),
+// so a camera that would stand in a building or a hillside looks from another side rather than from high up.
+// Returns {y, h, pitch (degrees), yaw, ground: false when no surface was found near the target}.
+window.__aim = async ({ x, z, yaw, h, pitch, deck = false, yaws = null }) => {
+  const d = h / Math.tan(pitch * Math.PI / 180);
+  const cams = (yaws?.length ? yaws : [yaw]).map(w => ({ yaw: w, fx: -Math.sin(w), fz: -Math.cos(w) }));
+  await Promise.all([...new Set([...packsNear(x, z, 8), ...cams.flatMap(c => [...packsNear(x - c.fx * d, z - c.fz * d, 8), ...packsNear(x - c.fx * d / 2, z - c.fz * d / 2, 8)])])].map(hload));
+  const top = (px, pz) => Math.max(groundY(px, pz, false), groundY(px, pz, true));   // 0 where there is no surface
+  let y = smoothY(x, z, deck);
+  if (isNaN(y) && deck) y = smoothY(x, z, false);
+  if (isNaN(y)) y = smoothY(x, z, true);
+  let ground = !isNaN(y);
+  if (!ground) {   // no surface right here (water, a void): the highest one close by
+    let m = 0; for (let a = -6; a <= 6; a += 2) for (let b = -6; b <= 6; b += 2) m = Math.max(m, top(x + a, z + b));
+    if (m > 0) { y = m; ground = true; } else y = 0;
+  }
+  const raise = ({ fx, fz }) => {
+    const cx = x - fx * d, cz = z - fz * d, n = Math.max(8, Math.ceil(d / 2));
+    let need = h;
+    for (let i = 1; i <= n; i++) {
+      // only the stretch next to the camera: a house or a hill between it and the target is a legitimate view, a
+      // camera inside a slope or right behind a wall is not (that gave frames of sky or of the ground's cross-section)
+      const t = i / n; if (t < 0.7) continue;
+      const s = top(x - fx * d * t, z - fz * d * t);
+      if (s > 0) need = Math.max(need, (s + 2 - y) / t);
+    }
+    for (let a = -3; a <= 3; a += 3) for (let b = -3; b <= 3; b += 3) { const s = top(cx + a, cz + b); if (s > 0) need = Math.max(need, s + 3 - y); }
+    return Math.min(need, 400);
+  };
+  for (const c of cams) c.need = raise(c);
+  const least = Math.min(...cams.map(c => c.need)), best = cams.find(c => c.need <= least + 2);
+  window.__free = { x, y, z, yaw: best.yaw, h: best.need, pitch: Math.atan2(best.need, d) };
+  return { y, h: best.need, pitch: Math.atan2(best.need, d) * 180 / Math.PI, yaw: best.yaw, ground };
+};
 window.__setMode = setMode; window.__ready = true; window.__seek = d => { dist = Math.min(trip.L, d); snap = true; }; window.__trip = () => ({ L: trip.L, steps: trip.steps });
 frame();
 </script>
