@@ -107,7 +107,24 @@ def register_palette():
     for c in NAMED.values(): mat(c, "solid")
     mat(0x8E8E8E, "solid")
     mat(PATH_MUTED, "solid")   # ground-level cycle paths, see road_fixes(); last, so earlier ids keep their meaning
+    for n in SHADE_BASES:      # per-building sibling shades, see building_shades(); appended after everything above
+        c = colour(n)[0]
+        for k in (1, -1):
+            if (shade(c, k), "solid") in MAT_ID: raise SystemExit(f"shade of {n} collides with an existing material")
+            mat(shade(c, k), "solid")
 PATH_MUTED = 0x7E6E66          # a warm grey between the asphalt and the sidewalk, in place of Arnis's red
+# Wall and roof blocks that Arnis builds most houses from (measured over the Irvine bakes: these cover about 90% of
+# the exposed wall and roof faces of buildings). Each gets a lighter and a darker sibling for building_shades().
+SHADE_BASES = ["white_concrete", "bricks", "cobbled_deepslate", "stone_bricks", "smooth_stone", "polished_andesite", "sandstone",
+               "light_gray_concrete", "gray_concrete", "white_terracotta", "polished_granite", "mud_bricks", "dark_oak_planks",
+               "granite", "mushroom_stem", "spruce_planks"]
+def shade(c, k, step=0.08, least=0.035, hue=0.008):
+    """c made 8% lighter (k=1) or darker (k=-1) in HLS lightness, by at least 0.035 so the dark roof blocks still show
+    the step, with a slight warm or cool turn of the hue."""
+    import colorsys
+    h, l, s = colorsys.rgb_to_hls(*(((c >> sh) & 255) / 255 for sh in (16, 8, 0)))
+    r, g, b = colorsys.hls_to_rgb((h + k * hue) % 1, min(1, l + k * max(l * step, least)), s)
+    return (round(r * 255) << 16) | (round(g * 255) << 8) | round(b * 255)
 register_palette()
 
 FULL = None
@@ -396,6 +413,111 @@ def road_fixes(wg, centre, st):
     st["log_cleared"] += int((clr & ~lf & inc[None]).sum())
     wg[clr] = 0
 
+# ---- Per-building shades. Arnis builds neighbouring houses from the same few blocks, so a street of them reads as one
+# long building. Each building is given one of three sibling shades (base, lighter, darker) of its wall and roof
+# materials, picked by a hash of where its footprint is, so walls and roofs of a building shift together and the
+# rows read as separate buildings. Only material ids change: no format change, no runtime cost.
+SHADE_PAD, SHADE_EDGE, SHADE_THIN = 12, 3, 8
+SH = {}
+def _shade_tables():
+    if SH: return SH
+    built = np.array([k in ("solid", "glass") for _, _, k in MATS] + [False] * (256 - len(MATS)))
+    for n in ["grass_block", "dirt", "coarse_dirt", "rooted_dirt", "podzol", "mud", "sand", "red_sand", "gravel", "clay",
+              "moss_block", "dirt_path", "farmland", "snow", "bedrock"] + [w + s for w in WOODS for s in ("_log", "_wood")]:
+        built[mat(*colour(n))] = False   # bare ground and tree trunks are not buildings
+    lut = np.tile(np.arange(256, dtype=np.uint8), (3, 1))
+    for n in SHADE_BASES:
+        c = colour(n)[0]; b = mat(c)
+        lut[1, b], lut[2, b] = MAT_ID[(shade(c, 1), "solid")], MAT_ID[(shade(c, -1), "solid")]
+    SH.update(built=built, lut=lut)
+    return SH
+
+def _hash3(z, x):
+    """0, 1 or 2 from a world column, the same in every window and every run."""
+    h = (z * 0x9E3779B1 + x * 0x85EBCA77 + 0x165667B1) & 0xFFFFFFFFFFFFFFFF
+    h ^= h >> 33; h = (h * 0xFF51AFD7ED558CCD) & 0xFFFFFFFFFFFFFFFF; h ^= h >> 33
+    return h % 3
+
+def building_shades(wg, dmat, inworld, rx, rz, st):
+    """Gives each building in the centre region of the window one of three shades, in place in wg and dmat.
+
+    A building is a 4-connected group of built columns in plan view: columns with a wall, glass, roof slab or roof stair
+    above the ground surface (the ground is the top of the 3-block terrain shell Arnis lays in every column). A 3x3
+    opening first cuts the one-block garden walls and fences that would chain houses together; a cut-off piece of at
+    most SHADE_THIN columns that touches one building only (a bay, a chimney) goes back to it.
+    The shade is a hash of the world position of the building's first column (least z, then least x), so every window
+    that holds the whole building picks the same one. A building is only shaded when its footprint, padded by
+    SHADE_PAD, lies well inside the window of every region it reaches, so that all of those windows see all of it and
+    agree; and never when it comes within SHADE_EDGE of the edge of the baked world, where a bake (or a chunk of a
+    joined area, which is converted on its own) cuts it: both halves of a building across a chunk seam keep the base
+    shade. Only blocks above the ground in the building's columns change (and a wall's footing block at ground level),
+    and only to a sibling of the same kind, so faces, sky reach and drivable heights are untouched."""
+    T = _shade_tables(); built, lut = T["built"], T["lut"]
+    Hh, Sz, Sx = wg.shape
+    occ = wg[1:] != 0                                   # layer 0 is bedrock
+    g = np.where(occ.any(axis=0), occ.argmax(axis=0) + 3, Hh)   # ground surface = bottom of the shell + 2
+    del occ
+    Y = np.arange(Hh)[:, None, None]
+    bm = (built[wg] & (Y > g[None])).any(axis=0)
+    # roof slabs and stairs (partial blocks covering their whole cell) of all nine regions, so every window sees the same
+    roofish = np.array([False] + [any(b[0] == 0 and b[2] == 0 and b[3] == 16 and b[5] == 16 and b[4] >= 8 for b in sh) for sh in SHAPES[1:]])
+    def rng(d): return (slice(0, M), slice(PACK - M, PACK)) if d < 0 else (slice(M, M + PACK), slice(0, PACK)) if d == 0 else (slice(M + PACK, S), slice(0, M))
+    for dz in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            r = load(rx + dx, rz + dz)
+            if r is None: continue
+            (wz, sz), (wx, sx) = rng(dz), rng(dx)
+            bm[wz, wx] |= (built[r[1][:, sz, sx]] & roofish[r[2][:, sz, sx]] & (Y > g[None, wz, wx])).any(axis=0)
+    iw = inworld & (wg[2:] != 0).any(axis=0)
+    cross = ndimage.generate_binary_structure(2, 1)
+    op = ndimage.binary_opening(bm, np.ones((3, 3), bool))
+    lab, _ = ndimage.label(op, cross)
+    thin, _ = ndimage.label(bm & ~op, cross)
+    tsz = np.bincount(thin.ravel())
+    for i, sl in enumerate(ndimage.find_objects(thin), 1):
+        if sl is None or tsz[i] > SHADE_THIN: continue
+        s0 = slice(max(sl[0].start - 1, 0), sl[0].stop + 1); s1 = slice(max(sl[1].start - 1, 0), sl[1].stop + 1)
+        m = thin[s0, s1] == i
+        ls = np.unique(lab[s0, s1][ndimage.binary_dilation(m, cross) & ~m]); ls = ls[ls > 0]
+        if len(ls) == 1: lab[s0, s1][m] = ls[0]
+    var = np.zeros((Sz, Sx), dtype=np.uint8)
+    oz, ox = rz * PACK - M, rx * PACK - M   # world (converter) coordinates of window cell (0, 0)
+    for i, sl in enumerate(ndimage.find_objects(lab), 1):
+        if sl is None: continue
+        z0, z1, x0, x1 = sl[0].start, sl[0].stop, sl[1].start, sl[1].stop
+        if z1 <= M or z0 >= M + PACK or x1 <= M or x0 >= M + PACK: continue   # not in this region
+        m = lab[sl] == i
+        cz, cx = divmod(int(m.argmax()), m.shape[1])
+        key = (oz + z0 + cz, ox + x0 + cx)
+        mine = M <= z0 + cz < M + PACK and M <= x0 + cx < M + PACK   # counted by the region holding its first column
+        # padded footprint in world coordinates, and every region whose centre it reaches
+        a0, a1, b0, b1 = oz + z0 - SHADE_PAD, oz + z1 + SHADE_PAD, ox + x0 - SHADE_PAD, ox + x1 + SHADE_PAD
+        ok = all(q * PACK - M + SHADE_EDGE <= a0 and a1 <= (q + 1) * PACK + M - SHADE_EDGE and
+                 p * PACK - M + SHADE_EDGE <= b0 and b1 <= (p + 1) * PACK + M - SHADE_EDGE
+                 for q in range(a0 // PACK, (a1 - 1) // PACK + 1) for p in range(b0 // PACK, (b1 - 1) // PACK + 1) if (p, q) in REG)
+        edge = False
+        if ok:
+            e0, e1 = slice(z0 - SHADE_EDGE, z1 + SHADE_EDGE), slice(x0 - SHADE_EDGE, x1 + SHADE_EDGE)
+            near = ndimage.binary_dilation(np.pad(m, SHADE_EDGE), np.ones((2 * SHADE_EDGE + 1,) * 2, bool))
+            edge = bool((near & ~iw[e0, e1]).any())
+        v = _hash3(*key) if ok and not edge else 0
+        if mine:
+            st["buildings"] += 1; st["cut"] += not ok; st["world_edge"] += ok and edge; st["shaded"] += v > 0
+            st["cols"] += int(m.sum()); st["cols_shaded"] += int(m.sum()) if v else 0
+        if v: var[sl][m] = v
+    c = (slice(M, M + PACK), slice(M, M + PACK))
+    vc, gc = var[c], g[c]
+    if not vc.any(): return
+    grid = wg[:, c[0], c[1]]
+    footing = np.zeros(grid.shape, dtype=bool); footing[:-1] = built[grid[1:]]   # a wall's footing block at ground level
+    for v in (1, 2):
+        cols = (vc == v)[None]
+        sel = cols & ((Y > gc[None]) | ((Y == gc[None]) & footing))
+        before = grid[sel]; grid[sel] = lut[v][before]; st["blocks"] += int((grid[sel] != before).sum())
+        sel = cols & (Y > gc[None])
+        before = dmat[sel]; dmat[sel] = lut[v][before]; st["blocks"] += int((dmat[sel] != before).sum())
+
+BSS = dict(buildings=0, cut=0, world_edge=0, shaded=0, cols=0, cols_shaded=0, blocks=0)
 RFS = dict(pits=0, fill_fill=0, skip_fill=0, fill_soft=0, skip_soft=0, red=0, red_blocks=0, leaf_cleared=0, log_cleared=0)
 packs = []; total = 0; nquads = 0; nboxes = 0; faces = 0; nleafcut = 0
 for (rx, rz) in sorted(REG):
@@ -429,6 +551,7 @@ for (rx, rz) in sorted(REG):
     dmat[cut & isleaf[dmat]] = 0
     nleafcut += ncut
     road_fixes(wg, (slice(M, M + PACK), slice(M, M + PACK)), RFS)
+    building_shades(wg, dmat, inworld, rx, rz, BSS)
     # Only draw faces that touch air connected to the open sky: hides sealed interiors, the hollow
     # under the terrain shell and the world's cut edges (columns outside the world are not passable).
     # Columns with nothing above the floor layers (outside the baked outline) would let the sky leak under the terrain.
@@ -517,6 +640,7 @@ for (rx, rz) in sorted(REG):
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"canopy over roads removed: {nleafcut:,} leaf blocks")
 print("road fixes (region centres): " + ", ".join(f"{k} {v:,}" for k, v in RFS.items()))
+print("building shades: " + ", ".join(f"{k} {v:,}" for k, v in BSS.items()))
 print(f"greedy meshing: {nquads:,} quads (from {faces:,} block faces); {nboxes:,} detail boxes for partial blocks")
 
 meta = {"tile": TILE, "pack": PACK, "ext": "json" if B64 else "bin", "width": int(W), "depth": int(D), "height": int(H),

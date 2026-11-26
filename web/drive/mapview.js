@@ -49,6 +49,31 @@ export function createPainter({ G, N, meta, base = '' }) {
       }
     if (G.names[nm]) nameClass.set(nm, Math.min(nameClass.get(nm) ?? 9, cl));
   }
+  // the built land: the area's chunks (a grid of equal cells; meta.chunks lists the built ones). Outside it, a
+  // hatched "not built yet" ground, and the land has a dark rim and a shadow, so the map ends on purpose.
+  const land = (() => {
+    const cs = meta.chunks ?? []; if (!cs.length) return null;
+    const step = vs => { const u = [...new Set(vs)].sort((a, b) => a - b), d = u.slice(1).map((v, i) => v - u[i]), m = d.length ? Math.min(...d) : 0;
+      return m ? (u[u.length - 1] - u[0]) / Math.round((u[u.length - 1] - u[0]) / m) : 0; };
+    const sx = step(cs.map(c => c.dx)) || meta.width, sz = step(cs.map(c => c.dz)) || meta.depth, mx = meta.minx ?? 0, mz = meta.minz ?? 0;
+    const have = new Set(cs.map(c => Math.round(c.dx / sx) + ',' + Math.round(c.dz / sz)));
+    const gx = i => Math.round(i * sx) - mx, gz = j => Math.round(j * sz) - mz, rects = [], edges = [];
+    for (const k of have) {
+      const [i, j] = k.split(',').map(Number); rects.push([gx(i), gz(j), gx(i + 1), gz(j + 1)]);
+      if (!have.has(`${i},${j - 1}`)) edges.push([gx(i), gz(j), gx(i + 1), gz(j)]);
+      if (!have.has(`${i},${j + 1}`)) edges.push([gx(i), gz(j + 1), gx(i + 1), gz(j + 1)]);
+      if (!have.has(`${i - 1},${j}`)) edges.push([gx(i), gz(j), gx(i), gz(j + 1)]);
+      if (!have.has(`${i + 1},${j}`)) edges.push([gx(i + 1), gz(j), gx(i + 1), gz(j + 1)]);
+    }
+    return { rects, edges };
+  })();
+  const OUTSIDE = (() => {   // 12 x 12 sprite pixels: pale slate with a pixel diagonal hatch
+    const c = document.createElement('canvas'); c.width = c.height = 12; const g = c.getContext('2d');
+    g.fillStyle = '#d3dade'; g.fillRect(0, 0, 12, 12); g.fillStyle = '#c0c9ce';
+    for (let i = 0; i < 12; i++) { g.fillRect(i, 11 - i, 1, 1); g.fillRect((i + 6) % 12, 11 - i, 1, 1); }
+    return c;
+  })();
+  let outPat = null;
   // baked colour layer (optional)
   const M = meta.map, IL = M?.illus, imgs = new Map();
   const img = file => {
@@ -59,7 +84,7 @@ export function createPainter({ G, N, meta, base = '' }) {
   function trim() { if (imgs.size < 160) return; const old = [...imgs].sort((a, b) => a[1].used - b[1].used).slice(0, imgs.size - 120); for (const [k] of old) imgs.delete(k); }
 
   const painter = {
-    bounds: { minX, minZ, maxX, maxZ }, nameClass, onload: null,
+    bounds: { minX, minZ, maxX, maxZ }, nameClass, onload: null, outside: OUTSIDE,
     // 'drawn': the illustrated layer when the site has one; 'blocks': the block colour layer
     style: IL ? 'drawn' : 'blocks', hasDrawn: !!IL,
     /** v: { cx, cz, mpp (blocks per canvas pixel), w, h (canvas pixels), u (canvas pixels per sprite pixel; the symbols' size) };
@@ -69,8 +94,20 @@ export function createPainter({ G, N, meta, base = '' }) {
       const mpp = cmpp * u, d = u / 3;   // mpp: the zoom in sprite pixels; d: canvas pixels per screen pixel
       ctx.imageSmoothingEnabled = false;
       const drawn = IL && painter.style === 'drawn';
-      ctx.fillStyle = drawn ? LAND : M ? '#b9b49c' : '#d9c99a'; ctx.fillRect(0, 0, w, h);
+      const ground = drawn ? LAND : M ? '#b9b49c' : '#d9c99a';
       const x0 = cx - w / 2 * cmpp, x1 = cx + w / 2 * cmpp, z0 = cz - h / 2 * cmpp, z1 = cz + h / 2 * cmpp;
+      if (land) {
+        // outside: the hatch, fixed to the ground as it pans, 2 screen pixels per pattern pixel
+        outPat ??= ctx.createPattern(OUTSIDE, 'repeat');
+        const ps = Math.max(1, Math.round(2 * d)), ox = X(0), oz = Z(0);
+        outPat.setTransform(new DOMMatrix([ps, 0, 0, ps, ox - Math.floor(ox / (12 * ps)) * 12 * ps, oz - Math.floor(oz / (12 * ps)) * 12 * ps]));
+        ctx.fillStyle = outPat; ctx.fillRect(0, 0, w, h);
+        const sh = Math.max(3, Math.round(5 * d));
+        ctx.fillStyle = 'rgba(40,52,60,.28)';
+        for (const [a, b, c, e] of land.rects) if (c >= x0 && a <= x1 && e >= z0 && b <= z1) ctx.fillRect(Math.round(X(a)) + sh, Math.round(Z(b)) + sh, Math.round(X(c)) - Math.round(X(a)), Math.round(Z(e)) - Math.round(Z(b)));
+        ctx.fillStyle = ground;
+        for (const [a, b, c, e] of land.rects) if (c >= x0 && a <= x1 && e >= z0 && b <= z1) ctx.fillRect(Math.round(X(a)), Math.round(Z(b)), Math.round(X(c)) - Math.round(X(a)), Math.round(Z(e)) - Math.round(Z(b)));
+      } else { ctx.fillStyle = ground; ctx.fillRect(0, 0, w, h); }
       if (drawn) {
         // shrinking a picture blends it (smoothing on); enlarging keeps the crisp block pixels
         const mx = meta.minx ?? 0, mz = meta.minz ?? 0, size = meta.pack ?? 512;
@@ -115,6 +152,12 @@ export function createPainter({ G, N, meta, base = '' }) {
         for (const i of list) { const e = G.edges[i]; if (e[3] !== cl || (drawn && isRamp(e))) continue; const A = N[e[0]], B = N[e[1]]; ctx.moveTo(X(A.x), Z(A.z)); ctx.lineTo(X(B.x), Z(B.z)); }
         ctx.stroke();
       }
+      // the edge of the built land: a dark rim over the picture's own ragged edge
+      if (land) {
+        ctx.strokeStyle = '#5b4a33'; ctx.lineWidth = Math.max(2, Math.round(2 * d)); ctx.lineCap = 'square'; ctx.beginPath();
+        for (const [a, b, c, e] of land.edges) if (Math.max(a, c) >= x0 && Math.min(a, c) <= x1 && Math.max(b, e) >= z0 && Math.min(b, e) <= z1) { ctx.moveTo(Math.round(X(a)), Math.round(Z(b))); ctx.lineTo(Math.round(X(c)), Math.round(Z(e))); }
+        ctx.stroke();
+      }
       // live traffic: freeway speeds as green / yellow / red over the road, closed stretches dark red
       if (data.traffic?.segs.length) {
         ctx.lineCap = 'butt'; ctx.lineWidth = Math.max(4 * d, u * Math.round(2 * Math.min(1.6, 4 / mpp)), drawn ? 16 / cmpp : 0);
@@ -129,6 +172,12 @@ export function createPainter({ G, N, meta, base = '' }) {
         for (const [c, lw] of drawn ? [['#0b2a66', 9 * d], ['#4aa3ff', 5.5 * d]] : [['#0b2a66', 5 * u], ['#4aa3ff', 3 * u]]) { ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.beginPath(); data.route.forEach((p, i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, X(p.x), Z(p.z))); ctx.stroke(); }
       }
       for (const it of data.traffic?.incidents ?? []) { if (it.x < x0 - 20 || it.x > x1 + 20 || it.z < z0 - 20 || it.z > z1 + 20) continue; { const ic = incidentIcon(it.kind, Math.max(1, Math.round(0.75 * u))); ctx.drawImage(ic, Math.round(X(it.x) - ic.width / 2), Math.round(Z(it.z) - ic.height / 2)); } }
+      // incidents on the route being previewed: larger, on a white plate, over everything else on the map
+      for (const it of data.signs ?? []) {
+        const ic = incidentIcon(it.kind, Math.max(1, Math.round(0.9 * u))), x = Math.round(X(it.x) - ic.width / 2), y = Math.round(Z(it.z) - ic.height / 2), m = Math.round(2 * d);
+        ctx.fillStyle = '#0b2a66'; ctx.fillRect(x - 2 * m, y - 2 * m, ic.width + 4 * m, ic.height + 4 * m); ctx.fillStyle = '#fff'; ctx.fillRect(x - m, y - m, ic.width + 2 * m, ic.height + 2 * m);
+        ctx.drawImage(ic, x, y);
+      }
       for (const s of data.stops ?? []) sprite(FLAG, X(s.x) + 3 * U, Z(s.z), '#3b2a12', '#ffd84a');
       if (data.dest) sprite(FLAG, X(data.dest.x) + 3 * U, Z(data.dest.z), '#14361a', '#5fd35b');
       if (data.start) sprite(DOT, X(data.start.x), Z(data.start.z) + 3 * U, '#0b2a66', '#ffffff');
@@ -159,7 +208,8 @@ export function createMapView({ stage, painter, labels, onTap }) {
   const frame = document.createElement('div'); frame.id = 'mapFrame';
   const ctl = document.createElement('div'); ctl.id = 'mapCtl';
   const st = { on: false, mpp: 4 / U, w: 1, h: 1, dirty: true };   // mpp: blocks per canvas pixel
-  const center = { x: 0, z: 0, set(x, _y, z) { this.x = x; this.z = z; st.dirty = true; } };
+  // the centre stays over the land, so the map never drifts off into the empty ground around it
+  const center = { x: 0, z: 0, set(x, _y, z) { const B = painter.bounds; this.x = Math.max(B.minX, Math.min(B.maxX, x)); this.z = Math.max(B.minZ, Math.min(B.maxZ, z)); st.dirty = true; } };
   const mk = (txt, label, fn) => { const b = document.createElement('button'); b.className = 'mb'; b.textContent = txt; b.title = label; b.setAttribute('aria-label', label); b.onclick = e => { e.stopPropagation(); fn(); }; ctl.append(b); return b; };
   mk('+', 'Zoom in', () => zoomAt(1 / 1.6)); mk('−', 'Zoom out', () => zoomAt(1.6));
   // words, not symbols: what each button does is plain at a glance
@@ -179,7 +229,8 @@ export function createMapView({ stage, painter, labels, onTap }) {
       head('Traffic'), row(swatch('#3fbf5a', null, 'line'), 'Moving well'), row(swatch('#f2c230', null, 'line'), 'Slow'), row(swatch('#e5483b', null, 'line'), 'Jammed'), row(swatch('#4a0a0a', null, 'line'), 'Closed'),
       ...INCIDENT_NAMES.map(([k, n]) => { const c = incidentIcon(k, 2); c.classList.add('pix'); return row(c, n); }),
       ...(painter.hasDrawn && painter.style === 'drawn' ? [head('The map'), row(swatch('#f7c65a', '#b9802a', 'line'), 'Freeway'), row(swatch('#ffffff', '#b8ab92', 'line'), 'Street'),
-        row(swatch('#d8cab4', '#8a785e'), 'Building'), row(swatch('#cde4ac'), 'Park or grass'), row(swatch('#a0cd80'), 'Trees'), row(swatch('#96cbee', '#62a5dc'), 'Water')] : []));
+        row(swatch('#d8cab4', '#8a785e'), 'Building'), row(swatch('#cde4ac'), 'Park or grass'), row(swatch('#a0cd80'), 'Trees'), row(swatch('#96cbee', '#62a5dc'), 'Water')] : []),
+      row((() => { const c = document.createElement('canvas'); c.width = c.height = 24; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(painter.outside, 0, 0, 24, 24); g.strokeStyle = '#5b4a33'; g.lineWidth = 2; g.strokeRect(1, 1, 22, 22); c.className = 'pix'; return c; })(), 'Not built yet'));
   }
   function toggleKey(on = !key.classList.contains('open')) { if (on) buildKey(); key.classList.toggle('open', on); keyBtn.classList.toggle('on', on); }
   stage.append(cv, names, frame, ctl, key);
