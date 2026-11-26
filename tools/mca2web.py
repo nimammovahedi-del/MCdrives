@@ -22,6 +22,8 @@ B64 = '--b64' in sys.argv[3:]
 # --osm OSM.json: the OSM data the world was baked from; road surfaces are then re-graded along it (road_grade.py)
 OSM = sys.argv[sys.argv.index('--osm') + 1] if '--osm' in sys.argv else None
 GRADE_ONLY = '--grade-only' in sys.argv   # debugging: stop after the re-grade, writing its stats and top maps
+# --bounds S,W,N,E: the chunk's own bbox without build.py's lap, where it meets its neighbours (road_grade.py boundaries())
+BOUNDS = tuple(float(v) for v in sys.argv[sys.argv.index('--bounds') + 1].split(',')) if '--bounds' in sys.argv else None
 PACK, MARGIN = 512, 64
 TILE = 64
 os.makedirs(OUT, exist_ok=True)
@@ -292,7 +294,7 @@ def regrade():
     if GRADE_ONLY:
         np.save(os.path.join(OUT, "grade_top_before.npy"), gr.lev[0])
         np.savez(os.path.join(OUT, "grade_scan.npz"), lev=gr.lev, carr=gr.carr, ground=gr.ground, occ=gr.occ, WDH=np.array([W, D, H]))
-    st = gr.run(OSM, WORLD, (minx, minz))
+    st = gr.run(OSM, WORLD, (minx, minz), BOUNDS)
     fill_id, pave_id = mat(*colour("stone_bricks")), mat(*colour("gray_concrete_powder"))
     nr = nc = 0
     for (rx, rz) in sorted(REG):

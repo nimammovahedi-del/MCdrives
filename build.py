@@ -727,6 +727,9 @@ def build_chunk(area, chunk, args, work, overhang=0):
         # (the enriched copy when the bake used one, as its ways are the ones Arnis built)
         baked_osm = work / "osm_enriched.json" if area.get("enrich") and not args.osm and (work / "osm_enriched.json").exists() else osm
         grade = ["--osm", baked_osm] if baked_osm.exists() and not area.get("no_road_grade") else []
+        # the chunk's own bbox (without the lap), where roads crossing into a neighbour are held to levels both work out
+        own = next((c["bbox"] for c in split(area["bbox"], area.get("max_chunk_km2", 4))[0] if c["id"] == chunk["id"]), None)
+        if grade and own and chunk["id"] != "all": grade += ["--bounds", ",".join(f"{v:.6f}" for v in own)]
         run([sys.executable, ROOT / "tools" / "mca2web.py", world_dir(), data] + (["--b64"] if args.b64 else []) + grade, log)
         times["convert"] = time.time() - times["convert"]
 

@@ -13,18 +13,21 @@ ways of the bake, and only ever raises road surfaces or opens space under an upp
   1. Every car road is followed along its OSM centre line through nodes no other road uses (a "chain": a bridge and
      its approaches are one chain), reading the level of its own surface at each block of length, and a reference
      ground: the top of Arnis's terrain shell, closed over dips such as a channel or a road in a cut.
-  2. Where a lower road is covered within 3 blocks of its surface by a road crossing above, the upper road is
+  2. Where a lower road is covered within HEADROOM blocks of its surface by a road crossing above, the upper road is
      required to stand CLEAR blocks above the lower one there.
   3. Each chain's height above the reference ground is graded: where it stands SOURCE or more above it (a deck or a
-     ramp), its surface may fall away no faster than GRADE either way, so ramps lengthen; junctions and the world
-     edge keep their level, so between a junction and a deck the climb is as even as the room there allows.
+     ramp), its surface may fall away no faster than GRADE either way, so ramps lengthen; junctions keep their level,
+     so between a junction and a deck the climb is as even as the room there allows. Where a chain crosses the side
+     of the chunk (with --bounds), it is held to a level its neighbour works out alike from the data both share
+     (Grader.boundaries()), so a bridge or ramp across a chunk boundary is graded on both sides to meet there.
   4. Every cross-section of a chain is levelled to one height. Overlapping or side-by-side carriageways on one surface
      are levelled to the higher one: a chain that another lifts is required to reach that level there and re-graded,
      so it ramps up to it instead of being left a step below. Carriageway that no chain's kerbs cover (deck widening)
      follows the chain whose margin it is in; a surface with another road surface close over it is not lifted.
   5. Surface columns are raised (what stands on the surface - markings, railings, posts - moves up with it, and the
      gap is filled with stone bricks like Arnis's own ramp fill); under an upper road over a lower one everything
-     between the lower surface and the upper road's last row is cleared and the lower surface repaved.
+     between the lower surface and the upper road's last row is cleared (HEADROOM free blocks at least) and the lower
+     surface repaved.
 Roads on hills keep following the terrain: grading is relative to the ground, and only away from raised structures.
 """
 import json, math, os, time
@@ -34,12 +37,17 @@ from scipy import ndimage
 GRADE = 1 / 12      # steepest a raised road may fall away from a deck, in blocks per block, where there is room
 SOURCE = 3          # a road this many blocks above the reference ground is a deck or ramp to grade from
 SOURCE_RUN = 4      # ... over at least this many blocks of its length
-CLEAR = 5           # an upper road over a lower one: 3 blocks of headroom, one of deck, then its surface
+HEADROOM = 4        # free blocks a car needs over a road surface
+CLEAR = HEADROOM + 2   # an upper road over a lower one: the headroom, one row of deck, then its surface
 MAX_RAISE = 12      # never lift a surface by more than this
 CLOSE_BINS = 81     # reference ground: closing of the ground along a chain over this many blocks
 NLEV = 4            # surface levels kept per column
 KEY = 4096          # pixel * KEY + level, as one int64 key
 NDIR = 12           # road directions are compared in sectors of 15 degrees; within one sector either way is parallel
+# chunk boundaries (Grader.boundaries())
+BAND_M = 80         # metres past a chunk's bbox within which its OSM data holds every way (Arnis reads 0.001 deg past it)
+STRIP = 2.5         # blocks south or east of a boundary line that both neighbours' worlds cover (build.py lap(): 3 m)
+EARTH = 6371000.0
 
 CAR = {"motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "living_street", "road",
        "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link"}
@@ -93,9 +101,25 @@ def load_ways(osm_path, xz):
         if t.get("tunnel") not in (None, "no") or t.get("covered") not in (None, "no"): continue
         nodes = [nd for nd in e.get("nodes", []) if nd in ll]
         if len(nodes) < 2: continue
-        ways.append({"id": e["id"], "tags": t, "nodes": nodes, "hw": half_width(t), "bridge": t.get("bridge") not in (None, "no")})
+        try: layer = int(str(t.get("layer", "")).split(";")[0])
+        except ValueError: layer = 0
+        ways.append({"id": e["id"], "tags": t, "nodes": nodes, "hw": half_width(t), "bridge": t.get("bridge") not in (None, "no"),
+                     "layer": layer})
     pos = {nd: xz(*ll[nd]) for w in ways for nd in w["nodes"]}
-    return ways, pos
+    lonlat = {nd: ll[nd] for w in ways for nd in w["nodes"]}
+    return ways, pos, lonlat
+
+
+def _seg_cross(a, b, q0, q1):
+    """Where segment a-b crosses the first of the segments q0[i]-q1[i] it crosses, or None."""
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    r = b - a; s = q1 - q0
+    den = r[0] * s[:, 1] - r[1] * s[:, 0]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = ((q0[:, 0] - a[0]) * s[:, 1] - (q0[:, 1] - a[1]) * s[:, 0]) / den
+        u = ((q0[:, 0] - a[0]) * r[1] - (q0[:, 1] - a[1]) * r[0]) / den
+    hit = np.flatnonzero((den != 0) & (t >= 0) & (t <= 1) & (u >= 0) & (u <= 1))
+    return None if not len(hit) else tuple(a + t[hit[0]] * r)
 
 
 def chains_of(ways):
@@ -187,21 +211,26 @@ class Grader:
         self.junction = junction
         C = []
         for ch in chains:
-            pts, hws, nodes, br = [], [], [], []
+            pts, hws, nodes, br, wix = [], [], [], [], []
             for wi, rev in ch:
                 w = ways[wi]; ns = w["nodes"][::-1] if rev else w["nodes"]
                 for k, nd in enumerate(ns):
                     if pts and k == 0: continue
-                    pts.append(pos[nd]); nodes.append(nd); hws.append(w["hw"]); br.append(w["bridge"])
+                    pts.append(pos[nd]); nodes.append(nd); hws.append(w["hw"]); br.append(w["bridge"]); wix.append(wi)
             pts = np.array(pts, dtype=np.float64)
             keep = np.concatenate([[True], np.hypot(*(pts[1:] - pts[:-1]).T) > 1e-6])
             pts = pts[keep]
-            hws, nodes, br = ([v for v, k in zip(a, keep) if k] for a in (hws, nodes, br))
+            hws, nodes, br, wix = ([v for v, k in zip(a, keep) if k] for a in (hws, nodes, br, wix))
             if len(pts) < 2: continue
             s = np.concatenate([[0.0], np.cumsum(np.hypot(*(pts[1:] - pts[:-1]).T))])
             if s[-1] < 2: continue
-            C.append({"pts": pts, "s": s, "hw": np.array(hws), "nodes": nodes, "bridge": np.array(br),
+            # wix[k]: the way of the segment that ends at node k (as bridge[k])
+            C.append({"pts": pts, "s": s, "hw": np.array(hws), "nodes": nodes, "bridge": np.array(br), "wix": wix,
                       "ways": [ways[wi]["id"] for wi, _ in ch]})
+        # a chain that crosses itself (a loop ramp passing over its own foot) is cut in two halfway between the
+        # crossings, so that each of its parts is graded as a road of its own and the upper one clears the lower one;
+        # the cut node keeps its level like a junction, and does not count as a shared node between the two
+        C = self._uncross(C)
         # the pixels within reach of each chain: flat index, s, signed lateral offset, half width there
         for c in C:
             P, S, L, HW = [], [], [], []
@@ -236,6 +265,39 @@ class Grader:
             c["b"] = np.clip(c["ps"].astype(int), 0, c["nb"] - 1)
         self.C = [c for c in C if "pix" in c]
         self.log(f"road grade: {len(ways)} car ways in {len(self.C)} chains, {len(junction)} junctions")
+
+    def _uncross(self, C):
+        out, todo = [], list(C)
+        while todo:
+            c = todo.pop()
+            P = c["pts"]; n = len(P)
+            hit = None
+            lo, hi = np.minimum(P[:-1], P[1:]), np.maximum(P[:-1], P[1:])
+            for k in range(n - 3):
+                q = k + 2 + np.flatnonzero((lo[k + 2:, 0] <= hi[k, 0]) & (hi[k + 2:, 0] >= lo[k, 0]) &
+                                           (lo[k + 2:, 1] <= hi[k, 1]) & (hi[k + 2:, 1] >= lo[k, 1]))
+                for q in q.tolist():
+                    if not (c["bridge"][k + 1] or c["bridge"][q + 1]): continue   # only a grade-separated crossing
+                    if {c["nodes"][k], c["nodes"][k + 1]} & {c["nodes"][q], c["nodes"][q + 1]}: continue
+                    x = _seg_cross(P[k], P[k + 1], P[q:q + 1], P[q + 1:q + 2])
+                    if x is not None:
+                        s1 = c["s"][k] + math.hypot(x[0] - P[k][0], x[1] - P[k][1])
+                        s2 = c["s"][q] + math.hypot(x[0] - P[q][0], x[1] - P[q][1])
+                        hit = (s1 + s2) / 2; break
+                if hit is not None: break
+            if hit is None or len(out) + len(todo) > 10 * len(C): out.append(c); continue
+            m = int(np.clip(np.argmin(np.abs(c["s"] - hit)), 1, n - 2))
+            nd = c["nodes"][m]; self.junction.add(nd)
+            for a, b in ((0, m + 1), (m, n)):
+                part = {k: (v[a:b] if k in ("pts", "hw", "bridge", "nodes", "wix") else v) for k, v in c.items() if k != "s"}
+                part["s"] = c["s"][a:b] - c["s"][a]
+                part["cut"] = c.get("cut", set()) | {nd}
+                todo.append(part)
+        return out
+
+    def nodeset(self, c):
+        """The nodes of a chain that it may share with another: all but where a self-crossing chain was cut."""
+        return set(c["nodes"]) - c.get("cut", set())
 
     def levels_at(self, pix):
         z, x = np.divmod(pix, self.W)
@@ -287,12 +349,130 @@ class Grader:
             h[~ok] = np.interp(idx[~ok], idx[ok], h[ok])
         return h
 
-    def run(self, osm_path, world, origin=(0, 0)):
-        """origin: the world block that is column (0, 0) of the grids."""
+    # ---- chunk boundaries
+    def boundaries(self, bounds, xz):
+        """Boundary levels for every chain that crosses a side of the chunk (bounds: its (s, w, n, e) without the lap).
+
+        Each chunk is graded on its own, so where a road crosses into a neighbour both must arrive at one level there
+        without seeing each other's world. They share two things: the OSM ways within BAND_M of the boundary (Arnis
+        fetches its data with a margin past the bbox, and every way it holds is complete), and the strip of world
+        just south or east of the boundary line, which both bakes cover (build.py lap()). The level at a crossing is
+            T = max(own surface in the strip, ground in the strip + deck model)
+        where the deck model (_deck_model()) is worked out from the OSM geometry alone, in metres from the crossing
+        point along the chain, so both neighbours compute it bit for bit alike: CLEAR over a car road that a bridge
+        stretch of the chain passes over within BAND_M and before a junction, less GRADE per metre from that road's
+        kerb to the point; 0 when there is none. Where it lifts the boundary, the chain is graded with T held there as
+        a pin and as a deck to ramp away from, and is level at T past the boundary, so a deck near the boundary ramps
+        to the same level from both sides; where a deck stands higher than the model, its own side takes the
+        difference at the steepest grade the room allows (as it does towards a junction). Elsewhere the crossing keeps
+        its own level, as a junction does (both bakes are Arnis's work from the same data, and agree there to a block
+        or so, which tools/seams.py evens out)."""
+        s0, w0, n0, e0 = bounds
+        xw, zn = xz(w0, n0); xe, zs = xz(e0, s0)
+        lines = [("lat", n0, w0, e0), ("lat", s0, w0, e0), ("lon", w0, s0, n0), ("lon", e0, s0, n0)]
+        self._near = {}
+        st = dict(boundary_crossings=0, boundary_decks=0, boundary_raised=0)
+        for c in self.C:
+            ll = np.array([self.lonlat[nd] for nd in c["nodes"]])
+            bins = np.arange(c["nb"]) + 0.5
+            bx = np.interp(bins, c["s"], c["pts"][:, 0]); bz = np.interp(bins, c["s"], c["pts"][:, 1])
+            beyond = (bx < xw) | (bx > xe) | (bz < zn) | (bz > zs)
+            pins, fill = [], np.full(c["nb"], np.nan)
+            pz, px = np.divmod(c["pix"], self.W); px, pz = px + 0.5, pz + 0.5
+            for kind, L, lo, hi in lines:
+                a = ll[:, 1] if kind == "lat" else ll[:, 0]
+                o = ll[:, 0] if kind == "lat" else ll[:, 1]
+                for k in np.flatnonzero((a[:-1] < L) != (a[1:] < L)).tolist():
+                    t = (L - a[k]) / (a[k + 1] - a[k])
+                    ot = o[k] + t * (o[k + 1] - o[k])
+                    if not (lo <= ot <= hi): continue
+                    lon, lat = (ot, L) if kind == "lat" else (L, ot)
+                    sb = c["s"][k] + t * (c["s"][k + 1] - c["s"][k])
+                    b = int(min(c["nb"] - 1, max(0, math.floor(sb))))
+                    # the shared strip: just south (z grows) or east (x grows) of the line, within reach of the crossing
+                    off = (pz - (zn if L == n0 and kind == "lat" else zs)) if kind == "lat" else (px - (xw if L == w0 else xe))
+                    near = np.abs(c["ps"] - sb) <= c["phw"] + 3
+                    strip = near & (off >= 0) & (off < STRIP)
+                    hs = c["h"][c["b"][strip & (np.abs(c["plat"]) <= 1.5)]]
+                    zz, xx = np.divmod(c["pix"][strip & (np.abs(c["plat"]) <= c["phw"])], self.W)
+                    gs = self.ground[zz, xx]; gs = gs[gs >= 0]
+                    hb = float(np.median(hs)) if len(hs) else float(c["h"][b])
+                    deck = self._deck_model(c, k, (lon, lat))
+                    T = round(hb)
+                    if deck > 0 and len(gs):
+                        T = max(T, int(math.floor(float(np.median(gs)) + deck + 0.5)))
+                        st["boundary_decks"] += 1
+                    st["boundary_raised"] += T > round(hb)
+                    st["boundary_crossings"] += 1
+                    pins.append((b, T, T > round(hb)))
+            if not pins: continue
+            pb = np.array([p[0] for p in pins]); pt = np.array([p[1] if p[2] else np.nan for p in pins], float)
+            # past the boundary the chain stays level at the nearest crossing's T
+            idx = np.flatnonzero(beyond)
+            if len(idx): fill[idx] = pt[np.abs(idx[:, None] - pb[None, :]).argmin(1)]
+            c["bpins"] = pins; c["beyond"] = beyond; c["bfill"] = fill
+        self.log("road grade: " + ", ".join(f"{k} {v}" for k, v in st.items()))
+        return st
+
+    def _deck_model(self, c, k, at):
+        """Height above the ground the OSM data alone puts this chain at the crossing point at (lon, lat) on its
+        segment k -> k + 1 (see boundaries()): where a bridge stretch of the chain, within BAND_M of the point and
+        before a junction, passes over a car road below it, its deck must stand CLEAR above that road (as the grading
+        requires of it), falling away at GRADE from that road's kerb towards the point. In metres, in a frame centred
+        on the point, from tags and node positions only, so both neighbours get the same number."""
+        lon0, lat0 = at
+        kx = EARTH * math.radians(1) * math.cos(math.radians(lat0)); kz = EARTH * math.radians(1)
+        xy = lambda nd: ((self.lonlat[nd][0] - lon0) * kx, (self.lonlat[nd][1] - lat0) * kz)
+        if not hasattr(self, "_near"):
+            self._near = {}
+        if at not in self._near:   # car ways near the point, in this frame: (way index, points, half width, layer)
+            near = []
+            for wi, w in enumerate(self.ways):
+                Q = np.array([xy(nd) for nd in w["nodes"]])
+                if np.hypot(*Q.T).min() <= BAND_M + 400 or np.hypot(*((Q[1:] + Q[:-1]) / 2).T).min() <= BAND_M + 400:
+                    near.append((wi, Q, w["hw"], max(1, w["layer"]) if w["bridge"] else w["layer"]))
+            self._near[at] = near
+        near = self._near[at]
+        P = [xy(nd) for nd in c["nodes"]]
+        best = 0.0
+        for step in (1, -1):
+            d, a, j = 0.0, (0.0, 0.0), k
+            while True:
+                nxt = j + 1 if step == 1 else j            # the node this stretch runs to
+                seg = j + 1                                # its segment's index into bridge / wix
+                b = P[nxt]; L = math.hypot(b[0] - a[0], b[1] - a[1])
+                if c["bridge"][seg] and L > 0:
+                    me = self.ways[c["wix"][seg]]
+                    mine = set(me["nodes"]); lay = max(1, me["layer"])
+                    for wi, Q, hw, ol in near:
+                        if ol >= lay or mine & set(self.ways[wi]["nodes"]): continue
+                        for q in range(len(Q) - 1):
+                            x = _seg_cross(a, b, Q[q:q + 1], Q[q + 1:q + 2])
+                            if x is None or math.hypot(*x) > BAND_M: continue
+                            u = np.array([b[0] - a[0], b[1] - a[1]]) / L; v = Q[q + 1] - Q[q]
+                            sin = abs(u[0] * v[1] - u[1] * v[0]) / max(1e-9, math.hypot(*v))
+                            dx = d + math.hypot(x[0] - a[0], x[1] - a[1]) - (hw + 1) / max(sin, 0.3)
+                            best = max(best, CLEAR - GRADE * max(0.0, dx))
+                d += L
+                if d > BAND_M or c["nodes"][nxt] in self.junction: break
+                if step == 1:
+                    if nxt >= len(P) - 1: break
+                    j = nxt
+                else:
+                    if nxt <= 0: break
+                    j = nxt - 1
+                a = b
+        return best
+
+    def run(self, osm_path, world, origin=(0, 0), bounds=None):
+        """origin: the world block that is column (0, 0) of the grids. bounds: the chunk's own (s, w, n, e) without
+        build.py's lap, where it meets its neighbours; roads that cross it are held to the boundary levels both
+        neighbours work out alike (see boundaries())."""
         pj = projection(world)
         xz = lambda lon, lat: tuple(v - o for v, o in zip(pj(lon, lat), origin))
         t0 = time.time()
-        ways, pos = load_ways(osm_path, xz)
+        ways, pos, self.lonlat = load_ways(osm_path, xz)
+        self.ways = ways
         self.build(ways, pos)
         tick = lambda what: self.log(f"road grade: {what} at {time.time() - t0:.1f}s")
         tick("chains")
@@ -316,19 +496,22 @@ class Grader:
             c["hb"] = np.round(h[c["b"]]).astype(np.int64)
         self.C = [c for c in self.C if c["ok"]]
         tick("tracked")
-        # ---- crossings: a lower road covered within 3 blocks of its surface by an upper road
+        if bounds is not None:
+            st.update(self.boundaries(bounds, lambda lon, lat: xz(lon, lat)))
+            tick("boundaries")
+        # ---- crossings: a lower road covered within HEADROOM blocks of its surface by an upper road
         reach_pix, reach_ci, reach_lev = [], [], []
         for ci, c in enumerate(self.C):
             r = np.abs(c["plat"]) <= c["phw"] + 2
             reach_pix.append(c["pix"][r]); reach_ci.append(np.full(int(r.sum()), ci)); reach_lev.append(c["hb"][r])
         reach_pix, reach_ci, reach_lev = map(np.concatenate, (reach_pix, reach_ci, reach_lev))
         o = np.argsort(reach_pix, kind="stable"); reach_pix, reach_ci, reach_lev = reach_pix[o], reach_ci[o], reach_lev[o]
-        nodesets = [set(c["nodes"]) for c in self.C]
+        nodesets = [self.nodeset(c) for c in self.C]
         crossings = []   # (pixel, lower level, upper chain, its pixel row)
         for ai, a in enumerate(self.C):
             inner = np.abs(a["plat"]) <= a["phw"]
             pix, hb = a["pix"][inner], a["hb"][inner]
-            blocked = self.occupied(pix, hb + 1, hb + 3)
+            blocked = self.occupied(pix, hb + 1, hb + HEADROOM)
             for p, y in zip(pix[blocked].tolist(), hb[blocked].tolist()):
                 lo, hi = np.searchsorted(reach_pix, p), np.searchsorted(reach_pix, p, side="right")
                 above = [(int(ci), int(u)) for ci, u in zip(reach_ci[lo:hi], reach_lev[lo:hi])
@@ -360,6 +543,12 @@ class Grader:
         e = h - gref
         req = reqa - gref
         need = np.maximum(e, req)
+        bpins = c.get("bpins", [])
+        beyond = c.get("beyond")
+        if bpins:
+            need = np.where(beyond, -np.inf, need)   # past a chunk boundary is the neighbour's: level at its pin
+            for b, T, raised in bpins:
+                if raised: need[b] = max(need[b], T - gref[b])
         # a deck or ramp: SOURCE or more above measured ground over at least SOURCE_RUN blocks of length (not an
         # edge of the world's data, where the ground is unknown, nor one odd column), that also stands out of the
         # chain's own profile: a level deck over a river or a dip carries on level, it is not a hump to ramp up to
@@ -367,31 +556,44 @@ class Grader:
             c["prom"] = h - ndimage.grey_opening(h, size=min(CLOSE_BINS, 2 * ((nb - 1) // 2) + 1), mode="nearest")
         src = ndimage.binary_opening((e >= SOURCE) & (c["prom"] >= SOURCE) & c["gok"], structure=np.ones(SOURCE_RUN, bool))
         dil = np.where(src, e, -np.inf)
+        for b, T, raised in bpins:   # a boundary the deck model lifts ramps away from it like a deck
+            if raised: dil[b] = max(dil[b], T - gref[b])
         dila = reqa.copy()
         if np.isfinite(dil).any() or np.isfinite(dila).any():
             for a in (dil, dila):
                 for i in range(1, nb): a[i] = max(a[i], a[i - 1] - GRADE)
                 for i in range(nb - 2, -1, -1): a[i] = max(a[i], a[i + 1] - GRADE)
             dil = np.maximum(dil, dila - gref)
-            # junctions, and where the chain leaves the world, keep their level
-            pins = {int(min(nb - 1, round(sv))) for nd, sv in zip(c["nodes"], c["s"]) if nd in self.junction}
-            inw = np.unique(c["b"])
-            if inw[0] > 0: pins.add(int(inw[0]))
-            if inw[-1] < nb - 1: pins.add(int(inw[-1]))
-            for k in (0, -1):
-                x, z = c["pts"][k]
-                if not (1 <= x < self.W - 1 and 1 <= z < self.D - 1): pins.add(int(inw[0] if k == 0 else inw[-1]))
+            # junctions, and where the chain leaves the world, keep their level; a chunk boundary holds its level T
+            pv = {int(min(nb - 1, round(sv))): None for nd, sv in zip(c["nodes"], c["s"]) if nd in self.junction}
+            if bpins:
+                pv = {b: v for b, v in pv.items() if not beyond[b]}
+                for b, T, raised in bpins: pv[b] = T - gref[b] if raised else None
+            else:
+                inw = np.unique(c["b"])
+                if inw[0] > 0: pv.setdefault(int(inw[0]), None)
+                if inw[-1] < nb - 1: pv.setdefault(int(inw[-1]), None)
+                for k in (0, -1):
+                    x, z = c["pts"][k]
+                    if not (1 <= x < self.W - 1 and 1 <= z < self.D - 1): pv.setdefault(int(inw[0] if k == 0 else inw[-1]), None)
             cap = np.full(nb, np.inf); idx = np.arange(nb)
-            for pb in pins:
+            for pb, v in pv.items():
+                v = e[pb] if v is None else v
                 d = np.abs(idx - pb).astype(float); d[pb] = np.inf
-                gs = max(GRADE, float(np.max((need - e[pb]) / d)))
-                cap = np.minimum(cap, e[pb] + gs * np.abs(idx - pb))
+                gs = max(GRADE, float(np.max((need - v) / d)))
+                cap = np.minimum(cap, v + gs * np.abs(idx - pb))
             p = np.maximum(need, np.minimum(dil, cap))
         else:
             p = need
-        t = np.maximum(np.round(gref + p), h)
+        t = np.maximum(np.round(gref + np.where(np.isfinite(p), p, e)), h)
         if "t" in c: t = np.maximum(t, c["t"])
-        c["t"] = np.minimum(t, h + MAX_RAISE)
+        t = np.minimum(t, h + MAX_RAISE)
+        if bpins:   # the boundary contract: T at each crossing, and level past it
+            for b, T, raised in bpins:
+                if raised: t[b] = max(h[b], T)
+            fill = c["bfill"]
+            t = np.where(beyond, np.where(np.isnan(fill), h, np.maximum(h, fill)), t)
+        c["t"] = t
 
     def _own_and_level(self, st):
         # ---- own surface pixels: the highest surface within a block of the chain's level; carriageway inside the
@@ -442,6 +644,41 @@ class Grader:
             st["levelled_bins"] += changed
             if not changed: break
 
+    def _crossings_after(self):
+        """Pairs of roads that cross without meeting (no shared node, not parallel: one passes over the other) and
+        overlap at a pixel: (lower chain, upper chain, pixel), the pixel inside the lower road's kerbs and one the upper
+        road claims a surface at. The grading may have lifted the upper road there to a deck where Arnis had it at the
+        lower road's level (a deck that Arnis brought down onto the road it crosses, at a chunk edge or close to it),
+        or only part of the way (the foot of a ramp beside the road it is about to pass over): _finish() opens the
+        first to a bridge and keeps the second off the lower road."""
+        ps, ci, inner, own = [], [], [], []
+        for i, c in enumerate(self.C):
+            ki = np.abs(c["plat"]) <= c["phw"]; m = ki | (c["own"] >= 0)
+            ps.append(c["pix"][m]); ci.append(np.full(int(m.sum()), i)); inner.append(ki[m]); own.append((c["own"] >= 0)[m])
+        if not ps: return []
+        ps, ci, inner, own = map(np.concatenate, (ps, ci, inner, own))
+        o = np.argsort(ps, kind="stable"); ps, ci, inner, own = ps[o], ci[o], inner[o], own[o]
+        first = np.concatenate([[True], ps[1:] != ps[:-1]]); starts = np.flatnonzero(first)
+        cnt = np.diff(np.concatenate([starts, [len(ps)]]))
+        nodesets = [self.nodeset(c) for c in self.C]
+        def dirat(i, p):
+            c = self.C[i]; k = np.searchsorted(c["pix"], p); return int(c["dir"][c["b"][k]])
+        out = []
+        for s0, n in zip(starts[cnt > 1].tolist(), cnt[cnt > 1].tolist()):
+            for a in range(s0, s0 + n):
+                if not inner[a]: continue
+                for b in range(s0, s0 + n):
+                    if not own[b]: continue
+                    L, U = int(ci[a]), int(ci[b])
+                    if L == U or nodesets[L] & nodesets[U]: continue
+                    dd = abs(dirat(L, int(ps[a])) - dirat(U, int(ps[a]))) % NDIR
+                    if min(dd, NDIR - dd) > 1: out.append((L, U, int(ps[a])))
+        return out
+
+    def _at(self, i, p, key):
+        c = self.C[i]; k = int(np.searchsorted(c["pix"], p))
+        return c[key][c["b"][k]] if key in ("t", "h") else c[key][k]
+
     def _claims(self, final=True, by_dir=False):
         """Level each chain claims per (pixel, surface level): the highest. With final, a margin pixel that is
         carriageway takes the level of the chain(s) whose kerbs it lies inside, and only carriageway no chain's
@@ -461,6 +698,15 @@ class Grader:
         return k[o], v[o]
 
     def _finish(self, st, crossings):
+        # roads crossing without meeting, overlapping on one surface: the upper one lifted there short of a deck over
+        # the lower one keeps off it (its raised edge stops at the lower road's kerb, not a slanted cut into it)
+        xov = self._crossings_after()
+        dropped = 0
+        for L, U, p in xov:
+            yL, oU, oL = int(round(self._at(L, p, "h"))), int(self._at(U, p, "own")), int(self._at(L, p, "own"))
+            if oU >= 0 and oU == oL and self._at(U, p, "t") - yL < HEADROOM + 1:
+                c = self.C[U]; k = int(np.searchsorted(c["pix"], p)); c["own"][k] = -1; dropped += 1
+        st["crossed_overlap_kept_off"] = dropped
         keys, tv = self._claims()
         pix, y = np.divmod(keys, KEY)
         d = tv.astype(np.int64) - y
@@ -478,11 +724,33 @@ class Grader:
             self.raises.setdefault(p, []).append((y0, dd))
         # ---- carving under an upper road over a lower one, to the upper road's final level
         self.carves = {}
+        lv = self.lev.reshape(self.lev.shape[0], -1)
+        def deck_at(p, y):   # the column's next deck over y after the raises: the surface the carve must stay under
+            s = [int(v) for v in lv[:, p] if v > y + 2]   # (a block or two over y is the lower road's own bump, carved)
+            if not s: return None
+            s0 = min(s)
+            return s0 + sum(dd for y0, dd in self.raises.get(p, []) if y0 == s0)
         for p, y, ci, k in crossings:
             u = int(self.C[ci]["t"][self.C[ci]["b"][k]])
             if u < y + 4: continue
-            hi = u - 2 if u >= y + 5 else u - 1
+            hi = max(u - 2, min(u - 1, y + HEADROOM))   # one row of deck under its surface, or none if that is the headroom
+            f = deck_at(p, y)
+            if f is not None: hi = min(hi, f - 1)        # never through the deck itself (one the raise could not lift)
+            if hi <= y: continue
             self.carves[p] = (y, max(hi, self.carves.get(p, (y, hi))[1]))
+        # ... and one lifted to a deck over it, where Arnis had no deck (or one resting on the lower road), is opened
+        # under: the lower road keeps HEADROOM free blocks under the lifted deck
+        opened = 0
+        for L, U, p in xov:
+            oU = int(self._at(U, p, "own"))
+            if oU < 0: continue
+            yL = int(round(self._at(L, p, "h")))
+            fu = oU + sum(dd for y0, dd in self.raises.get(p, []) if y0 == oU)
+            if fu - yL < HEADROOM + 1 or not yL <= oU <= yL + HEADROOM: continue   # only what the grading lifted over it
+            hi = min(fu - 1, max(fu - 2, yL + HEADROOM))
+            if p not in self.carves or self.carves[p][1] < hi:
+                self.carves[p] = (min(yL, self.carves.get(p, (yL, 0))[0]), hi); opened += 1
+        st["crossed_opened"] = opened
         st["raised_cols"] = len(self.raises)
         st["raised_blocks"] = int(d[m].sum())
         st["max_raise"] = int(d[m].max()) if m.any() else 0
