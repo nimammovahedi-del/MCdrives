@@ -621,6 +621,8 @@ def sew(info, read_pack, read_h, log=print, roads=None):
                     add = []
                     for x, z, y0, y1, d, top0 in rs:   # top0: the column's top before the move
                         cx, cz = x - lx, z - lz
+                        y0 = max(y0, 0)   # nothing is drawn below the pack's floor
+                        if y1 < y0: continue
                         hit = np.nonzero((ux0 <= cx) & (cx < ux1) & (uz0 <= cz) & (cz < uz1) & (up["y"] == top0))[0]
                         if not len(hit):
                             hit = np.nonzero((ux0 <= cx) & (cx < ux1) & (uz0 <= cz) & (cz < uz1) & (up["y"] <= top0))[0]
