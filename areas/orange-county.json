@@ -473,10 +473,12 @@
   "r2": {
     "bucket": "mcmaps-world",
     "url": "https://mcmaps-data.immigration-605.workers.dev/",
-    "keep": 2
+    "keep": 3
   },
   "batches": {
     "1": "Irvine, Newport Beach, Costa Mesa, Santa Ana, Tustin, Orange, Lake Forest, Laguna Hills, Laguna Woods, Laguna Beach, Aliso Viejo"
   },
-  "roads_as_baked": true
+  "roads_as_baked": true,
+  "bake_pad_m": 128,
+  "elevation_base_m": 0
 }
