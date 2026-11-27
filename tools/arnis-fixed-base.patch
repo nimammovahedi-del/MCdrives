@@ -1,0 +1,146 @@
+Local patch to Arnis (https://github.com/louis-e/arnis, Apache License 2.0, Copyright (c) 2022-2026
+Louis Erbkamm), applied to the source at ARNIS_REF by .github/workflows/build.yml before `cargo build`.
+It changes src/elevation/mod.rs and src/elevation/postprocess.rs; both carry a "Local change" comment.
+
+What it adds: an elevation base grid. With ARNIS_ELEVATION_BASE_M=<metres> in the environment, the ordinary
+fit (AffinePolicy::Fit) becomes AffinePolicy::Grid: heights are mapped at ARNIS_ELEVATION_SCALE (times
+--height-multiplier; the run's own vertical scale when unset) blocks per metre, from a base a whole number of
+blocks above <metres> (the bbox's lowest cell, rounded down onto that grid), instead of from the bbox's own
+lowest cell. Two bakes of neighbouring bboxes then give one ground point the same height up to a whole number
+of blocks. A bbox whose relief does not fit the build height at that scale falls back to the ordinary fit
+(and says so). Without the variable nothing changes; One World runs (FitWithHeadroom/Fixed) are untouched,
+and --lidar works as before. build.py sets the variables for areas with "elevation_base_m".
+
+diff --git a/src/elevation/mod.rs b/src/elevation/mod.rs
+index 8330e92..90651fb 100644
+--- a/src/elevation/mod.rs
++++ b/src/elevation/mod.rs
+@@ -477,6 +477,8 @@ pub fn fetch_elevation_data(
+ ) -> Result<ElevationData, Box<dyn std::error::Error>> {
+     let mut bench = crate::bench::Bench::new(benchmark);
+     let (world_width, world_height, grid_width, grid_height) = dims;
++    // Local change (arnis-fixed-base.patch): ARNIS_ELEVATION_BASE_M turns Fit into Grid.
++    let affine = affine.with_env_grid(scale * height_multiplier, height_multiplier);
+ 
+     // Fallback chain: Mapterhorn, then AWS if it fails outright.
+     let provider = select_provider(bbox, source_mode);
+diff --git a/src/elevation/postprocess.rs b/src/elevation/postprocess.rs
+index 1454371..70bf2ea 100644
+--- a/src/elevation/postprocess.rs
++++ b/src/elevation/postprocess.rs
+@@ -2829,6 +2829,39 @@ pub enum AffinePolicy {
+     FitWithHeadroom,
+     /// Reuse a stored mapping. Later One World areas.
+     Fixed(ElevationAffine),
++    // Local change, not upstream Arnis: added by a build-time patch (arnis-fixed-base.patch).
++    /// Fit this grid's relief, but at `blocks_per_meter` and with the base on a
++    /// whole block above `base_m`, so separate bakes of neighbouring bboxes give a
++    /// ground point the same Y up to a whole number of blocks. Set from the
++    /// ARNIS_ELEVATION_BASE_M environment variable (`AffinePolicy::with_env_grid`).
++    Grid { base_m: f64, blocks_per_meter: f64 },
++}
++
++impl AffinePolicy {
++    /// `Fit` becomes `Grid` when ARNIS_ELEVATION_BASE_M (metres) is set; the vertical
++    /// blocks per metre come from ARNIS_ELEVATION_SCALE times `height_multiplier`, or
++    /// `vertical` (the run's own) without it. Every other policy is kept.
++    pub fn with_env_grid(self, vertical: f64, height_multiplier: f64) -> Self {
++        let var = |k: &str| {
++            std::env::var(k)
++                .ok()
++                .and_then(|v| v.trim().parse::<f64>().ok())
++        };
++        match (self, var("ARNIS_ELEVATION_BASE_M")) {
++            (AffinePolicy::Fit, Some(base_m)) if base_m.is_finite() => {
++                let bpm = var("ARNIS_ELEVATION_SCALE").map_or(vertical, |s| s * height_multiplier);
++                if bpm.is_finite() && bpm > 0.0 {
++                    AffinePolicy::Grid {
++                        base_m,
++                        blocks_per_meter: bpm,
++                    }
++                } else {
++                    self
++                }
++            }
++            _ => self,
++        }
++    }
+ }
+ 
+ /// Most headroom `FitWithHeadroom` keeps below the lowest cell.
+@@ -3237,6 +3270,43 @@ pub fn scale_to_minecraft_in_place(
+             }
+             affine
+         }
++        AffinePolicy::Grid {
++            base_m,
++            blocks_per_meter,
++        } => {
++            let (fitted, range) = derive_affine(
++                blurred_heights,
++                scale,
++                ground_level,
++                min_ground_level,
++                disable_height_limit,
++                extended_max_y,
++                top_reserve,
++            );
++            // The base sinks by up to a block to land on the grid.
++            let room = (ceiling - top_reserve - fitted.ground_level) as f64;
++            if range.height_range * blocks_per_meter + 1.0 <= room {
++                let steps = ((fitted.min_height_m - base_m) * blocks_per_meter).floor();
++                let affine = ElevationAffine {
++                    min_height_m: base_m + steps / blocks_per_meter,
++                    blocks_per_meter,
++                    ground_level: fitted.ground_level,
++                    soft_top: None,
++                };
++                eprintln!(
++                    "Elevation base grid: {:.3} m at Y {} ({} blocks above {} m, {:.6} blocks per metre)",
++                    affine.min_height_m, affine.ground_level, steps, base_m, blocks_per_meter
++                );
++                affine
++            } else {
++                eprintln!(
++                    "Elevation base grid: {:.1} m of relief does not fit at {:.6} blocks per metre; fitting this area's own relief",
++                    range.height_range, blocks_per_meter
++                );
++                fit = Some(range);
++                fitted
++            }
++        }
+         AffinePolicy::Fixed(affine) => {
+             eprintln!(
+                 "One World: using the world's elevation mapping (1 block = {:.2} m, {:.0} m at Y {}{})",
+@@ -4476,6 +4546,31 @@ mod affine_policy_tests {
+         assert_eq!(mc[0][1], -62.0 + (501.0 - 404.0));
+     }
+ 
++    #[test]
++    fn grid_bases_differ_by_whole_blocks_between_bboxes() {
++        let grid = AffinePolicy::Grid {
++            base_m: 0.0,
++            blocks_per_meter: 1.003,
++        };
++        // Two overlapping "bakes" of one slope with different lowest cells.
++        let a: Vec<Vec<f64>> = vec![(0..40).map(|i| 50.37 + i as f64 * 0.61).collect()];
++        let b: Vec<Vec<f64>> = vec![a[0][17..].iter().copied().chain([90.0, 91.2]).collect()];
++        let (ya, fa) = scale_to_minecraft_with(&a, 1.0, -62, -62, false, 0, grid);
++        let (yb, fb) = scale_to_minecraft_with(&b, 1.0, -62, -62, false, 0, grid);
++        assert_eq!(fa.ground_level, -62);
++        assert!(ya[0].iter().chain(&yb[0]).all(|&y| y >= -62.0));
++        assert!((ya[0][0] - -62.0) < 1.0 && (yb[0][0] - -62.0) < 1.0);
++        let d = yb[0][0] - ya[0][17];
++        assert!((d - d.round()).abs() < 1e-9 && d.round() != 0.0);
++        for (p, q) in ya[0][17..].iter().zip(&yb[0]) {
++            assert_eq!(q.round() - p.round(), d.round());
++        }
++        // Too tall for the build height at that scale: the ordinary fit.
++        let tall = vec![vec![0.0, 1000.0]];
++        let (_, ft) = scale_to_minecraft_with(&tall, 1.0, -62, -62, false, 0, grid);
++        assert!(ft.blocks_per_meter < 0.5);
++    }
++
+     #[test]
+     fn the_whole_earth_fits_one_to_one_up_to_the_soft_top() {
+         let e = ElevationAffine::whole_earth(1.0, -2014, 2031);

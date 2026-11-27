@@ -88,12 +88,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: bin/arnis
-          key: arnis-${{ runner.os }}-${{ env.ARNIS_REF }}
+          key: arnis-${{ runner.os }}-${{ env.ARNIS_REF }}-${{ hashFiles('tools/arnis-fixed-base.patch') }}
       - name: Build Arnis (first run only)
         if: steps.arnis.outputs.cache-hit != 'true'
         run: |
           git init -q arnis-src && cd arnis-src
           git fetch -q --depth 1 https://github.com/louis-e/arnis "$ARNIS_REF" && git checkout -q FETCH_HEAD
+          # our one local change: the elevation base grid behind build.py's "elevation_base_m" (see the patch)
+          git apply --verbose ../tools/arnis-fixed-base.patch
           cargo build --release --no-default-features
           mkdir -p ../bin && cp target/release/arnis ../bin/arnis
 

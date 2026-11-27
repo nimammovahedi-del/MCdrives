@@ -20,6 +20,7 @@
   ],
   "roads_as_baked": true,
   "bake_pad_m": 128,
+  "elevation_base_m": 0,
   "keep": [
     "r9c14",
     "r9c15",

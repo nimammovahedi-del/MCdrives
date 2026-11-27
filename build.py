@@ -25,6 +25,8 @@ import metafmt
 
 ROOT = Path(__file__).resolve().parent
 STEPS = ["bake", "convert", "roads", "site"]
+# blocks per metre of height in every bake of an area with "elevation_base_m" (token_env())
+ELEVATION_SCALE = 1.0
 ARNIS_WINDOWS_URL = "https://github.com/louis-e/arnis/releases/latest/download/arnis-windows.exe"
 EARTH = 6371000.0
 # How far past its own bbox a chunk's road graph reaches, so neighbours share the OSM nodes on
@@ -680,8 +682,19 @@ def run(cmd, log, env=None):
 
 def token_env(area, chunk_km2):
     """Mapillary street photos are optional. The token is read from a file outside the repo or
-    from the environment, handed to Arnis for that one run, and never printed or written."""
+    from the environment, handed to Arnis for that one run, and never printed or written.
+
+    Also the elevation base grid: with "elevation_base_m" in the area file every bake maps metres to blocks
+    at one vertical scale, ELEVATION_SCALE blocks per metre (the frame's 1 block = 1 metre at lat0), from a
+    base a whole number of blocks above elevation_base_m (tools/arnis-fixed-base.patch, built into the CI's
+    Arnis). Arnis's own fit starts each bake at its own lowest cell, so neighbouring bakes differ by a
+    fraction of a block that the join's whole-block lift cannot take out; on the grid they differ by whole
+    blocks only. Without the key the variables are cleared, so Arnis fits as it always did."""
     env = os.environ.copy()
+    env.pop("ARNIS_ELEVATION_BASE_M", None); env.pop("ARNIS_ELEVATION_SCALE", None)
+    if area.get("elevation_base_m") is not None:
+        env["ARNIS_ELEVATION_BASE_M"] = str(float(area["elevation_base_m"]))
+        env["ARNIS_ELEVATION_SCALE"] = str(ELEVATION_SCALE)
     if not area.get("mapillary") or chunk_km2 > 0.10:  # Arnis only fetches facades for tiny areas
         env.pop("MAPILLARY_TOKEN", None)
         return env
@@ -789,7 +802,16 @@ def build_chunk(area, chunk, args, work, overhang=0):
             enriched = enrich_osm(arnis, bake_bstr, opts, osm, work, log, token_env(area, h * w), chunk["id"], area["enrich"])
             if enriched: source = [f"--file={enriched}"]
         cmd = [arnis, f"--bbox={bake_bstr}", f"--output-dir={world_parent}"] + source + ["--no-update-check"] + opts
+        seen = log.stat().st_size if log.exists() else 0
         run(cmd, log, token_env(area, h * w))
+        if area.get("elevation_base_m") is not None:
+            # an Arnis without tools/arnis-fixed-base.patch ignores the variables and fits as before
+            with open(log, "rb") as f: f.seek(seen); said = f.read().decode(errors="replace")
+            grid = [l[l.index("Elevation base grid:"):] for l in said.splitlines() if "Elevation base grid:" in l]
+            if not grid and ("Realistic elevation" in said or "Elevation compressed" in said):
+                sys.exit(f"[{chunk['id']}] this Arnis has no elevation base grid (\"elevation_base_m\"): "
+                         "build it with tools/arnis-fixed-base.patch")
+            for l in grid: print(f"[{chunk['id']}] {l}")
         if not world_dir(): sys.exit(f"Arnis finished but wrote no world; see {log}")
         times["bake"] = time.time() - times["bake"]
 
@@ -884,6 +906,9 @@ def main():
     if args.plan:
         lat0 = frame(area)
         if lat0 is not None: print(f"conformal frame: 1 block = 1 metre at latitude {lat0:.6f}")
+        if area.get("elevation_base_m") is not None:
+            print(f"elevation base grid: heights at {ELEVATION_SCALE} blocks per metre from a whole block above "
+                  f"{area['elevation_base_m']} m (needs Arnis with tools/arnis-fixed-base.patch)")
         for c in chunks:
             dx, dz, err = chunk_offset(area["bbox"], c["bbox"], lat0)
             k = chunk_scale(lat0, c["bbox"])
