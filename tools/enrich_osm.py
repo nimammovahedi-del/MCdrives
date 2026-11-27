@@ -364,8 +364,8 @@ def naip_mosaic(box_utm, epsg, cache, session):
                 params = {"SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap", "LAYERS": NAIP_LAYER, "STYLES": "",
                           "CRS": f"EPSG:{epsg}", "BBOX": f"{w},{s},{w + span},{s + span}",
                           "WIDTH": TILE_PX, "HEIGHT": TILE_PX, "FORMAT": "image/jpeg"}
-                for attempt in range(3):
-                    if attempt: time.sleep(0.8 * attempt)
+                for attempt, pause in enumerate((0, 1, 3, 8, 20, 45)):   # a busy photo host needs minutes, not seconds
+                    if pause: time.sleep(pause)
                     try:
                         r = session.get(NAIP_WMS, params=params, headers=UA, timeout=90)
                     except Exception as ex:   # unreachable host: do not ask again

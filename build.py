@@ -757,10 +757,19 @@ def enrich_osm(arnis, bstr, opts, osm, work, log, env, cid, what=True):
         if "heights" not in what: cmd.append("--no-overture")
     print("  $", " ".join(str(c) for c in cmd))
     try:
-        with open(log, "ab") as f:
-            r = subprocess.run([str(c) for c in cmd], stdout=f, stderr=subprocess.STDOUT, timeout=1800)
-        if r.returncode or not out.exists(): raise RuntimeError(f"exit {r.returncode}")
-        st = json.loads(stats.read_text())
+        # Roof colours come from the same aerial photos: tiles the host refused are asked for again (those that
+        # came are cached), and a chunk never bakes with some of its roofs left without their colour.
+        for pause in (0, 60, 180, 420):
+            if pause:
+                print(f"[{cid}] enrich: {lost} photo tiles missing, asking again in {pause} s"); time.sleep(pause)
+            with open(log, "ab") as f:
+                r = subprocess.run([str(c) for c in cmd], stdout=f, stderr=subprocess.STDOUT, timeout=1800)
+            if r.returncode or not out.exists(): raise RuntimeError(f"exit {r.returncode}")
+            st = json.loads(stats.read_text())
+            lost = sum(int(v.get("failed") or 0) for v in st.get("sources", {}).values() if isinstance(v, dict))
+            if not lost: break
+        else:
+            sys.exit(f"[{cid}] enrich: {lost} aerial photo tiles still missing for roof colours; not baking this chunk")
         print(f"[{cid}] enrich: {st.get('buildings', 0)} buildings, {st.get('roof_colours_written', 0)} roof colours, "
               f"{st.get('levels_filled', 0)} storey counts and {st.get('heights_filled', 0)} heights filled; sources "
               + ", ".join(f"{k} {'ok' if v.get('ok') else 'failed'}" for k, v in st.get("sources", {}).items()))
