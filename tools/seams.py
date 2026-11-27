@@ -15,7 +15,10 @@ sew() fixes all three, and only rewrites the packs within BLEND blocks of a seam
 1. Blend: per line across the seam, the local disagreement (median over the overlap, then a running median along the
    seam, so only a steady offset counts and the one-block noise does not) is split between the two chunks: each moves
    its columns up or down by its share at the seam, tapering to nothing BLEND blocks into the chunk. Faces, partial
-   blocks and heights of a column move with it (greedy quads are cut where the shift changes).
+   blocks and heights of a column move with it (greedy quads are cut where the shift changes). Where the bakes
+   disagree by a block or two in a pattern that changes along the seam, field_blend() instead moves each column so
+   the two chunks' smoothed grounds meet: a one-block contour line of one bake bends over into the other's, rather
+   than both ending in a step along the seam (plates outlined by risers across a road).
 2. Owner: a column covered by exactly the two chunks of a seam goes to the chunk on its side of a cut through the
    overlap. Per line the cut sits where the blended surfaces meet with the smallest step (ties go to the nominal
    boundary, the south or east chunk's origin), and it never gives the north or west chunk its own last line. Any
@@ -55,6 +58,12 @@ LIFT_MAX = 10   # never lift a road surface by more than this
 LIFT_REACH = LIFT_SRC + LIFT_MAX * 12   # how far along the road from the seam a lift can reach
 DECK_GAP = 3    # a column whose highest surface stands this many blocks over its lowest is a deck over a lower surface
 NOLIFT = -10 ** 6   # floor of a column that moves whole when lifted
+FIELD = True    # blend per column (field_blend()) rather than per line
+SMOOTH_L = 24   # lines either side in the mean that field_blend() takes as a chunk's smooth ground
+SMOOTH_A = 8    # and columns either side across the seam
+FIELD_MAX = 2.5     # field_blend() bends the ground where the two bakes disagree by up to this much,
+FIELD_RATE = 0.12   # where that disagreement changes by no more than this per line along the seam,
+FIELD_STEEP = 0.3   # and on ground no steeper than this (blocks per block); elsewhere the line blend
 LIFT_EDGE = 2   # columns past the lifted carriageway over which a lift tapers out into the surface beside it (taper())
 
 QT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("w", "u1"), ("h", "u1"), ("d", "u1"), ("m", "u1")])
@@ -252,6 +261,16 @@ class Chunks:
         for s in self.seams:
             if k not in (s["a"], s["b"]): continue
             lo, hi, first = s["lo"], s["hi"], s["first"]
+            if "sa" in s:   # field_blend(): a shift per column, [line - lo, across - origin]
+                S, o = (s["sa"], s["oa"]) if k == s["a"] else (s["sb"], s["ob"])
+                if s["ax"] == 0: L0, L1, A0, A1 = X0, X1, Z0, Z1
+                else: L0, L1, A0, A1 = Z0, Z1, X0, X1
+                l0, l1 = max(L0, lo), min(L1, hi); c0, c1 = max(A0, o), min(A1, o + S.shape[1])
+                if l1 <= l0 or c1 <= c0: continue
+                v = S[l0 - lo:l1 - lo, c0 - o:c1 - o]
+                if s["ax"] == 0: out[c0 - Z0:c1 - Z0, l0 - X0:l1 - X0] += v.T
+                else: out[l0 - Z0:l1 - Z0, c0 - X0:c1 - X0] += v
+                continue
             amt = s["da"] if k == s["a"] else s["db"]
             if s["ax"] == 0: L, A = np.arange(X0, X1), np.arange(Z0, Z1)   # lines along x, across along z
             else: L, A = np.arange(Z0, Z1), np.arange(X0, X1)
@@ -364,6 +383,8 @@ def plan(C, log=print):
             runs.append((l0, l1))
         da = r / 2; db = da - r                                           # a + da meets b + db where ha + r = hb
         s = dict(a=a, b=b, ax=ax, lo=lo, hi=hi, first=first, da=da, db=db)
+        if FIELD:
+            r = field_blend(C, s, a, b, ax, lo, hi, first, last, runs, r)
         C.seams.append(s)
         # 2. the cut, on the blended ground: candidates k = first .. last (a owns the lines before k, so it never keeps
         # its own last line)
@@ -405,6 +426,116 @@ def plan(C, log=print):
             f"lines (up to {st['largest_blend']} blocks); step at the boundary nonzero on {st['step_unblended_nonzero']} lines "
             f"({st['step_unblended_ge2']} by 2+), after the blend {st['step_blended_nonzero']} ({st['step_blended_ge2']}), at the "
             f"chosen cut {st['step_at_cut_nonzero']} ({st['step_at_cut_ge2']}); cut moved off the boundary on {st['cut_moved']} lines")
+
+
+def surfmean(h, ok, n, m=0, tol=1, least=1):
+    """Running mean of the ground h over 2n + 1 lines (axis 0) by 2m + 1 columns (axis 1), each column's own surface
+    only: ground within tol of the centre's (so a wall, a cut or a kerb of more than tol is never smoothed over). NaN
+    where the centre has none or fewer than least columns count (a post, a pit)."""
+    s = np.zeros(h.shape); c = np.zeros(h.shape)
+    N, M = h.shape
+    for o in range(-n, n + 1):
+        a0, a1 = max(0, -o), min(N, N - o)          # centre lines l with l + o inside
+        for p in range(-m, m + 1):
+            b0, b1 = max(0, -p), min(M, M - p)
+            hv, kv = h[a0 + o:a1 + o, b0 + p:b1 + p], ok[a0 + o:a1 + o, b0 + p:b1 + p]
+            hc = h[a0:a1, b0:b1]
+            k = kv & ok[a0:a1, b0:b1] & (np.abs(hv - hc) <= tol)
+            s[a0:a1, b0:b1] += np.where(k, hv, 0); c[a0:a1, b0:b1] += k
+    return np.where(c >= least, s / np.maximum(c, 1), np.nan)
+
+
+def grow(m, n):
+    """m dilated by n columns in both directions (a square)."""
+    o = m.copy()
+    for _ in range(n):
+        g = o.copy(); g[1:] |= o[:-1]; g[:-1] |= o[1:]; g[:, 1:] |= o[:, :-1]; g[:, :-1] |= o[:, 1:]; o = g
+    return o
+
+
+def field_blend(C, s, a, b, ax, lo, hi, first, last, runs, r):
+    """The blend as a shift per column (s["sa"], s["sb"]; C.shift() reads them), for the one- and two-block
+    disagreements that change along the seam: the bakes sample the ground on slightly different grids, so on a gentle
+    slope one bake's one-block contour lines cross the seam tens of blocks from the other's.
+
+    The line blend (a share per line, tapered into each chunk and rounded per column; one block was left as noise)
+    leaves every such patch as a step along the seam, or BLEND / 2 blocks off it: a plate outlined by risers across a
+    road. Here each chunk's ground is taken as a smooth field (surfmean(): its mean over SMOOTH_L lines along the
+    seam and SMOOTH_A columns across it, over its own surface only) plus the detail on it. Towards the seam the detail
+    fades out and the two smooth fields are blended into each other (each takes half their difference at the
+    boundary, tapered to nothing BLEND blocks in), and the column is moved to the rounded result. So at the boundary
+    both chunks show the same rounded mean, and one bake's contour line bends over into the other's as one line
+    across the ground, never along the seam; far from it every column is as baked.
+    Left to the line blend's share (moved whole): decks and the columns beside them (a bridge stays whole), steep
+    ground (FIELD_STEEP: bending would crowd its steps together), and lines where the two bakes disagree by more than
+    FIELD_MAX or the disagreement changes by more than FIELD_RATE a line (a ramp laid a few blocks apart by the two
+    bakes, which no bend mends). Across a road crossing the seam (plan()'s runs) where the bakes are a whole number of
+    blocks apart all across it, that number is held over the run, so the steps run straight across the carriageway.
+    Returns the disagreement per line (for the stats)."""
+    B = BLEND
+    def across(k, f, l):
+        return C.height(k, lo, f, hi, l + 1).T if ax == 0 else C.height(k, f, lo, l + 1, hi)
+    def deck(k, f, l):
+        return C.deck(k, lo, f, hi, l + 1).T if ax == 0 else C.deck(k, f, lo, l + 1, hi)
+    oa, ea = first - B, last                      # a's columns that the blend reaches, b's
+    ob, eb = first, max(last, first + B - 1)
+    ha, hb = across(a, oa, ea), across(b, ob, eb)
+    ka, kb = deck(a, oa, ea), deck(b, ob, eb)
+    out = {}
+    M = SMOOTH_A   # the smooth fields over a few more columns, so the mean is not one-sided inside the band
+    xa, xb = across(a, oa - M, oa - 1), across(b, eb + 1, eb + M)
+    ya, yb = deck(a, oa - M, oa - 1), deck(b, eb + 1, eb + M)
+    for nm, h, kd, he, ke, cut in (("a", ha, ka, np.hstack([xa, ha]), np.hstack([ya, ka]), slice(M, None)),
+                                   ("b", hb, kb, np.hstack([hb, xb]), np.hstack([kb, yb]), slice(0, -M))):
+        ok = (he > NONE) & ~ke
+        L = surfmean(he, ok, SMOOTH_L, M, least=SMOOTH_L)[:, cut]
+        ok = ok[:, cut]
+        dk = grow(kd, 2)
+        # steep ground (contours a few blocks apart) keeps its own steps: bending them there would crowd two into one
+        Lf = np.where(np.isnan(L), h, L).astype(float)
+        gl = np.zeros(L.shape); gl[2:-2] = np.abs(Lf[4:] - Lf[:-4]) / 4
+        gt = np.zeros(L.shape); gt[:, 2:-2] = np.abs(Lf[:, 4:] - Lf[:, :-4]) / 4
+        steep = grow((np.maximum(gl, gt) > FIELD_STEEP) & ok, 2)
+        smooth = ok & ~np.isnan(L) & ~dk & ~steep
+        out[nm] = (h, L, smooth, dk)
+    ia, ib = first - oa, 0                        # column `first` in each array
+    Ha, La, Sa, _ = out["a"]; Hb, Lb, Sb, _ = out["b"]
+    both = (Ha[:, ia] > NONE) & (Hb[:, ib] > NONE) & ~ka[:, ia] & ~kb[:, ib] & (np.abs(Hb[:, ib] - Ha[:, ia]) <= MAXSHIFT)
+    # the smooth fields' disagreement at the boundary, so that both meet there exactly; elsewhere (a column that is
+    # not smooth on one side) the plain running mean of the two grounds
+    sm = Sa[:, ia] & Sb[:, ib] & both
+    D = np.array(r, float)
+    if sm.any():   # between such lines, interpolated (over at most SMOOTH_L lines from one): else the line blend's share
+        idx = np.arange(len(D)); k = idx[sm]
+        Dsm = (Lb[:, ib] - La[:, ia])[sm]
+        Dsm = np.array([np.median(Dsm[max(0, i - 4):i + 5]) for i in range(len(Dsm))])   # one-line outliers out
+        near = np.minimum(np.abs(idx - k[np.clip(np.searchsorted(k, idx), 0, len(k) - 1)]),
+                          np.abs(idx - k[np.clip(np.searchsorted(k, idx) - 1, 0, len(k) - 1)]))
+        D = np.where(near <= SMOOTH_L, np.interp(idx, k, Dsm), D)
+    # a larger disagreement (one bake's ramp or cut where the other has none) is no grid offset: the line blend
+    # and so is one that changes fast along the seam (a ramp the two bakes lay a few blocks apart)
+    Dp = np.pad(D, 4, mode="edge")
+    big = (np.abs(D) > FIELD_MAX) | (np.abs(Dp[8:] - Dp[:-8]) > 8 * FIELD_RATE)
+    for _ in range(8): big[1:] |= big[:-1].copy(); big[:-1] |= big[1:].copy()
+    D = np.where(big, r, D)
+    D[np.abs(D) > MAXSHIFT] = 0
+    for l0, l1 in runs:   # a road across the seam, the two bakes a whole number of blocks apart all across it: one
+        dd = (Hb[l0:l1, ib] - Ha[l0:l1, ia])[both[l0:l1]]    # step, straight across it at the boundary
+        if len(dd) and dd.min() == dd.max(): D[l0:l1] = dd[0]
+    for nm, o, n, sign in (("a", oa, ea - oa + 1, 1), ("b", ob, eb - ob + 1, -1)):
+        h, L, smooth, dk = out[nm]
+        A = np.arange(o, o + n)
+        d = (first - 1 - A) if nm == "a" else (A - first)
+        wgt = np.clip(1 - np.maximum(d, 0) / B, 0, 1)
+        nu = np.where(smooth & ~big[:, None], wgt[None, :], 0.0)
+        Lm = np.where(smooth, np.nan_to_num(L), h)
+        J = np.rint(nu * Lm + (1 - nu) * h + sign * 0.5 * wgt[None, :] * D[:, None])
+        # a deck (and the columns next to it) moves as a whole with the line blend's share, so a bridge is never cut
+        # by the one-block bends of the ground under it
+        line = np.rint(sign * 0.5 * wgt[None, :] * np.asarray(r, float)[:, None])
+        S = np.where(dk | (h <= NONE), line, J - h).astype(np.int32)
+        s["s" + nm], s["o" + nm] = S, o
+    return D
 
 
 def road_runs(C, a, b, ax, lo, hi, first, gap=2, least=3, most=ROAD_RUN):
