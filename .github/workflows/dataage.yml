@@ -1,0 +1,97 @@
+name: Data age check
+
+# How old are the laser scans and photos under an area's chunks, before baking them? For each chunk
+# tools/dataage.py reads OSM (Overpass: buildings and highways) and the USGS 3DEP survey Arnis would read
+# there (s3://usgs-lidar-public, at about half a point a square metre), and counts the OSM buildings the
+# scan saw as bare ground, the neighbourhood road through bare scan, and clusters of both (likely newer
+# neighbourhoods). No Arnis, no bake: a few minutes and a few tens of MB per chunk. Report only: it never
+# changes a build. The summary lands in the run's summary page and in the "dataage" artifact.
+on:
+  workflow_dispatch:
+    inputs:
+      area:
+        description: Area config under areas/ (without .json)
+        default: orange-county
+      keep_key:
+        description: Area key listing the chunks to check (blank = "keep_all", or the "only" list)
+        default: keep_south
+      only:
+        description: Chunk ids, comma-separated (overrides keep_key)
+        default: ""
+      shards:
+        description: Parallel jobs
+        default: "8"
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.s.outputs.list }}
+    steps:
+      - id: s
+        run: echo "list=$(python3 -c "import json; print(json.dumps(list(range(${{ inputs.shards }}))))")" >> "$GITHUB_OUTPUT"
+  check:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Check shard ${{ matrix.shard }}
+        env:
+          ONLY: ${{ inputs.only }}
+          KEY: ${{ inputs.keep_key }}
+        run: |
+          SEL=(); if [ -n "$ONLY" ]; then SEL=(--only "$ONLY"); elif [ -n "$KEY" ]; then SEL=(--keep-key "$KEY"); fi
+          python tools/dataage.py vintage "areas/${{ inputs.area }}.json" "${SEL[@]}" --shard "${{ matrix.shard }}/${{ inputs.shards }}" --out "out/${{ matrix.shard }}"
+          python tools/dataage.py area "areas/${{ inputs.area }}.json" "${SEL[@]}" --shard "${{ matrix.shard }}/${{ inputs.shards }}" --out "out/${{ matrix.shard }}" --no-naip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dataage-${{ matrix.shard }}
+          path: out
+          retention-days: 14
+  collect:
+    needs: check
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: all
+          pattern: dataage-*
+          merge-multiple: true
+      - name: Summary
+        run: |
+          mkdir -p dataage
+          for f in summary vintage; do
+            first=$(ls all/*/$f.tsv 2>/dev/null | head -n 1); [ -n "$first" ] || continue
+            { head -n 1 "$first"; for t in all/*/$f.tsv; do tail -n +2 "$t"; done | sort -t$'\t' -k1,1V; } > "dataage/$f.tsv"
+          done
+          cp all/*/r*c*.json dataage/ 2>/dev/null || true
+          {
+            echo "## Data age: ${{ inputs.area }}"
+            for f in vintage summary; do
+              [ -f "dataage/$f.tsv" ] || continue
+              echo; echo "### $f"; echo
+              head -n 1 "dataage/$f.tsv" | sed 's/\t/ | /g; s/^/| /; s/$/ |/'
+              head -n 1 "dataage/$f.tsv" | awk -F'\t' '{s="|"; for(i=1;i<=NF;i++) s=s" --- |"; print s}'
+              tail -n +2 "dataage/$f.tsv" | sed 's/|/\//g; s/\t/ | /g; s/^/| /; s/$/ |/'
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dataage
+          path: dataage
+          retention-days: 30

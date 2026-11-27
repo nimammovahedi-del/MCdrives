@@ -6,3 +6,4 @@ requests
 pmtiles
 mapbox-vector-tile
 pillow
+laspy[lazrs]

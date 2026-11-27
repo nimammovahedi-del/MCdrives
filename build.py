@@ -849,6 +849,7 @@ def build_chunk(area, chunk, args, work, overhang=0):
             for l in grid: print(f"[{chunk['id']}] {l}")
         if not world_dir(): sys.exit(f"Arnis finished but wrote no world; see {log}")
         times["bake"] = time.time() - times["bake"]
+        if area.get("dataage") and area.get("lidar", True): data_age(chunk["id"], bstr, osm, work, log)
 
     data = site / "data"
     if step("convert", lambda: (data / "meta.json").exists()):
@@ -889,10 +890,39 @@ def build_chunk(area, chunk, args, work, overhang=0):
         times["site"] = time.time() - times["site"]
 
     meta = json.loads((data / "meta.json").read_text())
+    age = data_age_summary(work)
+    if age: (site / "dataage.json").write_text(json.dumps(age))   # beside the site, for the join's report.json
     size = sum(f.stat().st_size for f in site.rglob("*") if f.is_file())
     return {"id": chunk["id"], "row": chunk["row"], "col": chunk["col"], "bbox": bbox, "km2": round(h * w, 3),
             "blocks": [meta["width"], meta["depth"], meta["height"]], "quads": meta["quads"], "packs": len(meta["packs"]),
-            "site_mb": round(size / 1e6, 2), "seconds": {k: round(v, 1) for k, v in times.items() if v < 1e6}}
+            "site_mb": round(size / 1e6, 2), "seconds": {k: round(v, 1) for k, v in times.items() if v < 1e6},
+            **({"dataage": age} if age else {})}
+
+
+def data_age(cid, bstr, osm, work, log):
+    """Area option "dataage": after the bake, tools/dataage.py counts the OSM buildings of the chunk's own bbox
+    that the laser survey Arnis read there saw as bare ground (built after the scan), the road through such
+    ground, and their clusters, into work/dataage.json, and prints one line. A report only: whatever happens
+    here (no laspy, no network, a timeout), the build goes on."""
+    if not osm.exists(): return
+    out = work / "dataage.json"
+    out.unlink(missing_ok=True)
+    try:
+        r = subprocess.run([sys.executable, ROOT / "tools" / "dataage.py", "chunk", osm, bstr, "--id", cid, "--out", out],
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=1200)
+        text = r.stdout.decode("utf-8", "replace")
+        with open(log, "a", encoding="utf-8") as f: f.write(text)
+        print(next((l for l in text.splitlines() if l.startswith(f"[{cid}] data age")), f"[{cid}] data age: no result"))
+    except Exception as e:
+        print(f"[{cid}] data age: not checked ({e})")
+
+
+def data_age_summary(work):
+    """The small part of work/dataage.json that goes into report.json, or None."""
+    try: r = json.loads((work / "dataage.json").read_text())
+    except (OSError, ValueError): return None
+    return {k: r.get(k) for k in ("surveys", "points_per_m2", "buildings", "verdicts", "bare_share", "roads_m",
+                                  "bare_road_share")} | {"clusters": r.get("clusters", [])[:10]}
 
 
 def chunk_summary(area, chunk, work):
@@ -903,9 +933,12 @@ def chunk_summary(area, chunk, work):
     meta = json.loads((site / "data" / "meta.json").read_text())
     h, w = km(chunk["bbox"])
     size = sum(f.stat().st_size for f in site.rglob("*") if f.is_file())
+    try: age = json.loads((site / "dataage.json").read_text())
+    except (OSError, ValueError): age = None
     return {"id": chunk["id"], "row": chunk["row"], "col": chunk["col"], "bbox": chunk["bbox"], "km2": round(h * w, 3),
             "blocks": [meta["width"], meta["depth"], meta["height"]], "quads": meta["quads"],
-            "packs": len(meta["packs"]), "site_mb": round(size / 1e6, 2), "seconds": {}}
+            "packs": len(meta["packs"]), "site_mb": round(size / 1e6, 2), "seconds": {},
+            **({"dataage": age} if age else {})}
 
 
 def main():
