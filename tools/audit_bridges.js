@@ -28,7 +28,7 @@ const fs = require('fs'), zlib = require('zlib');
     }
     return res.map(([a, c]) => ({ from: a.name, to: c.name, fromNode: a.node, toNode: c.node }));
   }, [N, seed, extra]);
-  const base = process.env.URL || 'http://localhost:8765', meta = await (await fetch(`${base}/data/meta.json`)).json(), PK = meta.pack, packs = [...meta.packs].reverse();
+  const base = process.env.URL || 'http://localhost:8765', meta = (await import('../web/drive/meta.js')).expandMeta(await (await fetch(`${base}/data/meta.json`)).json()), PK = meta.pack, packs = [...meta.packs].reverse();
   const tiles = new Map(), cover = (x, z) => packs.filter(pk => x >= pk.x && x < pk.x + PK && z >= pk.z && z < pk.z + PK);
   const need = async S => { const want = new Set(S.flatMap(s => [-2, 2].flatMap(dx => [-2, 2].flatMap(dz => cover(s.x + dx, s.z + dz)))));
     for (const k of [...tiles.keys()]) if (![...want].some(pk => pk.h === k)) tiles.delete(k);

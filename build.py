@@ -21,6 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "tools"))
 import places
+import metafmt
 
 ROOT = Path(__file__).resolve().parent
 STEPS = ["bake", "convert", "roads", "site"]
@@ -409,7 +410,7 @@ def join(area, chunks, out, seam_tol=6, log=print, sew_seams=True):
     info = []
     for c in chunks:
         cs = out / c["id"] / "site"
-        cm = json.loads((cs / "data" / "meta.json").read_text())
+        cm = metafmt.read(cs / "data")
         dx, dz, err = chunk_offset(parent, c["bbox"], lat0)
         if cm.get("scale", 1) != chunk_scale(lat0, c["bbox"]):
             sys.exit(f"join: chunk {c['id']} was baked at scale {cm.get('scale', 1)}, but this area's frame wants "
@@ -587,7 +588,7 @@ def join(area, chunks, out, seam_tol=6, log=print, sew_seams=True):
             "chunks": [{"id": i["id"], "dx": i["sx"], "dz": i["sz"], "dy": i["sy"], "err": i["err"],
                         "w": round(chunk_rect(i)[2] - minx - i["sx"], 1), "d": round(chunk_rect(i)[3] - minz - i["sz"], 1)}
                        for i in info]}
-    (data / "meta.json").write_text(json.dumps(meta))
+    metafmt.write(data, meta, log)   # format 2: a small meta.json, the tile tables in data/tiles/ (tools/metafmt.py)
     # overhead colour layer for the 2D map (optional: the map falls back to roads on parchment)
     r = subprocess.run([sys.executable, str(ROOT / "tools" / "maptiles.py"), str(site)], capture_output=True, text=True)
     log("join: " + (r.stdout.strip().splitlines() or [""])[-1] if r.returncode == 0 else f"join: map colour layer skipped ({r.stderr.strip()[-300:]})")

@@ -10,7 +10,7 @@ along the top edge of anything that stands 3 or more blocks above its neighbour,
 outlined shapes. Columns with no surface stay transparent. One overview PNG for the whole area at
 OVERVIEW blocks per pixel is made from the same data.
 
-meta.json gains  map: {scale, tiles: [[file, x, z], ...], overview: {file, scale, x, z}}  with x/z the
+meta.json (read and written through tools/metafmt.py) gains  map: {scale, tiles: [[file, x, z], ...], overview: {file, scale, x, z}}  with x/z the
 world block origin of each image (the frame of meta.packs x/z). Nothing else in the site changes.
 
 It also draws an illustrated layer (map.illus), which the viewer prefers: every block column is sorted into
@@ -26,6 +26,7 @@ outlined buildings and soft shadows, like a drawn city map:
 import sys, json, gzip, argparse, time
 from pathlib import Path
 import numpy as np
+import metafmt
 from PIL import Image
 from scipy import ndimage as ndi
 
@@ -36,7 +37,8 @@ ap.add_argument("--overview", type=int, default=16)
 ap.add_argument("--only", choices=["both", "photo", "illus"], default="both")
 args = ap.parse_args()
 site = Path(args.site); data = site / "data"
-meta = json.loads((data / "meta.json").read_text())
+FMT = metafmt.version(data)   # meta.json format 1 or 2 (tools/metafmt.py); written back in the same one
+meta = metafmt.read(data)
 PK, T, S, OV = meta["pack"], meta["tile"], args.scale, args.overview
 assert PK % S == 0 and PK % OV == 0 and OV % S == 0
 mats = meta["materials"]
@@ -254,5 +256,5 @@ if ILLUS:
     size = sum((data / t[0]).stat().st_size for t in itiles + jtiles) + (data / "i_overview.png").stat().st_size
     print(f"illustrated map: {len(itiles)} tiles, {size / 1e6:.1f} MB")
 meta["map"] = mp
-(data / "meta.json").write_text(json.dumps(meta))
+metafmt.write(data, meta, v=FMT)
 print(f"{time.time() - t0:.0f} s")

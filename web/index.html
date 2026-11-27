@@ -54,10 +54,11 @@ import { fmtDist } from './drive/hud.js';
 import { createTraffic, incidentIcon, geoFrame } from './drive/traffic.js';
 import { createArrival } from './drive/arrival.js';
 import { createGps } from './drive/gps.js';
+import { expandMeta, packTiles } from './drive/meta.js';   // meta.json format 1 or 2 (tools/metafmt.py)
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-const meta = await (await fetch('data/meta.json')).json();
+const meta = expandMeta(await (await fetch('data/meta.json')).json());
 if (meta.name) { document.getElementById('areaname').textContent = meta.name + ', in blocks'; document.title = 'Blockville: ' + meta.name; }
 const G = await (await fetch('roads.json')).json();
 
@@ -356,7 +357,7 @@ const buildQ = [], BUDGET = +(params.get('budget') ?? 6);
 async function loadPack(p) {
   p.state = 1; loading++;
   try {
-    const [buf] = await Promise.all([loadBin(p.id), hload(p)]);
+    const [buf] = await Promise.all([loadBin(p.id), hload(p), packTiles(meta, p)]);
     const tiles = await Promise.all(p.tiles.map(([tx, tz, n, off, len]) => gunzip(buf.slice(off, off + len))));
     if (p.state !== 1) { loading--; return; }
     p.left = tiles.length;
