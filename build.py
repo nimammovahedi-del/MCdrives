@@ -66,7 +66,57 @@ def lap(area, chunks):
     for c in chunks:
         s, w, n, e = c["bbox"]
         c["bbox"] = [round(s - LAP_M / 111320, 6), w, n, round(e + LAP_M / (111320 * math.cos(math.radians((s + n) / 2))), 6)]
+        if area.get("bake_pad_m"):
+            # A padded bake (pad_frame()) keeps the chunk's blocks where an unpadded bake would put them only if
+            # the bbox's width and height are less than half a metre past a whole metre (see pad_frame()), so
+            # the south and the east lap each grow by up to 1.5 m, in the 6-decimal steps the bbox is given in, until they are.
+            b = c["bbox"]
+            for i in range(16):
+                sb = round(s - (LAP_M + i * 0.1) / 111320, 6)
+                if math.modf(hav(n - sb, 0, 0))[0] < 0.5: b[0] = sb; break
+            for i in range(16):
+                eb = round(e + (LAP_M + i * 0.1) / (111320 * math.cos(math.radians((s + n) / 2))), 6)
+                if math.modf(hav(0, eb - w, (b[0] + n) / 2))[0] < 0.5: b[3] = eb; break
     return chunks
+
+
+def pad_frame(bbox, scale, pad_m):
+    """The bbox a chunk is baked with when its area sets "bake_pad_m": `bbox` grown by about pad_m metres on
+    every side, so that what Arnis works out over the whole bbox at once has settled by the chunk's own edge.
+
+    Arnis fits and smooths a bake's terrain over its own bbox: the built-up Gaussian (sigma 30 m, 91 cells
+    each way) is renormalised over the cells inside the bbox, so at a bbox edge it averages one side only
+    and two neighbours see the same slope from opposite sides; the coastal pull (25 m), the anomaly repair
+    and the road profiles stop at the edge too. With the pad all of that happens out in the pad, which
+    mca2web.py --crop then drops.
+
+    Returns (bake bbox, (x0, z0, x1, z1)): the block window of the padded world that is the chunk, end
+    exclusive. Its corner (x0, z0) is a whole block and the padded bake has the same blocks per degree as
+    an unpadded one (the padded width is (M + N) * scale blocks for an unpadded M * scale, and Arnis's
+    floor() of the metres gives M + N back), so the window is the chunk exactly as projection(bbox, scale)
+    places it, and nothing downstream (roads, addresses, the join) knows the bake was padded. lap() keeps
+    the bbox's metres under half a metre past a whole one so such an N exists."""
+    s, w, n, e = bbox
+    sx, sz, _ = projection(bbox, scale)
+    mx, mz = round(sx / scale), round(sz / scale)
+    gx, gz = (e - w) / sx, (n - s) / sz            # degrees per block, which the padded bake must keep
+    P = int(math.ceil(pad_m * scale))             # whole blocks of pad on the west and north sides
+    best = None
+    for nz in range(math.ceil(2 * P / scale) + 1, math.ceil(2 * P / scale) + 60):
+        nb = n + P * gz; sb = nb - (mz + nz) * scale * gz
+        if math.floor(hav(nb - sb, 0, 0)) != mz + nz: continue
+        for nx in range(math.ceil(2 * P / scale) + 1, math.ceil(2 * P / scale) + 60):
+            wb = w - P * gx; eb = wb + (mx + nx) * scale * gx
+            b = [round(v, 9) for v in (sb, wb, nb, eb)]
+            bx, bz, pj = projection(b, scale)
+            x0, z0 = pj(w, n); x1, z1 = pj(e, s)
+            err = max(abs(x0 - P), abs(z0 - P), abs(x1 - P - sx), abs(z1 - P - sz))
+            if best is None or err < best[0]: best = (err, b)
+            if err < 0.01: break
+        if best and best[0] < 0.01: break
+    if best is None or best[0] > 0.05:
+        sys.exit(f"pad_frame: no padded bbox for {bbox} keeps the chunk's blocks (best error {best and best[0]:.3f} blocks)")
+    return best[1], (P, P, P + int(sx) + 1, P + int(sz) + 1)
 
 
 def keep_chunks(area, chunks):
@@ -412,6 +462,10 @@ def join(area, chunks, out, seam_tol=6, log=print, sew_seams=True):
         cs = out / c["id"] / "site"
         cm = metafmt.read(cs / "data")
         dx, dz, err = chunk_offset(parent, c["bbox"], lat0)
+        if "bbox" in cm and max(abs(p - q) for p, q in zip(cm["bbox"], c["bbox"])) > 2e-6:
+            # e.g. chunks of an earlier run reused across a change of "bake_pad_m", which also moves the lap (lap())
+            sys.exit(f"join: chunk {c['id']} was built for the bbox {cm['bbox']}, but this area's plan has {c['bbox']}. "
+                     f"Re-bake it with --only {c['id']} --force.")
         if cm.get("scale", 1) != chunk_scale(lat0, c["bbox"]):
             sys.exit(f"join: chunk {c['id']} was baked at scale {cm.get('scale', 1)}, but this area's frame wants "
                      f"{chunk_scale(lat0, c['bbox'])}. Re-bake it with --only {c['id']} --force.")
@@ -688,6 +742,12 @@ def build_chunk(area, chunk, args, work, overhang=0):
     bstr = ",".join(f"{v:.6f}" for v in bbox)
     h, w = km(bbox)
     scale = chunk_scale(frame(area), bbox)   # not 1 only in a conformal area
+    # "bake_pad_m": Arnis bakes a bbox that much wider on every side and the convert crops it back (pad_frame());
+    # only the bake (and its OSM prewarm) sees the wider bbox, everything after it the chunk's own
+    # (conformal areas only: lap() keeps their chunk bboxes such that pad_frame() can place the padded bake exactly)
+    pad = area.get("bake_pad_m", 0) if frame(area) is not None else 0
+    bake_bbox, crop = pad_frame(bbox, scale, pad) if pad else (bbox, None)
+    bake_bstr = ",".join(f"{v:.9f}" for v in bake_bbox) if pad else bstr
     work.mkdir(parents=True, exist_ok=True)
     site, log = work / "site", work / "build.log"
     world_parent, osm = work / "world", work / "osm.json"
@@ -706,9 +766,13 @@ def build_chunk(area, chunk, args, work, overhang=0):
         return hits[0] if hits else None
 
     if redo and world_dir() and (world_dir() / "metadata.json").exists():
-        baked = json.loads((world_dir() / "metadata.json").read_text()).get("scale", 1)
+        md = json.loads((world_dir() / "metadata.json").read_text())
+        baked = md.get("scale", 1)
         if baked != scale: sys.exit(f"[{chunk['id']}] the world in {world_parent} was baked at scale {baked}, "
                                     f"this area's frame wants {scale}: re-bake it with --force")
+        if (pad or not args.world) and "minGeoLat" in md and max(abs(md[k] - v) for k, v in zip(("minGeoLat", "minGeoLon", "maxGeoLat", "maxGeoLon"), bake_bbox)) > 1e-6:
+            sys.exit(f"[{chunk['id']}] the world in {world_parent} was baked for another bbox than "
+                     f"{bake_bstr}{' (bake_pad_m ' + str(pad) + ')' if pad else ''}: re-bake it with --force")
     if step("bake", lambda: world_dir() and osm.exists()):
         if args.world: sys.exit(f"--world {args.world} has no region files")
         shutil.rmtree(world_parent, ignore_errors=True); world_parent.mkdir(parents=True)
@@ -722,9 +786,9 @@ def build_chunk(area, chunk, args, work, overhang=0):
         if scale != 1: opts.append(f"--scale={scale}")
         source = [f"--save-json-file={osm}"]
         if area.get("enrich") and not args.osm:
-            enriched = enrich_osm(arnis, bstr, opts, osm, work, log, token_env(area, h * w), chunk["id"], area["enrich"])
+            enriched = enrich_osm(arnis, bake_bstr, opts, osm, work, log, token_env(area, h * w), chunk["id"], area["enrich"])
             if enriched: source = [f"--file={enriched}"]
-        cmd = [arnis, f"--bbox={bstr}", f"--output-dir={world_parent}"] + source + ["--no-update-check"] + opts
+        cmd = [arnis, f"--bbox={bake_bstr}", f"--output-dir={world_parent}"] + source + ["--no-update-check"] + opts
         run(cmd, log, token_env(area, h * w))
         if not world_dir(): sys.exit(f"Arnis finished but wrote no world; see {log}")
         times["bake"] = time.time() - times["bake"]
@@ -741,6 +805,7 @@ def build_chunk(area, chunk, args, work, overhang=0):
         if grade and own and chunk["id"] != "all": grade += ["--bounds", ",".join(f"{v:.6f}" for v in own)]
         # "roads_as_baked": road surfaces stay as Arnis laid them (no re-grade here, no lift at seams in join())
         if grade and area.get("roads_as_baked"): grade += ["--no-regrade"]
+        if crop: grade += ["--crop", ",".join(map(str, crop))]   # a padded bake: keep the chunk's own blocks
         run([sys.executable, ROOT / "tools" / "mca2web.py", world_dir(), data] + (["--b64"] if args.b64 else []) + grade, log)
         times["convert"] = time.time() - times["convert"]
 
@@ -823,7 +888,9 @@ def main():
             dx, dz, err = chunk_offset(area["bbox"], c["bbox"], lat0)
             k = chunk_scale(lat0, c["bbox"])
             print(" ", c["id"], ",".join(f"{v:.6f}" for v in c["bbox"]), f"at block ({dx}, {dz}),",
-                  *([f"scale {k},"] if k != 1 else []), f"error {err:.2f}")
+                  *([f"scale {k},"] if k != 1 else []), f"error {err:.2f}",
+                  *([f"baked as {','.join(f'{v:.9f}' for v in pad_frame(c['bbox'], k, area['bake_pad_m'])[0])}"]
+                    if area.get("bake_pad_m") and lat0 is not None else []))
         return
     overhang = OVERHANG if len(chunks) > 1 else 0
     out = Path(args.out) / area["slug"]

@@ -29,6 +29,10 @@ GRADE_ONLY = '--grade-only' in sys.argv   # debugging: stop after the re-grade, 
 BOUNDS = tuple(float(v) for v in sys.argv[sys.argv.index('--bounds') + 1].split(',')) if '--bounds' in sys.argv else None
 NO_GRADE = '--no-regrade' in sys.argv   # keep road surfaces as baked, while the OSM data still serves the roofs
 NO_ROOFS = '--no-flat-roofs' in sys.argv   # leave Arnis's flat roofs as baked (see flat_roofs())
+# --crop X0,Z0,X1,Z1: keep only the world's blocks in columns X0 <= x < X1, Z0 <= z < Z1, and write everything with
+# (X0, Z0) as column (0, 0). build.py bakes a chunk with a margin ("bake_pad_m", pad_frame()) that this drops again:
+# the world is read as if it ended at the window, so roads, roofs and faces at its edge are treated as at any bake's.
+CROP = tuple(int(v) for v in sys.argv[sys.argv.index('--crop') + 1].split(',')) if '--crop' in sys.argv else None
 PACK, MARGIN = 512, 64
 TILE = 64
 os.makedirs(OUT, exist_ok=True)
@@ -262,6 +266,17 @@ for rp in regions:
     for cx, cz, sy, v, sh in secs:
         sl = (slice(sy * 16 - y0, sy * 16 - y0 + 16), slice(cz * 16, cz * 16 + 16), slice(cx * 16, cx * 16 + 16))
         g[sl] = np.where(sh == 0, v, 0); dm[sl] = np.where(sh != 0, v, 0); ds[sl] = sh
+    if CROP:
+        # columns outside the window are not in the world; "present" is then kept per column, not per chunk
+        xs, zs = np.arange(PACK) + rx * PACK, np.arange(PACK) + rz * PACK
+        keep = ((zs >= CROP[1]) & (zs < CROP[3]))[:, None] & ((xs >= CROP[0]) & (xs < CROP[2]))[None, :]
+        present = np.repeat(np.repeat(present, 16, axis=0), 16, axis=1) & keep
+        if not present.any(): continue
+        g[:, ~keep] = 0; dm[:, ~keep] = 0; ds[:, ~keep] = 0
+        ys = np.flatnonzero((g != 0).any(axis=(1, 2)) | (dm != 0).any(axis=(1, 2)))
+        if len(ys):
+            lo, hi = int(ys[0]) // 16 * 16, -(-(int(ys[-1]) + 1) // 16) * 16
+            g, dm, ds = g[lo:hi], dm[lo:hi], ds[lo:hi]; y1 = y0 + hi; y0 += lo
     np.savez_compressed(os.path.join(TMP, f"{rx}_{rz}.npz"), g=g, dm=dm, ds=ds, present=present)
     REG[(rx, rz)] = y0; gminy = min(gminy, y0); gmaxy = max(gmaxy, y1 - 1)
     del g, dm, ds, secs
@@ -342,7 +357,8 @@ def load(rx, rz):
     o = REG[(rx, rz)] - gminy; n = z["g"].shape[0]
     g = np.zeros((H, PACK, PACK), dtype=np.uint8); dm = np.zeros_like(g); ds = np.zeros(g.shape, dtype=np.uint16)
     g[o:o+n] = z["g"]; dm[o:o+n] = z["dm"]; ds[o:o+n] = z["ds"]
-    return g, dm, ds, np.repeat(np.repeat(z["present"], 16, axis=0), 16, axis=1)
+    pr = z["present"]   # per chunk, or per column after --crop
+    return g, dm, ds, pr if pr.shape == (PACK, PACK) else np.repeat(np.repeat(pr, 16, axis=0), 16, axis=1)
 
 from numba import njit
 # Longest side of a greedy quad, in multiples of its shortest. A sliver (a 1 x 22 strip of a roof cut by a diagonal
@@ -990,7 +1006,7 @@ print("building shades: " + ", ".join(f"{k} {v:,}" for k, v in BSS.items()))
 print(f"greedy meshing: {nquads:,} quads (from {faces:,} block faces); {nboxes:,} detail boxes for partial blocks")
 
 meta = {"tile": TILE, "pack": PACK, "ext": "json" if B64 else "bin", "width": int(W), "depth": int(D), "height": int(H),
-        "minx": int(minx), "minz": int(minz), "miny": int(gminy), "quads": int(nquads), "bytes": int(total), "packs": packs,
+        "minx": int(minx) - (CROP[0] if CROP else 0), "minz": int(minz) - (CROP[1] if CROP else 0), "miny": int(gminy), "quads": int(nquads), "bytes": int(total), "packs": packs,
         "materials": [{"name": n, "rgb": f"#{c:06x}", "kind": k} for n, c, k in MATS]}
 json.dump(meta, open(os.path.join(OUT, "meta.json"), "w"))
 print(f"wrote {len(packs)} packs, {total/1e6:.1f} MB compressed, in {time.time()-t0:.1f}s total")
