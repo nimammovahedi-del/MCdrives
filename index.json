@@ -1,0 +1,907 @@
+{
+ "area": "orange-county-padtest",
+ "commit": "a437944",
+ "seed": "1",
+ "shots": [
+  {
+   "file": "s0000_junction_high.jpg",
+   "id": "s0000",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Los Alisos Boulevard",
+   "x": 41268,
+   "z": 36111,
+   "yaw": 0,
+   "chunk": "r11c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1947
+  },
+  {
+   "file": "s0123_residential_high.jpg",
+   "id": "s0123",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Marylhurst Court",
+   "x": 40737,
+   "z": 35267,
+   "yaw": 0,
+   "chunk": "r11c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1771
+  },
+  {
+   "file": "s0231_residential_low.jpg",
+   "id": "s0231",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, South Canada Court",
+   "x": 38190,
+   "z": 35435,
+   "yaw": 0,
+   "chunk": "r11c15",
+   "cam": {
+    "h": 19.6,
+    "pitch": 19.5
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 3845
+  },
+  {
+   "file": "s0231_residential_high.jpg",
+   "id": "s0231",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, South Canada Court",
+   "x": 38190,
+   "z": 35435,
+   "yaw": 0,
+   "chunk": "r11c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 643
+  },
+  {
+   "file": "s0308_freeway_high.jpg",
+   "id": "s0308",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, I 5 Truck",
+   "x": 36564,
+   "z": 35432,
+   "yaw": 0,
+   "chunk": "r11c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1456
+  },
+  {
+   "file": "s0516_junction_high.jpg",
+   "id": "s0516",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Santa Vittoria Drive",
+   "x": 34917,
+   "z": 36892,
+   "yaw": 0,
+   "chunk": "r10c14",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2023
+  },
+  {
+   "file": "s0035_seam_top.jpg",
+   "id": "s0035",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Jeronimo Road",
+   "x": 40664,
+   "z": 36722,
+   "yaw": 0,
+   "chunk": "r10c16",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1417
+  },
+  {
+   "file": "s0331_bridge_low.jpg",
+   "id": "s0331",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 38295,
+   "z": 37433,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1715
+  },
+  {
+   "file": "s0331_bridge_high.jpg",
+   "id": "s0331",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 38295,
+   "z": 37433,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 308
+  },
+  {
+   "file": "s0474_junction_high.jpg",
+   "id": "s0474",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Moulton Parkway",
+   "x": 38712,
+   "z": 41470,
+   "yaw": 0,
+   "chunk": "r9c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1543
+  },
+  {
+   "file": "s0515_seam_top.jpg",
+   "id": "s0515",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Wood Brook Road",
+   "x": 40731,
+   "z": 41619,
+   "yaw": 0,
+   "chunk": "r9c16",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 745
+  },
+  {
+   "file": "s0195_residential_low.jpg",
+   "id": "s0195",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Dana",
+   "x": 34579,
+   "z": 34906,
+   "yaw": 0,
+   "chunk": "r11c14",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1446
+  },
+  {
+   "file": "s0195_residential_high.jpg",
+   "id": "s0195",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Dana",
+   "x": 34579,
+   "z": 34906,
+   "yaw": 0,
+   "chunk": "r11c14",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 342
+  },
+  {
+   "file": "s0246_junction_low.jpg",
+   "id": "s0246",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on El Toro Road",
+   "x": 38643,
+   "z": 37083,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2966
+  },
+  {
+   "file": "s0246_junction_high.jpg",
+   "id": "s0246",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on El Toro Road",
+   "x": 38643,
+   "z": 37083,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 312
+  },
+  {
+   "file": "s0253_bridge_high.jpg",
+   "id": "s0253",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 39683,
+   "z": 38509,
+   "yaw": 0,
+   "chunk": "r10c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1573
+  },
+  {
+   "file": "s0073_bridge_high.jpg",
+   "id": "s0073",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Trabuco Road",
+   "x": 41156,
+   "z": 35386,
+   "yaw": 0,
+   "chunk": "r11c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1709
+  },
+  {
+   "file": "s0234_junction_high.jpg",
+   "id": "s0234",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Westwing",
+   "x": 35440,
+   "z": 40065,
+   "yaw": 0,
+   "chunk": "r9c14",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1996
+  },
+  {
+   "file": "s0449_seam_top.jpg",
+   "id": "s0449",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Rockfield Boulevard",
+   "x": 38091,
+   "z": 36722,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1578
+  },
+  {
+   "file": "s0056_freeway_low.jpg",
+   "id": "s0056",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 37943,
+   "z": 37091,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2067
+  },
+  {
+   "file": "s0056_freeway_high.jpg",
+   "id": "s0056",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 37943,
+   "z": 37091,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 359
+  },
+  {
+   "file": "s0352_place_high.jpg",
+   "id": "s0352",
+   "cat": "place",
+   "view": "high",
+   "what": "other: 53-68",
+   "x": 37658,
+   "z": 36433,
+   "yaw": 0,
+   "chunk": "r11c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 888
+  },
+  {
+   "file": "s0276_junction_high.jpg",
+   "id": "s0276",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Aliso Viejo Parkway",
+   "x": 37733,
+   "z": 40071,
+   "yaw": 0,
+   "chunk": "r9c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2596
+  },
+  {
+   "file": "s0291_residential_high.jpg",
+   "id": "s0291",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Creekview Drive",
+   "x": 39048,
+   "z": 38460,
+   "yaw": 0,
+   "chunk": "r10c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1724
+  },
+  {
+   "file": "s0010_place_high.jpg",
+   "id": "s0010",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Mi Jong Lo Han Kung Fu and Tai Chi",
+   "x": 38165,
+   "z": 37252,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1377
+  },
+  {
+   "file": "s0375_residential_high.jpg",
+   "id": "s0375",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Catania",
+   "x": 35639,
+   "z": 36956,
+   "yaw": 0,
+   "chunk": "r10c14",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1507
+  },
+  {
+   "file": "s0092_freeway_high.jpg",
+   "id": "s0092",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Joaquin Hills Transportation Corridor",
+   "x": 36115,
+   "z": 40585,
+   "yaw": 0,
+   "chunk": "r9c14",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1396
+  },
+  {
+   "file": "s0290_freeway_low.jpg",
+   "id": "s0290",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 41103,
+   "z": 39219,
+   "yaw": 0,
+   "chunk": "r9c16",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 3108
+  },
+  {
+   "file": "s0290_freeway_high.jpg",
+   "id": "s0290",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 41103,
+   "z": 39219,
+   "yaw": 0,
+   "chunk": "r9c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 269
+  },
+  {
+   "file": "s0250_place_high.jpg",
+   "id": "s0250",
+   "cat": "place",
+   "view": "high",
+   "what": "park: Laguna Hills Community Center & Sports Complex",
+   "x": 38815,
+   "z": 40099,
+   "yaw": 0,
+   "chunk": "r9c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1360
+  },
+  {
+   "file": "s0365_seam_top.jpg",
+   "id": "s0365",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Westwing",
+   "x": 35369,
+   "z": 39182,
+   "yaw": 0,
+   "chunk": "r9c14",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1376
+  },
+  {
+   "file": "s0489_residential_high.jpg",
+   "id": "s0489",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Hollyleaf",
+   "x": 34727,
+   "z": 40617,
+   "yaw": 0,
+   "chunk": "r9c14",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1878
+  },
+  {
+   "file": "s0097_bridge_high.jpg",
+   "id": "s0097",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, El Paseo",
+   "x": 41478,
+   "z": 41007,
+   "yaw": 0,
+   "chunk": "r9c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1644
+  },
+  {
+   "file": "s0029_seam_top.jpg",
+   "id": "s0029",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Via Bacchus",
+   "x": 36976,
+   "z": 39173,
+   "yaw": 0,
+   "chunk": "r9c15",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1417
+  },
+  {
+   "file": "s0271_bridge_high.jpg",
+   "id": "s0271",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 35944,
+   "z": 40451,
+   "yaw": 0,
+   "chunk": "r9c14",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1418
+  },
+  {
+   "file": "s0511_bridge_low.jpg",
+   "id": "s0511",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 34254,
+   "z": 40098,
+   "yaw": 0,
+   "chunk": "r9c14",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 3155
+  },
+  {
+   "file": "s0511_bridge_high.jpg",
+   "id": "s0511",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, San Joaquin Hills Transportation Corridor",
+   "x": 34254,
+   "z": 40098,
+   "yaw": 0,
+   "chunk": "r9c14",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 391
+  },
+  {
+   "file": "s0270_junction_high.jpg",
+   "id": "s0270",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Santa Vittoria Drive",
+   "x": 35135,
+   "z": 36549,
+   "yaw": 0,
+   "chunk": "r11c14",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1805
+  },
+  {
+   "file": "s0351_residential_high.jpg",
+   "id": "s0351",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Baywood",
+   "x": 36879,
+   "z": 40086,
+   "yaw": 0,
+   "chunk": "r9c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1729
+  },
+  {
+   "file": "s0479_seam_top.jpg",
+   "id": "s0479",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Cayman Brac",
+   "x": 35534,
+   "z": 41606,
+   "yaw": 0,
+   "chunk": "r9c14",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1342
+  },
+  {
+   "file": "s0419_seam_top.jpg",
+   "id": "s0419",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Stockport Street",
+   "x": 39057,
+   "z": 39538,
+   "yaw": 0,
+   "chunk": "r9c16",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1508
+  },
+  {
+   "file": "s0382_place_high.jpg",
+   "id": "s0382",
+   "cat": "place",
+   "view": "high",
+   "what": "other: 68",
+   "x": 41056,
+   "z": 35074,
+   "yaw": 0,
+   "chunk": "r11c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1802
+  },
+  {
+   "file": "s0404_freeway_high.jpg",
+   "id": "s0404",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 38377,
+   "z": 37524,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1347
+  },
+  {
+   "file": "s0501_residential_high.jpg",
+   "id": "s0501",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Golf Drive",
+   "x": 36602,
+   "z": 39303,
+   "yaw": 0,
+   "chunk": "r9c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1622
+  },
+  {
+   "file": "s0105_residential_high.jpg",
+   "id": "s0105",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Del Monte Street",
+   "x": 39578,
+   "z": 40600,
+   "yaw": 0,
+   "chunk": "r9c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2373
+  },
+  {
+   "file": "s0508_place_low.jpg",
+   "id": "s0508",
+   "cat": "place",
+   "view": "low",
+   "what": "other: Greenshine New Energy LLC",
+   "x": 35251,
+   "z": 35516,
+   "yaw": 0,
+   "chunk": "r11c14",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2639
+  },
+  {
+   "file": "s0508_place_high.jpg",
+   "id": "s0508",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Greenshine New Energy LLC",
+   "x": 35251,
+   "z": 35516,
+   "yaw": 0,
+   "chunk": "r11c14",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 479
+  },
+  {
+   "file": "s0094_place_high.jpg",
+   "id": "s0094",
+   "cat": "place",
+   "view": "high",
+   "what": "other: Clubhouse",
+   "x": 39603,
+   "z": 36858,
+   "yaw": 0,
+   "chunk": "r10c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2035
+  },
+  {
+   "file": "s0523_bridge_high.jpg",
+   "id": "s0523",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Los Alisos Boulevard",
+   "x": 40926,
+   "z": 36070,
+   "yaw": 0,
+   "chunk": "r11c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2063
+  },
+  {
+   "file": "s0402_junction_high.jpg",
+   "id": "s0402",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on La Paz Road",
+   "x": 41273,
+   "z": 39171,
+   "yaw": 0,
+   "chunk": "r9c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1671
+  }
+ ]
+}
