@@ -13,7 +13,9 @@ cache, then each region is meshed with a margin borrowed from its eight neighbou
 
 Beside each pack p_<i>_<j> goes its height tile h_<i>_<j> (named in meta.json as the pack's "h"):
 gzipped int16 [2, PACK, PACK] over the pack's columns, [0] the lowest drivable surface and [1] the
-highest (bridge decks), in blocks above miny, -1 where there is none.
+highest (bridge decks), in blocks above miny, -1 where there is none. And its building tile b_<i>_<j> (the pack's
+"b"): gzipped uint8 [PACK, PACK], 1 on the columns of buildings (building_mask()), which build.py join() uses to move
+and cut a building across a chunk seam as one (seams.py hold()).
 """
 import sys, os, re, zlib, gzip, json, struct, glob, io, math, time
 import numpy as np
@@ -876,6 +878,41 @@ def flat_roofs(wg, dmat, dshape, inworld, rx, rz, st):
         dmat[y[hit], zz[hit], xx[hit]] = 0
         st["fixtures"] += int(hit.sum())
 
+# ---- Building columns. Each chunk of a joined area is its own bake, and a building that stands across a seam is in
+# both, each with only its side of it (and the few blocks of lap): two roofs that need not stand at the same height, each
+# walled along its own world edge. join() (tools/seams.py) moves the two halves as one and cuts between them where both
+# hold the building, for which it needs to know which columns are building. Beside each pack goes b_<i>_<j> (meta.json
+# pack "b"): gzipped uint8 [PACK, PACK], 1 on a building column, else 0. Read from the blocks, not from OSM, so buildings
+# Arnis took from Overture count too: as in building_shades(), a column with a wall, glass, roof slab or roof stair above
+# the ground, standing two or more blocks over it, opened with a 3 x 3 square (garden walls, fences and railings drop
+# out); trees (leaves, trunks) are no buildings, and nor is a deck (a drivable top three or more blocks over another
+# drivable surface: a bridge, never moved as a building).
+CARRIAGEWAY = np.zeros(256, dtype=bool)   # asphalt and yellow lines (mca2web colours), set at the first building_mask()
+def building_mask(wg, dmat, dshape):
+    """Building columns of the centre region (see above), uint8 [PACK, PACK]."""
+    T = _shade_tables(); built = T["built"]
+    if not CARRIAGEWAY.any():
+        for n in ("gray_concrete_powder", "cyan_terracotta", "yellow_concrete"): CARRIAGEWAY[mat(*colour(n))] = True
+    Hh = wg.shape[0]
+    occ = wg[1:] != 0
+    g = np.where(occ.any(axis=0), occ.argmax(axis=0) + 3, Hh)   # ground surface, as in building_shades
+    del occ
+    Y = np.arange(Hh)[:, None, None]
+    above = Y > g[None]
+    bm = (built[wg] & above).any(axis=0)
+    hard = np.concatenate([(kinds == 1) | (kinds == 3), np.zeros(256 - len(kinds), bool)])[wg]
+    top = np.where(hard.any(axis=0), Hh - 1 - hard[::-1].argmax(axis=0), -1)
+    del hard
+    roofish = np.array([False] + [any(b[0] == 0 and b[2] == 0 and b[3] == 16 and b[5] == 16 and b[4] >= 8 for b in sh) for sh in SHAPES[1:]])
+    c = (slice(M, M + PACK), slice(M, M + PACK))
+    part = built[dmat] & roofish[dshape] & above[:, c[0], c[1]]
+    bm[c] |= part.any(axis=0)
+    ptop = np.where(part.any(axis=0), Hh - 1 - part[::-1].argmax(axis=0), -1)
+    del part, above
+    tall = top >= g + 2; tall[c] |= ptop >= g[c] + 2
+    m = ndimage.binary_opening(bm & tall, np.ones((3, 3), bool))
+    return m[c].astype(np.uint8)
+
 FRS = dict(flat=0, roofless=0, raised=0, pitched=0, low=0, cut=0, world_edge=0, seam=0, cols=0, slits=0, party=0, copings=0, fixtures=0)
 BSS = dict(buildings=0, cut=0, world_edge=0, shaded=0, cols=0, cols_shaded=0, blocks=0)
 RFS = dict(pits=0, fill_fill=0, skip_fill=0, fill_soft=0, skip_soft=0, red=0, red_blocks=0, leaf_cleared=0, log_cleared=0)
@@ -913,6 +950,7 @@ for (rx, rz) in sorted(REG):
     road_fixes(wg, (slice(M, M + PACK), slice(M, M + PACK)), RFS)
     if OSM and not NO_ROOFS: flat_roofs(wg, dmat, dshape, inworld, rx, rz, FRS)
     building_shades(wg, dmat, inworld, rx, rz, BSS)
+    bmask = building_mask(wg, dmat, dshape)
     # Only draw faces that touch air connected to the open sky: hides sealed interiors, the hollow
     # under the terrain shell and the world's cut edges (columns outside the world are not passable).
     # Columns with nothing above the floor layers (outside the baked outline) would let the sky leak under the terrain.
@@ -993,10 +1031,18 @@ for (rx, rz) in sorted(REG):
             blob_all += blob
     if not tiles: continue
     pid, hid = f"p_{rx - rx0}_{rz - rz0}", f"h_{rx - rx0}_{rz - rz0}"
-    for name, blob in ((pid, bytes(blob_all)), (hid, gzip.compress(hts.tobytes(), 6))):
+    bid = f"b_{rx - rx0}_{rz - rz0}"
+    # a deck of carriageway over a lower surface (a bridge, ramp or flyover; with its lane marks and kerbs, two blocks
+    # out) is no building; a roof over a floor that the sky reaches (through glass) is
+    two = (hts[0] > 1) & (hts[1] - hts[0] >= 3)
+    deck = two & CARRIAGEWAY[grid[np.clip(hts[1], 0, H - 1), np.arange(PACK)[:, None], np.arange(PACK)[None, :]]]
+    deck = ndimage.binary_dilation(deck, iterations=2) & two
+    bmask = (ndimage.binary_opening((bmask > 0) & ~deck, np.ones((3, 3), bool)) & (bmask > 0)).astype(np.uint8)
+    files = [(pid, bytes(blob_all)), (hid, gzip.compress(hts.tobytes(), 6)), (bid, gzip.compress(bmask.tobytes(), 6))]
+    for name, blob in files:
         if B64: json.dump({"base64": base64.b64encode(blob).decode()}, open(os.path.join(OUT, name + ".json"), "w"))
         else: open(os.path.join(OUT, name + ".bin"), "wb").write(blob)
-    packs.append({"id": pid, "h": hid, "x": ox, "z": oz, "quads": sum(t[2] for t in tiles), "tiles": tiles}); total += len(blob_all)
+    packs.append({"id": pid, "h": hid, "b": bid, "x": ox, "z": oz, "quads": sum(t[2] for t in tiles), "tiles": tiles}); total += len(blob_all)
     print(f"  {pid}: {packs[-1]['quads']:,} quads, {len(blob_all)/1e6:.1f} MB", flush=True)
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"canopy over roads removed: {nleafcut:,} leaf blocks")

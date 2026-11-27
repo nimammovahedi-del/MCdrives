@@ -578,7 +578,9 @@ def join(area, chunks, out, seam_tol=6, log=print, sew_seams=True):
         if len(rparts) == len(info) and not area.get("roads_as_baked"):
             g, _, _ = join_roads(rparts, (psx, psz), seam_tol, log=lambda *a: None)
             sroads = dict(g, nodes=[[x - minx, z - minz] for x, z in g["nodes"]])
-        edits, seam_stats = seams.sew(info, read_pack, read_h, log, roads=sroads)
+        # building columns (mca2web.py b_<i>_<j>, beside each pack), so a building across a seam is moved and cut as one
+        def read_b(i, p): return (i["dir"] / "data" / f"{p['b']}.{ext}").read_bytes()
+        edits, seam_stats = seams.sew(info, read_pack, read_h, log, roads=sroads, read_b=read_b)
 
     shutil.rmtree(site, ignore_errors=True); data.mkdir(parents=True)
     # ---- packs and height tiles: link the bytes, translate the ids and the placement
