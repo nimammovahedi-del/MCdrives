@@ -15,10 +15,7 @@ sew() fixes all three, and only rewrites the packs within BLEND blocks of a seam
 1. Blend: per line across the seam, the local disagreement (median over the overlap, then a running median along the
    seam, so only a steady offset counts and the one-block noise does not) is split between the two chunks: each moves
    its columns up or down by its share at the seam, tapering to nothing BLEND blocks into the chunk. Faces, partial
-   blocks and heights of a column move with it (greedy quads are cut where the shift changes). Where a road crosses the
-   seam, road_zones() sets its carriageway near the seam to one plane fitted to both bakes, so the two bakes' contour
-   lines do not meet along the seam (plates outlined by risers), and takes up a steady disagreement of 2 or 3 blocks
-   in single steps straight across, out on the road's legs rather than across a junction on the seam.
+   blocks and heights of a column move with it (greedy quads are cut where the shift changes).
 2. Owner: a column covered by exactly the two chunks of a seam goes to the chunk on its side of a cut through the
    overlap. Per line the cut sits where the blended surfaces meet with the smallest step (ties go to the nominal
    boundary, the south or east chunk's origin), and it never gives the north or west chunk its own last line. Any
@@ -58,20 +55,6 @@ LIFT_MAX = 10   # never lift a road surface by more than this
 LIFT_REACH = LIFT_SRC + LIFT_MAX * 12   # how far along the road from the seam a lift can reach
 DECK_GAP = 3    # a column whose highest surface stands this many blocks over its lowest is a deck over a lower surface
 NOLIFT = -10 ** 6   # floor of a column that moves whole when lifted
-# roads across a seam (road_zones()): the two bakes put the one-block contour lines of a road in slightly different
-# places, so a seam drawn on the bakes' own heights outlines plates on the carriageway, and the blend's taper draws
-# lines across a junction. Near a crossing the carriageway is instead set to one plane fitted to both bakes' road
-ZONE = 32       # blocks either side of the seam over which a crossing road takes the fitted plane (0: off)
-ZONE_NEAR = 12  # the same where the crossing's steady disagreement of 2 or 3 is taken up by steps of its own
-ZONE_STEP = 28  # blocks from the seam where a crossing takes up a steady disagreement of 2 or 3 (on every column)
-ZONE_FLOOD = 12 # past that, the plane follows a sliver between its contour and the bake's for up to this many blocks
-ZONE_RMS = 0.9  # a road surface that a plane fits worse than this (blocks) is left to the line blend (ramps, curves)
-ZONE_STEEP = 0.3    # and so is one steeper than this (blocks per block)
-ZONE_MAXD = 3   # and a crossing where the bakes disagree by more than this
-ZONE_KERB = 0.15    # share of a zone's edge against the ground beside the road that may gain a kerb
-ZONE_RUN = 160  # longest run of road at the boundary (lines) that road_zones() takes as one crossing
-ZONE_GAP = 16   # blocks between the steps that take up the bakes' steady disagreement on a road
-SENT = -10 ** 6 # no override
 LIFT_EDGE = 2   # columns past the lifted carriageway over which a lift tapers out into the surface beside it (taper())
 
 QT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("w", "u1"), ("h", "u1"), ("d", "u1"), ("m", "u1")])
@@ -279,18 +262,6 @@ class Chunks:
             a = np.zeros(len(L)); a[ins] = amt[L[ins] - lo]
             v = np.rint(a[:, None] * wgt[None, :]).astype(np.int32)       # [line, across]
             out += v.T if s["ax"] == 0 else v
-        for s in self.seams:   # road_zones(): a crossing road's columns take the fitted plane instead
-            if k not in (s["a"], s["b"]) or "ova" not in s: continue
-            S, o = (s["ova"], s["oa"]) if k == s["a"] else (s["ovb"], s["ob"])
-            lo = s["lo"]
-            if s["ax"] == 0: L0, L1, A0, A1 = X0, X1, Z0, Z1
-            else: L0, L1, A0, A1 = Z0, Z1, X0, X1
-            l0, l1 = max(L0, lo), min(L1, lo + S.shape[0]); c0, c1 = max(A0, o), min(A1, o + S.shape[1])
-            if l1 <= l0 or c1 <= c0: continue
-            v = S[l0 - lo:l1 - lo, c0 - o:c1 - o]
-            if s["ax"] == 0: v = v.T; sub = out[c0 - Z0:c1 - Z0, l0 - X0:l1 - X0]
-            else: sub = out[l0 - Z0:l1 - Z0, c0 - X0:c1 - X0]
-            sub[...] = np.where(v != SENT, v, sub)
         return out
 
     def ground(self, k, X0, Z0, X1, Z1):
@@ -394,7 +365,6 @@ def plan(C, log=print):
         da = r / 2; db = da - r                                           # a + da meets b + db where ha + r = hb
         s = dict(a=a, b=b, ax=ax, lo=lo, hi=hi, first=first, da=da, db=db)
         C.seams.append(s)
-        if ZONE: road_zones(C, s, raw, last, log)
         # 2. the cut, on the blended ground: candidates k = first .. last (a owns the lines before k, so it never keeps
         # its own last line)
         if ax == 0:
@@ -435,144 +405,6 @@ def plan(C, log=print):
             f"lines (up to {st['largest_blend']} blocks); step at the boundary nonzero on {st['step_unblended_nonzero']} lines "
             f"({st['step_unblended_ge2']} by 2+), after the blend {st['step_blended_nonzero']} ({st['step_blended_ge2']}), at the "
             f"chosen cut {st['step_at_cut_nonzero']} ({st['step_at_cut_ge2']}); cut moved off the boundary on {st['cut_moved']} lines")
-
-
-def steps(d, D, pos):
-    """road_zones()'s steps at across offsets d from the boundary: 0 far on a's side, D far on b's."""
-    return np.sign(D) * (np.asarray(d)[..., None] >= np.array(sorted(pos) or [10 ** 9])).sum(-1) * (len(pos) > 0)
-
-
-def road_zones(C, s, raw, last, log=print):
-    """Roads across seam s. Per crossing (a run of road at the boundary, road_runs()), the carriageway connected to it
-    within ZONE (+ ZONE_FLOOD) blocks of the boundary on both sides is set to one plane fitted to both bakes' road
-    columns there (b's lowered by the bakes' steady disagreement D at the crossing), plus D taken up in single-block
-    steps, each at one distance from the seam (a straight line across the road). A one-block D steps at the seam,
-    where the ground beside the road steps too; 2 or 3 step about ZONE_STEP blocks out on both sides (ZONE_GAP apart),
-    on every column of the crossing's lines (no kerb along the road), on a line where the bake has no step of its own,
-    and the plane then covers only ZONE_NEAR either side. So the road shows straight contour lines, as one bake would
-    draw it, where each bake's own contours met along the seam (plates outlined by risers) and where the line blend's
-    taper drew two lines across a junction on the seam. Every column moves whole and only up or down, so paint stays
-    in line. Left to the line blend: decks and two columns round them (bridges stay whole), steep or ill-fitting
-    surfaces (ramps, curves), |D| > ZONE_MAXD, any column the plane would move by more than 2, and a crossing where the
-    plane would stand the road off the ground beside it along more than ZONE_KERB of its edge (kerbs). Past the zone
-    the plane follows a sliver where its contour and the bake's differ by one (up to ZONE_FLOOD blocks).
-    Sets s["ova"] / s["ovb"]: each chunk's total shift per column, [line - lo, across - s["oa"] / s["ob"]], SENT where
-    the line blend stands."""
-    from scipy import ndimage
-    a, b, ax, lo, hi, first = s["a"], s["b"], s["ax"], s["lo"], s["hi"], s["first"]
-    N = hi - lo; R = max(ZONE + ZONE_FLOOD, ZONE_STEP + 4)
-    ea, eb = C.info[a]["ext"], C.info[b]["ext"]
-    c0 = max(first - R, ea[1 - ax]); c1 = min(first + R, eb[3 - ax])         # locations across, [c0, c1)
-    if c1 - c0 < 4 or last < first: return
-
-    def get(fn, k, f, l):   # [line, across] over the lines lo..hi and across f..l-1
-        return fn(k, lo, f, hi, l).T if ax == 0 else fn(k, f, lo, l, hi)
-    HA = get(C.height, a, c0, last + 1); HB = get(C.height, b, first, c1)
-    RA = get(C.road, a, c0, last + 1); RB = get(C.road, b, first, c1)
-    KA = get(C.deck, a, c0, last + 1); KB = get(C.deck, b, first, c1)
-    na = first - c0                                   # a's own columns (before the boundary) in the combined grid
-    G = np.concatenate([HA[:, :na], HB], 1)           # [line, location c0 .. c1): the nominal owner's ground
-    Rd = np.concatenate([RA[:, :na], RB], 1) & (G > NONE)
-    K = np.concatenate([KA[:, :na], KB], 1)
-    K[:, na:na + (last + 1 - first)] |= KA[:, na:]    # a deck of either bake in the overlap
-    Kd = ndimage.binary_dilation(K, iterations=2)
-    Rd &= ~Kd                                         # and two columns round decks
-    d = np.arange(c0, c1) - first                     # across offset of each location from the boundary
-    taken = np.zeros(Rd.shape, bool)                  # columns already in a crossing's zone
-    ova = np.full(HA.shape, SENT, np.int32); ovb = np.full(HB.shape, SENT, np.int32)
-    st = dict(zones=0, cols=0, skipped=0, kept=0)
-    prof = []                                         # (line0, line1) from lo: lines stepped on every column
-    # the widest crossings (junctions) first: a road joining two crossings goes with the wider one
-    for l0, l1 in sorted(road_runs(C, a, b, ax, lo, hi, first, most=ZONE_RUN), key=lambda r: r[0] - r[1]):
-        w0, w1 = max(0, l0 - R), min(N, l1 + R)
-        lab, _ = ndimage.label(Rd[w0:w1] & ~taken[w0:w1])
-        ids = set(np.unique(lab[l0 - w0:l1 - w0, max(0, na - 1):na + 1]).tolist()) - {0}
-        v = raw[l0:l1]; v = v[~np.isnan(v)]
-        if not ids or not len(v): continue
-        D = int(np.rint(np.median(v)))
-        if abs(D) > ZONE_MAXD: st["skipped"] += 1; continue
-        comp = np.isin(lab, list(ids))
-        Lg, Cg = np.nonzero(comp)
-        # a long run is a road crossing at a slant (or a wide junction) when it reaches well into both chunks, else a
-        # road along the seam: left as it is
-        if l1 - l0 > ROAD_RUN and not (d[Cg].min() <= -ZONE // 2 and d[Cg].max() >= ZONE // 2): continue
-        Z = ZONE if abs(D) <= 1 else ZONE_NEAR   # with steps of its own (on every column), only the seam's slivers
-        near = np.abs(d[Cg]) < Z
-        if near.sum() < 12: continue
-        val = G[w0:w1][comp].astype(float) - D * (d[Cg] >= 0)
-        # the plane, with one pass of outlier rejection
-        Lf, Cf, vf = Lg[near].astype(float), d[Cg][near].astype(float), val[near]
-        lm = Lf.mean()
-        M = np.stack([np.ones_like(Lf), Lf - lm, Cf], 1); keep = np.ones(len(vf), bool)
-        for _ in range(2):
-            p = np.linalg.lstsq(M[keep], vf[keep], rcond=None)[0]; res = vf - M @ p; keep = np.abs(res) <= 1.5
-        rms = float(np.sqrt(np.mean(res[keep] ** 2))) if keep.any() else 99.0
-        if np.hypot(p[1], p[2]) > ZONE_STEEP or rms > ZONE_RMS or keep.mean() < 0.9: st["skipped"] += 1; continue
-        # the steps of D, each at one distance from the seam: one block at the seam itself, where the grass beside the
-        # road keeps its step too (no kerb along the road); two or three (where the line blend would draw its taper
-        # lines across the road, at a junction on the seam its middle) out at the zone's ends, ZONE_GAP apart, on every
-        # column of the crossing's lines alike
-        if abs(D) <= 1: pos = [0] * abs(D)
-        else:   # near ZONE_STEP out on each side, on a line where the bake has no step of its own (no 2-block step)
-            Gw = G[w0:w1]; rows = comp.any(1)
-
-            def cost(t):
-                j = int(np.nonzero(d == t)[0][0]) if (d == t).any() else None
-                if j is None or j == 0: return 10 ** 9
-                g0, g1 = Gw[rows, j - 1], Gw[rows, j]
-                return int(((g0 != g1) & (g0 > NONE) & (g1 > NONE)).sum()) * 100 + int(comp[:, j].sum())
-            pos = [min((sg * k for k in range(ZONE_STEP - 6, ZONE_STEP + 3)), key=cost) for sg in (-1, 1)]
-            if abs(D) == 3: pos.append(min(range(-(ZONE_STEP - ZONE_GAP), ZONE_STEP - ZONE_GAP + 1),
-                                           key=lambda t: (min(abs(t - q) for q in pos) < ZONE_GAP, cost(t))))
-        step = steps(d, D, pos)
-        plane = p[0] + p[1] * (np.arange(w1 - w0)[:, None] - lm) + p[2] * d[None, :]
-        T = np.floor(plane + step[None, :] + 0.5).astype(np.int64)
-        Gw = G[w0:w1]
-        zone = comp & (np.abs(d) < Z)[None, :]
-        far = comp & ~zone & (np.abs(T - Gw) == 1)
-        for _ in range(ZONE_FLOOD):   # follow a sliver between the plane's contour and the bake's outwards
-            grow = ndimage.binary_dilation(zone) & far & ~zone
-            if not grow.any(): break
-            zone |= grow
-        # a plane the ground beside the road does not follow (a road across a hillside) would stand the road off it
-        # along its edges (kerbs): then the road keeps its own heights
-        Hb = Gw + (steps(d, D, pos) - D * (d >= 0))[None, :] if abs(D) >= 2 else Gw.copy()
-        put = zone & (np.abs(T - Hb) <= 2) & (Gw > NONE)
-        Hn = np.where(put, T, Hb)
-        k0 = k1 = e = 0
-        for sl_p, sl_q in (((slice(1, None),), (slice(None, -1),)), ((slice(None, -1),), (slice(1, None),)),
-                           ((slice(None), slice(1, None)), (slice(None), slice(None, -1))),
-                           ((slice(None), slice(None, -1)), (slice(None), slice(1, None)))):
-            P_, Q_ = put[sl_p], put[sl_q]
-            ed = P_ & ~Q_ & ~Rd[w0:w1][sl_q] & (Hb[sl_q] > NONE)
-            e += int(ed.sum()); k0 += int((ed & (Hb[sl_p] != Hb[sl_q])).sum()); k1 += int((ed & (Hn[sl_p] != Hb[sl_q])).sum())
-        if k1 - k0 > ZONE_KERB * max(e, 1): zone[:] = False; st["kept"] += 1
-        if abs(D) >= 2:
-            # the lines this crossing's road spans take its steps on every column (no kerb between the road and the
-            # ground beside it), clear of another crossing's lines; decks keep the line blend
-            zl = np.nonzero((zone | comp).any(1))[0] + w0
-            pa, pb = max(int(zl.min()) - 2, 0), min(int(zl.max()) + 3, N)
-            for q0, q1 in prof:
-                if q0 < pb and pa < q1: pa, pb = (max(pa, q1), pb) if q0 < pa else (pa, min(pb, q0))
-            if pb > pa:
-                prof.append((pa, pb))
-                for HK, OV, o, off in ((HA, ova, c0, 0), (HB, ovb, first, D)):
-                    j0 = o - c0; j1 = j0 + HK.shape[1]
-                    sub = OV[pa:pb]; ok = (sub == SENT) & (HK[pa:pb] > NONE) & ~Kd[pa:pb, j0:j1]
-                    sub[ok] = np.broadcast_to(steps(d[j0:j1], D, pos) - off, ok.shape)[ok]
-        # per chunk: the shift that puts its column on the plane, where that is small (else the line blend)
-        for HK, OV, o in ((HA, ova, c0), (HB, ovb, first)):
-            j0 = o - c0; j1 = j0 + HK.shape[1]
-            z = zone[:, j0:j1]; h = HK[w0:w1]; sh = T[:, j0:j1] - h
-            ok = z & (h > NONE) & (np.abs(sh) <= 2)
-            sub = OV[w0:w1]; sub[ok] = sh[ok]
-        taken[w0:w1] |= zone
-        st["zones"] += 1; st["cols"] += int(zone.sum())
-    if st["zones"]:
-        s["ova"], s["oa"], s["ovb"], s["ob"] = ova, c0, ovb, first
-    s["zones"] = st
-    log(f"seams: {C.info[a]['id']}|{C.info[b]['id']}: roads across the seam set to a plane: {st['zones']} crossings, "
-        f"{st['cols']} columns ({st['skipped']} left to the blend, {st['kept']} kept as baked: kerbs)")
 
 
 def road_runs(C, a, b, ax, lo, hi, first, gap=2, least=3, most=ROAD_RUN):
@@ -868,7 +700,7 @@ def sew(info, read_pack, read_h, log=print, roads=None):
         others = [j for j in range(len(info)) if j != k]
         for p in i["meta"]["packs"]:
             X0, Z0 = i["sx"] + p["x"], i["sz"] + p["z"]
-            m = max(BLEND, ZONE + ZONE_FLOOD, ZONE_STEP + 4) + 1   # a pack needs work only if another chunk's world reaches within the band of it
+            m = BLEND + 1   # a pack needs work only if another chunk's world reaches within the blend band of it
             if not any(info[j]["ext"][0] <= X0 + P + m and info[j]["ext"][2] >= X0 - m and info[j]["ext"][1] <= Z0 + P + m
                        and info[j]["ext"][3] >= Z0 - m for j in others) \
                     and not any(b[0] <= X0 + P + 1 and b[2] >= X0 - 1 and b[1] <= Z0 + P + 1 and b[3] >= Z0 - 1 for b in boxes):
