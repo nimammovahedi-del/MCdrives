@@ -71,7 +71,7 @@ jobs:
     timeout-minutes: 330          # GitHub kills a job at 6 h
     strategy:
       fail-fast: false
-      max-parallel: 20            # a matrix may hold up to 256 jobs; this keeps the queue civil
+      max-parallel: 12            # more at once and the aerial photo host starts refusing downloads
       matrix:
         id: ${{ fromJson(needs.plan.outputs.ids) }}
     steps:

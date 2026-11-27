@@ -15,7 +15,7 @@ Each step is skipped when its output already exists, so a failed or interrupted 
 resumes where it stopped. Use --force to redo everything, or --from STEP to redo from
 bake | convert | roads | site.
 """
-import argparse, base64, gzip, json, math, os, shutil, subprocess, sys, time, urllib.parse, urllib.request
+import argparse, base64, gzip, json, math, os, re, shutil, subprocess, sys, time, urllib.parse, urllib.request
 from collections import defaultdict
 from pathlib import Path
 
@@ -706,6 +706,14 @@ def token_env(area, chunk_km2):
     return env
 
 
+PHOTO_GAP = re.compile(r"Warning: \d+ aerial photo blocks[^\n]*failed|aerial photos? [^\n]*unavailable|could not cache everything[^\n]*\n(?:\s*-[^\n]*\n)*?\s*- aerial photos")
+
+def photo_gaps(log, start):
+    """Aerial photo failures Arnis reported in build.log from byte `start` on (the bake's own output)."""
+    with open(log, "rb") as f:
+        f.seek(start); text = f.read().decode("utf-8", "replace")
+    return PHOTO_GAP.findall(text)
+
 def enrich_osm(arnis, bstr, opts, osm, work, log, env, cid, what=True):
     """Area option "enrich": more building tags before the bake (tools/enrich_osm.py): true for all, or a
     list of "roof_colour" (from NAIP aerial photos) and "heights" (storeys and heights from Overture).
@@ -721,8 +729,20 @@ def enrich_osm(arnis, bstr, opts, osm, work, log, env, cid, what=True):
     pre = [arnis, f"--bbox={bstr}", f"--output-dir={work / 'world'}", f"--save-json-file={osm}",
            "--no-update-check", "--prewarm"] + opts
     print("  $", " ".join(str(c) for c in pre))
-    with open(log, "ab") as f:
-        r = subprocess.run([str(c) for c in pre], stdout=f, stderr=subprocess.STDOUT, env=env)
+    # The aerial photo host throttles a busy build; a bake with photos missing paints lawns as grey paving and
+    # drops trees, with no error. So the prewarm repeats, with growing pauses, until the photos are complete,
+    # and the chunk fails rather than bake from a cache with holes.
+    for attempt, pause in enumerate((0, 60, 180, 420, 900)):
+        if pause:
+            print(f"[{cid}] aerial photos incomplete, trying again in {pause} s"); time.sleep(pause)
+        r = subprocess.run([str(c) for c in pre], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+        with open(log, "ab") as f: f.write(r.stdout)
+        text = r.stdout.decode("utf-8", "replace")
+        photos = PHOTO_GAP.search(text)
+        if not photos: break
+    else:
+        sys.exit(f"[{cid}] aerial photos still incomplete after {attempt + 1} tries ({photos.group(0).strip()}); "
+                 "not baking from a cache with holes")
     # A prewarm exits 1 when anything could not be cached (the laser index, say), after osm.json is written.
     try:
         ok = osm.exists() and json.loads(osm.read_text()).get("elements") is not None
@@ -806,6 +826,10 @@ def build_chunk(area, chunk, args, work, overhang=0):
         cmd = [arnis, f"--bbox={bake_bstr}", f"--output-dir={world_parent}"] + source + ["--no-update-check"] + opts
         seen = log.stat().st_size if log.exists() else 0
         run(cmd, log, token_env(area, h * w))
+        gaps = photo_gaps(log, seen)
+        if gaps:   # a failed chunk is rebuilt; a baked one with holes in its photos would ship grey lawns
+            shutil.rmtree(world_parent, ignore_errors=True)
+            sys.exit(f"[{chunk['id']}] the bake ran with aerial photos missing ({gaps[0].strip()}); world discarded, build this chunk again")
         if area.get("elevation_base_m") is not None:
             # an Arnis without tools/arnis-fixed-base.patch ignores the variables and fits as before
             with open(log, "rb") as f: f.seek(seen); said = f.read().decode(errors="replace")
