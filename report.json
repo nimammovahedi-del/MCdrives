@@ -1,0 +1,34 @@
+{
+ "name": "Irvine Spectrum and surroundings",
+ "bbox": [
+  33.633,
+  -117.764,
+  33.668,
+  -117.722
+ ],
+ "rows": 1,
+ "cols": 1,
+ "chunks": [
+  {
+   "id": "all",
+   "row": 0,
+   "col": 0,
+   "bbox": [
+    33.633,
+    -117.764,
+    33.668,
+    -117.722
+   ],
+   "km2": 15.164,
+   "blocks": [
+    4096,
+    4096,
+    144
+   ],
+   "quads": 13762952,
+   "packs": 64,
+   "site_mb": 56.72,
+   "seconds": {}
+  }
+ ]
+}
