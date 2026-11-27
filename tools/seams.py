@@ -24,6 +24,12 @@ sew() fixes all three, and only rewrites the packs within BLEND blocks of a seam
 3. Risers: wherever two side-by-side columns end up with different ground (two owners, or one chunk whose shift
    changes between them), the higher column gets the side faces it lacks down to the lower one's ground, in the
    colour of its top block.
+4. Buildings (hold(), with the building columns that mca2web.py writes beside each pack): a building across a seam
+   exists in each bake only on that bake's side plus the lap, and each half can stand a block or two off the other,
+   be walled along its bake's world edge, or (in the south or east bake's first line) be missing. Instead of the
+   blend's taper (which tilts a flat roof into stairs) each half moves by one amount, chosen so the two roofs meet at
+   one height, and the cut runs across the building at one place in the lap that keeps the most of it and steps least.
+   Chunks converted without building columns are joined as before.
 Decks: a column where a deck stands over a lower surface (a bridge over a road) has the lower surface as its ground,
 which the other bake may lack there (its ground is then the deck): columns where only one bake has two surfaces are
 left out of the blend's
@@ -37,6 +43,7 @@ lowered, or left out, where that surface cannot take it without a wall.
 import gzip
 from collections import OrderedDict
 import numpy as np
+from scipy import ndimage
 
 BLEND = 16      # blocks over which a chunk's share of the step tapers to nothing
 SMOOTH = 25     # lines in the running median of the step along a seam
@@ -61,6 +68,9 @@ QT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("w", "u1"), ("h", "u1"),
 BT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("m", "u1"), ("x0", "u1"), ("y0", "u1"), ("z0", "u1"),
                ("x1", "u1"), ("y1", "u1"), ("z1", "u1"), ("pad", "u1")])
 NONE = -1000
+HOLD = 128      # blocks into each chunk from the lap within which a building at a seam is moved as one (hold())
+HOLD_MATCH = 6  # the two bakes' roofs of one building further apart than this are not matched (not the same roof)
+LOST = 4        # hold(): cost of a building column that a cut leaves out (a slot to the ground), in blocks of step
 EDGE_DEPTH = 2  # blocks of side face below a drawn top (roof, wall top, deck edge) that edge_risers() closes at a seam
 
 
@@ -192,9 +202,57 @@ class Chunks:
     sx, sz, sy (placement), ext (bx0, bz0, bx1, bz1: the built columns its Arnis world really covers),
     slot (bx0, bz0, bx1, bz1: its cell of the area grid), row, col, id, dir, meta."""
 
-    def __init__(self, info, read_h):
-        self.info = info; self.read_h = read_h; self.read_pack = None
+    def __init__(self, info, read_h, read_b=None):
+        self.info = info; self.read_h = read_h; self.read_pack = None; self.read_b = read_b
         self.cache = OrderedDict(); self.seams = []
+        self.holds = {}    # chunk -> [((X0, Z0, X1, Z1), columns [Z, X] in that box, shift)]: a building moved as one
+
+    def bmask(self, k, X0, Z0, X1, Z1):
+        """Chunk k's building columns (mca2web.py building_mask()) over built columns [Z0:Z1, X0:X1]; all False when
+        the chunk was converted without them."""
+        i = self.info[k]; P = i["meta"]["pack"]
+        out = np.zeros((Z1 - Z0, X1 - X0), bool)
+        if self.read_b is None: return out
+        for p in i["meta"]["packs"]:
+            if "b" not in p: continue
+            px, pz = i["sx"] + p["x"], i["sz"] + p["z"]
+            ax, az, bx, bz = max(X0, px), max(Z0, pz), min(X1, px + P), min(Z1, pz + P)
+            if bx <= ax or bz <= az: continue
+            key = (k, "b", p["b"])
+            if key not in self.cache:
+                self.cache[key] = np.frombuffer(gzip.decompress(self.read_b(i, p)), np.uint8).reshape(P, P) > 0
+                if len(self.cache) > 24: self.cache.popitem(last=False)
+            out[az - Z0:bz - Z0, ax - X0:bx - X0] = self.cache[key][az - pz:bz - pz, ax - px:bx - px]
+        return out
+
+    def drawn(self, k, X0, Z0, X1, Z1):
+        """Chunk k's highest drawn top (a top face or a partial block, such as a roof stair; leaves and water left
+        out) over built columns [Z0:Z1, X0:X1], in the joined frame before any move; NONE where none (or no packs)."""
+        i = self.info[k]; P = i["meta"]["pack"]; T = i["meta"]["tile"]
+        out = np.full((Z1 - Z0, X1 - X0), NONE, np.int32)
+        if self.read_pack is None: return out
+        lut = np.array([m["kind"] in ("solid", "glass") for m in i["meta"]["materials"]] + [False] * 256)[:256]
+        for p in i["meta"]["packs"]:
+            px, pz = i["sx"] + p["x"], i["sz"] + p["z"]
+            if px >= X1 or pz >= Z1 or px + P <= X0 or pz + P <= Z0: continue
+            buf = None
+            for tx, tz, _, off, ln in p["tiles"]:
+                bx, bz = i["sx"] + tx * T, i["sz"] + tz * T
+                if bx >= X1 or bz >= Z1 or bx + T <= X0 or bz + T <= Z0: continue
+                if buf is None: buf = self.read_pack(i, p)
+                q, b = decode(bytes(buf[off:off + ln]))
+                q = q[(q["d"] == 0) & lut[q["m"]]]
+                x0, z0, x1, z1 = footprint(q)
+                for y, a0, c0, a1, c1 in zip(q["y"].astype(np.int32), z0 + bz - Z0, x0 + bx - X0, z1 + bz - Z0, x1 + bx - X0):
+                    a0, c0, a1, c1 = max(a0, 0), max(c0, 0), min(a1, Z1 - Z0), min(c1, X1 - X0)
+                    if a1 <= a0 or c1 <= c0: continue
+                    sub = out[a0:a1, c0:c1]; np.maximum(sub, y + i["sy"], out=sub)
+                b = b[lut[b["m"]]]
+                if len(b):
+                    zz, xx = b["z"].astype(np.int64) + bz - Z0, b["x"].astype(np.int64) + bx - X0
+                    ok = (zz >= 0) & (zz < Z1 - Z0) & (xx >= 0) & (xx < X1 - X0)
+                    np.maximum.at(out, (zz[ok], xx[ok]), b["y"].astype(np.int32)[ok] + i["sy"])
+        return out
 
     def tile(self, k, p):
         key = (k, p["h"])
@@ -246,8 +304,22 @@ class Chunks:
                     sub = out[a0:a1, c0:c1]; sub |= g[a0:a1, c0:c1] == r
         return out
 
-    def shift(self, k, X0, Z0, X1, Z1):
-        """How far chunk k's columns in [Z0:Z1, X0:X1] move up for the blend."""
+    def shift(self, k, X0, Z0, X1, Z1, holds=True):
+        """How far chunk k's columns in [Z0:Z1, X0:X1] move up for the blend: tapered away from each seam, but the
+        same over every column of a building held as one (hold(); holds=False: the taper alone)."""
+        out = self.taper(k, X0, Z0, X1, Z1)
+        hs = [h for h in self.holds.get(k, ()) if h[0][0] < X1 and h[0][2] > X0 and h[0][1] < Z1 and h[0][3] > Z0] if holds else ()
+        done = np.zeros(out.shape, bool) if len(hs) > 1 else None
+        for (bx0, bz0, bx1, bz1), m, v in hs:   # the first hold of a column wins (a building on two seams, at a corner)
+            ax, az, bx, bz = max(X0, bx0), max(Z0, bz0), min(X1, bx1), min(Z1, bz1)
+            sel = m[az - bz0:bz - bz0, ax - bx0:bx - bx0]
+            if done is not None:
+                d = done[az - Z0:bz - Z0, ax - X0:bx - X0]; sel = sel & ~d; d |= sel
+            out[az - Z0:bz - Z0, ax - X0:bx - X0][sel] = v
+        return out
+
+    def taper(self, k, X0, Z0, X1, Z1):
+        """The blend's move of chunk k's columns, tapered to nothing BLEND blocks from each seam."""
         out = np.zeros((Z1 - Z0, X1 - X0), np.int32)
         for s in self.seams:
             if k not in (s["a"], s["b"]): continue
@@ -363,8 +435,9 @@ def plan(C, log=print):
             R = np.rint(np.median(v)); r[l0:l1] = R if 2 <= abs(R) <= MAXSHIFT else 0
             runs.append((l0, l1))
         da = r / 2; db = da - r                                           # a + da meets b + db where ha + r = hb
-        s = dict(a=a, b=b, ax=ax, lo=lo, hi=hi, first=first, da=da, db=db)
+        s = dict(a=a, b=b, ax=ax, lo=lo, hi=hi, first=first, n=n, da=da, db=db)
         C.seams.append(s)
+        hold(C, s, log)   # buildings at the seam: moved as one, and their own cut (applied below)
         # 2. the cut, on the blended ground: candidates k = first .. last (a owns the lines before k, so it never keeps
         # its own last line)
         if ax == 0:
@@ -388,6 +461,7 @@ def plan(C, log=print):
         for l0, l1 in runs:
             ok_ = valid[l0:l1].all(0)
             if ok_.any(): pick[l0:l1] = np.where(ok_, cost[l0:l1].sum(0), 10 ** 12).argmin()
+        for lines, k in s["bcut"]: pick[lines] = k - first   # a building's own cut (hold())
         s["cut"] = ks[pick]
         L = np.arange(len(pick))
         ok = valid[:, 0] & (hb[:, 0] > NONE) & (ha[:, 0] > NONE)        # lines with ground on both sides of the boundary
@@ -399,12 +473,127 @@ def plan(C, log=print):
               "step_unblended_nonzero": int((raw_nom != 0).sum()), "step_unblended_ge2": int((np.abs(raw_nom) >= 2).sum()),
               "step_blended_nonzero": int((nominal != 0).sum()), "step_blended_ge2": int((np.abs(nominal) >= 2).sum()),
               "step_at_cut_nonzero": int((chosen != 0).sum()), "step_at_cut_ge2": int((np.abs(chosen) >= 2).sum()),
-              "cut_moved": int((pick > 0).sum())}
+              "cut_moved": int((pick > 0).sum()), **{"buildings_" + k: v for k, v in s["hstats"].items()}}
         s["stats"] = st
         log(f"seams: {C.info[a]['id']}|{C.info[b]['id']}: {st['lines']} lines ({st['lines_compared']} with ground on both sides), overlap {n}; blended {st['lines_blended']} "
             f"lines (up to {st['largest_blend']} blocks); step at the boundary nonzero on {st['step_unblended_nonzero']} lines "
             f"({st['step_unblended_ge2']} by 2+), after the blend {st['step_blended_nonzero']} ({st['step_blended_ge2']}), at the "
             f"chosen cut {st['step_at_cut_nonzero']} ({st['step_at_cut_ge2']}); cut moved off the boundary on {st['cut_moved']} lines")
+
+
+def hold(C, s, log=print):
+    """Buildings at seam s, moved as one and cut where both bakes hold them. Each bake has only its own side of a
+    building across the seam (plus the lap): its roof can stand a block or two off the other bake's (each bake rounds
+    the building's height on its own ground), each half is walled along its bake's world edge (the north or west bake's
+    last line, the south or east bake's first line, which may also lack the building altogether), and the blend's taper
+    would tilt a flat roof into one-block stairs. A building here is a group of building columns (mca2web.py
+    building_mask()) connected across the window HOLD blocks either side of the lap, the two bakes joined in the lap;
+    each chunk's columns of it are its part. Per building that reaches the lap:
+    - each part moves by one amount over all its columns (Chunks.shift()): the larger part by the mean of the taper over
+      its columns, the other part by that plus the difference of the two bakes' roofs where both draw the building in
+      the lap (off their world-edge lines), so the halves meet at one height; with no roofs to compare, each part keeps
+      the mean of its own taper. A part that reaches the far side of the window (or the ends of the seam) keeps the taper,
+      and the other part is held to meet it at the seam.
+    - the cut runs straight across the building's lines, at the one place in the lap that leaves out fewest of its
+      columns (a column whose owner's bake lacks the building there would be a slot) and then has the smallest step; it
+      never lies on either bake's world-edge line when the lap is two lines or more. s["bcut"] lists [(line indices, cut)].
+    The ground and everything else keeps the taper."""
+    a, b, ax, lo, hi, first = s["a"], s["b"], s["ax"], s["lo"], s["hi"], s["first"]
+    last = first + s["n"] - 1
+    st = dict(buildings=0, matched=0, held_parts=0, one_part_held=0, unmatched=0, step_before=0, step_after=0, cut_off_edge=0)
+    s["bcut"] = []; s["hstats"] = st
+    if C.read_b is None: return
+    def grid(fn, k, f, l, **kw):   # [line, across] over the lines lo..hi and the across range f..l of chunk k
+        return fn(k, lo, f, hi, l + 1, **kw).T if ax == 0 else fn(k, f, lo, l + 1, hi, **kw)
+    def put(m, f):   # [line, across] from f -> the joined frame's [Z, X]
+        return m.T if ax == 0 else m
+    fa, fb = first - HOLD, last + HOLD     # the window: HOLD blocks into either chunk from the lap
+    MA, MB = grid(C.bmask, a, fa, last), grid(C.bmask, b, first, fb)
+    if not (MA.any() and MB.any()): return
+    nl = hi - lo
+    J = np.zeros((nl, fb - fa + 1), bool); J[:, :last - fa + 1] |= MA; J[:, first - fa:] |= MB
+    lab, _ = ndimage.label(J, ndimage.generate_binary_structure(2, 1))
+    LA, LB = lab[:, :last - fa + 1] * MA, lab[:, first - fa:] * MB      # component of each part's columns
+    near = np.unique(np.concatenate([LA[:, first - 1 - fa:].ravel(), LB[:, :last + 2 - first].ravel()]))
+    near = near[near > 0]
+    if not len(near): return
+    TA, TB = grid(C.taper, a, fa, last), grid(C.taper, b, first, fb)
+    DA, DB = grid(C.drawn, a, first - 1, last), grid(C.drawn, b, first, last + 1)   # drawn tops, a: first-1..last
+    WA, WB = LA[:, first - 1 - fa:], LB[:, :last + 2 - first]                        # parts over the same columns
+    oa, ob = ndimage.find_objects(LA), ndimage.find_objects(LB)
+    ks = np.arange(first, last + 1)   # cut candidates: the building as a whole never takes first (b's world edge) when
+                                      # there is another, a line at its edge may (see below)
+    inner = slice(2, last - first + 1) if last - first >= 2 else slice(1, last - first + 2)   # a's index (from first-1)
+    innb = slice(inner.start - 1, inner.stop - 1)
+    for c in near.tolist():
+        sa_ = oa[c - 1] if c - 1 < len(oa) else None; sb_ = ob[c - 1] if c - 1 < len(ob) else None
+        pa = LA[sa_] == c if sa_ is not None else None; pb = LB[sb_] == c if sb_ is not None else None
+        na = int(pa.sum()) if pa is not None else 0; nb = int(pb.sum()) if pb is not None else 0
+        st["buildings"] += 1
+        # a part fits when it stops short of the window's far side and of the ends of the seam
+        fit_a = na == 0 or (sa_[1].start > 0 and sa_[0].start > 0 and sa_[0].stop < nl)
+        fit_b = nb == 0 or (sb_[1].stop < fb - first + 1 and sb_[0].start > 0 and sb_[0].stop < nl)
+        both = (WA[:, inner] == c) & (WB[:, innb] == c) & (DA[:, inner] > NONE) & (DB[:, innb] > NONE)
+        d = int(np.rint(np.median((DB[:, innb] - DA[:, inner])[both]))) if both.any() else None
+        if d is not None and abs(d) > HOLD_MATCH: d = None
+        mta = int(np.rint(TA[sa_][pa].mean())) if na else 0; mtb = int(np.rint(TB[sb_][pb].mean())) if nb else 0
+        sa = sb = None
+        if na and nb and d is not None:
+            st["matched"] += 1
+            if fit_a and fit_b:
+                if na >= nb: sa = mta; sb = sa - d
+                else: sb = mtb; sa = sb + d
+            elif fit_a or fit_b:   # one part keeps the taper, the other is held to meet it in the lap
+                st["one_part_held"] += 1
+                if fit_a:
+                    t = TB[:, :last + 1 - first][WB[:, :last + 1 - first] == c]
+                    sa = int(np.rint(np.median(t))) + d if len(t) else None
+                else:
+                    t = TA[:, first - fa:][WA[:, 1:] == c]
+                    sb = int(np.rint(np.median(t))) - d if len(t) else None
+        else:
+            if na and nb: st["unmatched"] += 1
+            if fit_a and fit_b: sa, sb = (mta if na else None), (mtb if nb else None)
+        for k, v, sl, m, f in ((a, sa, sa_, pa, fa), (b, sb, sb_, pb, first)):
+            if v is None or sl is None: continue
+            st["held_parts"] += 1
+            L0, L1, A0, A1 = lo + sl[0].start, lo + sl[0].stop, f + sl[1].start, f + sl[1].stop
+            box = (L0, A0, L1, A1) if ax == 0 else (A0, L0, A1, L1)
+            C.holds.setdefault(k, []).append((box, put(m, f).copy(), int(v)))
+        # the cut over the building's lines: one place in the lap, fewest of its columns left out, then least step
+        ua, ub = WA == c, WB == c                  # [line, a: first-1..last | b: first..last+1]
+        on = ua[:, 1:].any(1) | ub[:, :-1].any(1)
+        on |= ndimage.binary_closing(np.pad(on, 3), np.ones(4, bool))[3:-3]   # across a slit of a line or two
+        lines = np.nonzero(on)[0]
+        if not len(lines): continue
+        SA = grid(C.shift, a, first - 1, last)[lines]; SB = grid(C.shift, b, first, last + 1)[lines]
+        EA, EB = DA[lines] + SA, DB[lines] + SB
+        ua, ub = ua[lines], ub[lines]
+        cost = np.zeros((len(lines), len(ks)), np.int64); lostl = np.zeros_like(cost)
+        for e, kk in enumerate(ks):
+            r = kk - first
+            lostl[:, e] = (~ua[:, 1:r + 1] & ub[:, :r]).sum(1) + (~ub[:, r:-1] & ua[:, r + 1:]).sum(1)
+            m = ua[:, r] & ub[:, r] & (EA[:, r] > NONE) & (EB[:, r] > NONE)   # a's line kk-1 against b's line kk
+            cost[:, e] = LOST * lostl[:, e] + np.where(m, np.abs(EB[:, r] - EA[:, r]), 0)
+        e = int(cost[:, ks > first].sum(0).argmin()) + int((ks <= first).sum()) if (ks > first).any() else 0   # nearest the boundary
+        # a line at the building's edge where that place would leave out a column of it (the two bakes' outlines run a
+        # block apart) takes its own place
+        pk = np.full(len(lines), e); own_ = lostl[:, e] > 0
+        pk[own_] = cost[own_].argmin(1)
+        r_ = ks[pk] - first
+        dif = np.abs(EB[np.arange(len(lines)), r_] - EA[np.arange(len(lines)), r_])
+        m = ua[np.arange(len(lines)), r_] & ub[np.arange(len(lines)), r_] & (EA[np.arange(len(lines)), r_] > NONE) & (EB[np.arange(len(lines)), r_] > NONE)
+        best = (0, int(ks[e]), int((m & (dif > 0)).sum()))
+        # the step there, against the step at the boundary with the taper alone (as the plain cut would mostly have it)
+        m0 = ua[:, 0] & ub[:, 0] & (DA[lines, 0] > NONE) & (DB[lines, 0] > NONE)
+        S0A = grid(C.taper, a, first - 1, first)[lines, 0]; S0B = grid(C.taper, b, first, first + 1)[lines, 0]
+        st["step_before"] += int((np.abs(DB[lines, 0] + S0B - DA[lines, 0] - S0A)[m0] > 0).sum())
+        st["step_after"] += best[2]
+        st["cut_off_edge"] += best[1] != first
+        s["bcut"].append((lines, ks[pk]))
+    log(f"seams: {C.info[a]['id']}|{C.info[b]['id']}: buildings at the seam {st['buildings']}: halves matched {st['matched']} "
+        f"({st['one_part_held']} with one part too big to hold), parts held {st['held_parts']}, nothing to match "
+        f"{st['unmatched']}; lines stepped at the cut {st['step_before']} -> {st['step_after']}")
 
 
 def road_runs(C, a, b, ax, lo, hi, first, gap=2, least=3, most=ROAD_RUN):
@@ -684,14 +873,16 @@ def owners(C, X0, Z0, X1, Z1):
 DIRS = ((1, 0, 2), (-1, 0, 3), (0, 1, 4), (0, -1, 5))   # (dz, dx, face dir towards that neighbour)
 
 
-def sew(info, read_pack, read_h, log=print, roads=None):
+def sew(info, read_pack, read_h, log=print, roads=None, read_b=None):
     """The seam edits for a join. Returns ({(chunk index, pack id): edit}, stats); an edit is a dict with the new pack
     bytes ("blob"), tile table ("tiles"), quad count ("quads") and height tile bytes ("hbytes"). roads: the joined road
-    graph with nodes in the built frame, for lift_roads() (None leaves raised roads as the chunks graded them)."""
-    C = Chunks(info, read_h); C.read_pack = read_pack
+    graph with nodes in the built frame, for lift_roads() (None leaves raised roads as the chunks graded them).
+    read_b(info entry, pack): the bytes of a pack's building key tile (mca2web.py "b"), for hold(); None, or packs
+    without one, leave buildings to the taper and the cut like any ground."""
+    C = Chunks(info, read_h, read_b); C.read_pack = read_pack
     plan(C, log)
     lst = lift_roads(C, roads, log)
-    boxes = [(fx, fz, fx + f.shape[1], fz + f.shape[0]) for fx, fz, f in C.lifts]
+    boxes = [(fx, fz, fx + f.shape[1], fz + f.shape[0]) for fx, fz, f in C.lifts] + [h[0] for hs in C.holds.values() for h in hs]
     edits = {}
     tot = dict(packs=0, quads_cut=0, boxes_dropped=0, heights_cleared=0, columns_shifted=0, columns_lifted=0, risers=0, riser_blocks=0)
     T = info[0]["meta"]["tile"] if info else 64
