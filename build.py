@@ -651,11 +651,28 @@ def join(area, chunks, out, seam_tol=6, log=print, sew_seams=True):
     r = subprocess.run([sys.executable, str(ROOT / "tools" / "maptiles.py"), str(site)], capture_output=True, text=True)
     log("join: " + (r.stdout.strip().splitlines() or [""])[-1] if r.returncode == 0 else f"join: map colour layer skipped ({r.stderr.strip()[-300:]})")
     copy_web(site)
+    check = road_check(site, log)
     size = sum(f.stat().st_size for f in site.rglob("*") if f.is_file())
     return {"chunks": len(info), "blocks": [width, depth, height], "packs": len(packs), "quads": quads,
             "nodes": len(roads["nodes"]), "places": len(pl), "edges": len(roads["edges"]), "seam_nodes_merged": merged,
             "projection_error_blocks": round(worst, 2), "site_mb": round(size / 1e6, 2),
-            **({"seams": seam_stats} if seam_stats else {})}
+            **({"seams": seam_stats} if seam_stats else {}), **({"roadcheck": check} if check else {})}
+
+
+def road_check(site, log=print, minutes=40):
+    """Drive every road of the joined site (tools/roadcheck.py): site/roadcheck.json and site/roadcheck-spots.json, the
+    worst defects as audit.yml spots. Its own process with a time limit, so nothing it does can fail or stall a build;
+    returns its summary numbers, or None."""
+    try:
+        r = subprocess.run([sys.executable, str(ROOT / "tools" / "roadcheck.py"), str(site), "--quiet",
+                            "--max-seconds", str(minutes * 60)], capture_output=True, text=True, timeout=minutes * 60 + 600)
+        if r.returncode: log(f"join: road check skipped ({(r.stderr or r.stdout).strip()[-300:]})"); return None
+        for line in r.stdout.strip().splitlines(): log("join: " + line)
+        return json.loads((site / "roadcheck.json").read_text())["summary"]
+    except BaseException as e:   # a timeout or anything else: the build goes on without the report
+        if isinstance(e, KeyboardInterrupt): raise
+        log(f"join: road check skipped ({e})")
+        return None
 
 
 def find_arnis(arg):

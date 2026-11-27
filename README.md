@@ -16,7 +16,7 @@ That runs these steps and skips any whose output already exists:
 | convert | World files into greedy-meshed tiles with our own block palette, grouped into one streamable pack per 512 x 512 blocks | `tools/mca2web.py` |
 | roads | Drivable road graph, in block coordinates, from the same OSM data the bake used, plus `places.json` (named destinations for search) | `tools/roadgraph.py`, `tools/places.py` |
 | site | Copy the viewer next to the data in `build/<area>/<chunk>/site/` | `build.py` |
-| join | Place every chunk in one world and write `build/<area>/site/` | `build.py` |
+| join | Place every chunk in one world and write `build/<area>/site/`, then drive every road of it and write `roadcheck.json` (steps, gaps, broken bridge decks, unpaved stretches, with coordinates) and `roadcheck-spots.json` (the worst of them, as audit.yml `spots`) into the site; never fails the build | `build.py`, `tools/roadcheck.py` |
 
 Useful flags: `--plan` (show the chunk grid, each chunk's offset and its projection error),
 `--plan-ids` (just the ids, as JSON), `--only r0c0,r0c1`, `--from convert`, `--force`,
