@@ -1,0 +1,455 @@
+{
+ "area": "orange-county",
+ "shots": [
+  {
+   "file": "s0002_freeway_low.jpg",
+   "id": "s0002",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 24472,
+   "z": 11467,
+   "yaw": 0,
+   "chunk": "r21c10",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1494
+  },
+  {
+   "file": "s0019_bridge_high.jpg",
+   "id": "s0019",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 41441,
+   "z": 30153,
+   "yaw": 0,
+   "chunk": "r13c16",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 312
+  },
+  {
+   "file": "s0019_bridge_low.jpg",
+   "id": "s0019",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 41441,
+   "z": 30153,
+   "yaw": 0,
+   "chunk": "r13c16",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 3752
+  },
+  {
+   "file": "s0026_freeway_low.jpg",
+   "id": "s0026",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Riverside Freeway",
+   "x": 26779,
+   "z": 11527,
+   "yaw": 0,
+   "chunk": "r21c10",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1792
+  },
+  {
+   "file": "s0029_seam_top.jpg",
+   "id": "s0029",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Via Bacchus",
+   "x": 36976,
+   "z": 39173,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2116
+  },
+  {
+   "file": "s0055_bridge_high.jpg",
+   "id": "s0055",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Birch Street",
+   "x": 22906,
+   "z": 32269,
+   "yaw": 0,
+   "chunk": "r12c9",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 323
+  },
+  {
+   "file": "s0091_bridge_low.jpg",
+   "id": "s0091",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 25728,
+   "z": 22598,
+   "yaw": 0,
+   "chunk": "r16c10",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 3886
+  },
+  {
+   "file": "s0103_bridge_high.jpg",
+   "id": "s0103",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Jamboree Road",
+   "x": 27926,
+   "z": 28105,
+   "yaw": 0,
+   "chunk": "r14c11",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1490
+  },
+  {
+   "file": "s0146_freeway_high.jpg",
+   "id": "s0146",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Garden Grove Freeway",
+   "x": 17627,
+   "z": 20547,
+   "yaw": 0,
+   "chunk": "r17c7",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 348
+  },
+  {
+   "file": "s0174_junction_low.jpg",
+   "id": "s0174",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Alton Parkway",
+   "x": 41867,
+   "z": 29939,
+   "yaw": 0,
+   "chunk": "r13c17",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 4419
+  },
+  {
+   "file": "s0182_freeway_low.jpg",
+   "id": "s0182",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 17611,
+   "z": 28659,
+   "yaw": 0,
+   "chunk": "r14c7",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2727
+  },
+  {
+   "file": "s0272_freeway_high.jpg",
+   "id": "s0272",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Santa Ana Freeway",
+   "x": 24757,
+   "z": 21714,
+   "yaw": 0,
+   "chunk": "r17c10",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2511
+  },
+  {
+   "file": "s0290_freeway_low.jpg",
+   "id": "s0290",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 41103,
+   "z": 39219,
+   "yaw": 0,
+   "chunk": "r9c16",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 4780
+  },
+  {
+   "file": "s0293_seam_top.jpg",
+   "id": "s0293",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on unnamed road",
+   "x": 43930,
+   "z": 31408,
+   "yaw": 0,
+   "chunk": "r13c17",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1234
+  },
+  {
+   "file": "s0320_freeway_high.jpg",
+   "id": "s0320",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Costa Mesa Freeway",
+   "x": 26728,
+   "z": 13877,
+   "yaw": 0,
+   "chunk": "r20c10",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 907
+  },
+  {
+   "file": "s0331_bridge_high.jpg",
+   "id": "s0331",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 38295,
+   "z": 37433,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 305
+  },
+  {
+   "file": "s0331_bridge_low.jpg",
+   "id": "s0331",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 38295,
+   "z": 37433,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2565
+  },
+  {
+   "file": "s0359_seam_top.jpg",
+   "id": "s0359",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Vance Street",
+   "x": 23739,
+   "z": 22061,
+   "yaw": 0,
+   "chunk": "r16c9",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1919
+  },
+  {
+   "file": "s0389_seam_top.jpg",
+   "id": "s0389",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Garden Grove Freeway",
+   "x": 24421,
+   "z": 19315,
+   "yaw": 0,
+   "chunk": "r18c10",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 3799
+  },
+  {
+   "file": "s0408_junction_low.jpg",
+   "id": "s0408",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on West Chapman Avenue",
+   "x": 21544,
+   "z": 17946,
+   "yaw": 0,
+   "chunk": "r18c8",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 3181
+  },
+  {
+   "file": "s0473_seam_top.jpg",
+   "id": "s0473",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Peebler Way",
+   "x": 26834,
+   "z": 27509,
+   "yaw": 0,
+   "chunk": "r14c10",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2504
+  },
+  {
+   "file": "s0491_seam_top.jpg",
+   "id": "s0491",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Jeffrey Road",
+   "x": 32365,
+   "z": 29410,
+   "yaw": 0,
+   "chunk": "r13c13",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1243
+  },
+  {
+   "file": "s0533_seam_top.jpg",
+   "id": "s0533",
+   "cat": "seam",
+   "view": "top",
+   "what": "seam between build areas, on Mountain View Drive",
+   "x": 34172,
+   "z": 45145,
+   "yaw": 0,
+   "chunk": "r7c13",
+   "cam": {
+    "h": 70,
+    "pitch": 85
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 4008
+  },
+  {
+   "file": "s0259_bridge_low.jpg",
+   "id": "s0259",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 20447,
+   "z": 29320,
+   "yaw": 0,
+   "chunk": "r14c8",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 4567
+  },
+  {
+   "file": "s0373_bridge_high.jpg",
+   "id": "s0373",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Costa Mesa Freeway",
+   "x": 26420,
+   "z": 12863,
+   "yaw": 0,
+   "chunk": "r20c10",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 3245
+  }
+ ]
+}
