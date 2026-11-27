@@ -29,6 +29,8 @@ sew() fixes all three, and only rewrites the packs within BLEND blocks of a seam
    be walled along its bake's world edge, or (in the south or east bake's first line) be missing. Instead of the
    blend's taper (which tilts a flat roof into stairs) each half moves by one amount, chosen so the two roofs meet at
    one height, and the cut runs across the building at one place in the lap that keeps the most of it and steps least.
+   Only a part (one chunk's side of a building) that lies wholly within HOLD blocks of the seam is moved; a deeper
+   part keeps the taper, so nothing further from the seam than HOLD ever moves.
    Chunks converted without building columns are joined as before.
 Decks: a column where a deck stands over a lower surface (a bridge over a road) has the lower surface as its ground,
 which the other bake may lack there (its ground is then the deck): columns where only one bake has two surfaces are
@@ -68,7 +70,13 @@ QT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("w", "u1"), ("h", "u1"),
 BT = np.dtype([("x", "u1"), ("z", "u1"), ("y", "<u2"), ("m", "u1"), ("x0", "u1"), ("y0", "u1"), ("z0", "u1"),
                ("x1", "u1"), ("y1", "u1"), ("z1", "u1"), ("pad", "u1")])
 NONE = -1000
-HOLD = 128      # blocks into each chunk from the lap within which a building at a seam is moved as one (hold())
+# hold(): blocks into each chunk from the lap within which a building at a seam is moved as one. A part (one chunk's
+# side of a building) that reaches this deep keeps the taper. The bound is what keeps a hold off buildings the seam
+# does not cut: the building mask joins houses that touch (garages, party walls, carports) into one group, and with
+# 128 such a group could reach ~124 blocks into a chunk and be moved there by the roof difference measured at the
+# seam (s0501: a house that far from the seam came out with one half sunk 2 to 3 blocks). 48 is three blend bands.
+HOLD = 48
+HOLD_RIM = 2    # hold(): roof columns this close to a held part, left out of the building mask, move with it
 HOLD_MATCH = 6  # the two bakes' roofs of one building further apart than this are not matched (not the same roof)
 LOST = 4        # hold(): cost of a building column that a cut leaves out (a slot to the ground), in blocks of step
 EDGE_DEPTH = 2  # blocks of side face below a drawn top (roof, wall top, deck edge) that edge_risers() closes at a seam
@@ -488,7 +496,9 @@ def hold(C, s, log=print):
     last line, the south or east bake's first line, which may also lack the building altogether), and the blend's taper
     would tilt a flat roof into one-block stairs. A building here is a group of building columns (mca2web.py
     building_mask()) connected across the window HOLD blocks either side of the lap, the two bakes joined in the lap;
-    each chunk's columns of it are its part. Per building that reaches the lap:
+    each chunk's columns of it are its part. Nothing beyond the window ever moves: a part is held only when it stops
+    short of the window's far side (a whole group of the mask, not a piece of one cut off by the window). Per building
+    that reaches the lap:
     - each part moves by one amount over all its columns (Chunks.shift()): the larger part by the mean of the taper over
       its columns, the other part by that plus the difference of the two bakes' roofs where both draw the building in
       the lap (off their world-edge lines), so the halves meet at one height; with no roofs to compare, each part keeps
@@ -500,7 +510,7 @@ def hold(C, s, log=print):
     The ground and everything else keeps the taper."""
     a, b, ax, lo, hi, first = s["a"], s["b"], s["ax"], s["lo"], s["hi"], s["first"]
     last = first + s["n"] - 1
-    st = dict(buildings=0, matched=0, held_parts=0, one_part_held=0, unmatched=0, step_before=0, step_after=0, cut_off_edge=0)
+    st = dict(buildings=0, matched=0, held_parts=0, one_part_held=0, unmatched=0, too_deep=0, rim_columns=0, step_before=0, step_after=0, cut_off_edge=0)
     s["bcut"] = []; s["hstats"] = st
     if C.read_b is None: return
     def grid(fn, k, f, l, **kw):   # [line, across] over the lines lo..hi and the across range f..l of chunk k
@@ -533,6 +543,7 @@ def hold(C, s, log=print):
         # a part fits when it stops short of the window's far side and of the ends of the seam
         fit_a = na == 0 or (sa_[1].start > 0 and sa_[0].start > 0 and sa_[0].stop < nl)
         fit_b = nb == 0 or (sb_[1].stop < fb - first + 1 and sb_[0].start > 0 and sb_[0].stop < nl)
+        st["too_deep"] += (not fit_a) + (not fit_b)
         both = (WA[:, inner] == c) & (WB[:, innb] == c) & (DA[:, inner] > NONE) & (DB[:, innb] > NONE)
         d = int(np.rint(np.median((DB[:, innb] - DA[:, inner])[both]))) if both.any() else None
         if d is not None and abs(d) > HOLD_MATCH: d = None
@@ -554,12 +565,25 @@ def hold(C, s, log=print):
         else:
             if na and nb: st["unmatched"] += 1
             if fit_a and fit_b: sa, sb = (mta if na else None), (mtb if nb else None)
-        for k, v, sl, m, f in ((a, sa, sa_, pa, fa), (b, sb, sb_, pb, first)):
+        for k, v, sl, m, f, Lk in ((a, sa, sa_, pa, fa, LA), (b, sb, sb_, pb, first, LB)):
             if v is None or sl is None: continue
             st["held_parts"] += 1
-            L0, L1, A0, A1 = lo + sl[0].start, lo + sl[0].stop, f + sl[1].start, f + sl[1].stop
+            # the mask's 3 x 3 opening leaves out a building's rim (eaves, a stair roof's lowest step, a narrow wing):
+            # those roof columns, up to HOLD_RIM from the part and in no other group, move with it, so one building
+            # never comes out at two heights
+            l0, l1 = max(sl[0].start - HOLD_RIM, 0), min(sl[0].stop + HOLD_RIM, nl)
+            a0, a1 = max(sl[1].start - HOLD_RIM, 0), min(sl[1].stop + HOLD_RIM, Lk.shape[1])
+            g = np.zeros((l1 - l0, a1 - a0), bool)
+            g[sl[0].start - l0:sl[0].stop - l0, sl[1].start - a0:sl[1].stop - a0] = m
+            R = (lo + l0, f + a0, lo + l1, f + a1) if ax == 0 else (f + a0, lo + l0, f + a1, lo + l1)
+            if HOLD_RIM > 0:   # (not over a road or under a deck: the column's ground moves with it)
+                dr, gh = C.drawn(k, *R), C.height(k, *R)
+                roof = put((dr > NONE) & (gh > NONE) & (dr >= gh + 2) & ~C.road(k, *R) & ~C.deck(k, *R), f)
+                rim = ndimage.binary_dilation(g, iterations=HOLD_RIM) & roof & (Lk[l0:l1, a0:a1] == 0) & ~g
+                st["rim_columns"] += int(rim.sum()); g |= rim
+            L0, L1, A0, A1 = lo + l0, lo + l1, f + a0, f + a1
             box = (L0, A0, L1, A1) if ax == 0 else (A0, L0, A1, L1)
-            C.holds.setdefault(k, []).append((box, put(m, f).copy(), int(v)))
+            C.holds.setdefault(k, []).append((box, put(g, f).copy(), int(v)))
         # the cut over the building's lines: one place in the lap, fewest of its columns left out, then least step
         ua, ub = WA == c, WB == c                  # [line, a: first-1..last | b: first..last+1]
         on = ua[:, 1:].any(1) | ub[:, :-1].any(1)
@@ -592,7 +616,7 @@ def hold(C, s, log=print):
         st["cut_off_edge"] += best[1] != first
         s["bcut"].append((lines, ks[pk]))
     log(f"seams: {C.info[a]['id']}|{C.info[b]['id']}: buildings at the seam {st['buildings']}: halves matched {st['matched']} "
-        f"({st['one_part_held']} with one part too big to hold), parts held {st['held_parts']}, nothing to match "
+        f"({st['one_part_held']} with one part too big to hold), parts held {st['held_parts']}, parts too deep to hold {st['too_deep']} (rim columns added {st['rim_columns']}), nothing to match "
         f"{st['unmatched']}; lines stepped at the cut {st['step_before']} -> {st['step_after']}")
 
 
