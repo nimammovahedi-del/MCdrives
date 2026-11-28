@@ -1,0 +1,505 @@
+{
+ "name": "Orange County (road profile test)",
+ "bbox": [
+  33.38,
+  -118.12,
+  33.95,
+  -117.41
+ ],
+ "rows": 26,
+ "cols": 27,
+ "chunks": [
+  {
+   "id": "r10c7",
+   "row": 10,
+   "col": 7,
+   "bbox": [
+    33.599201,
+    -117.935926,
+    33.621154,
+    -117.909598
+   ],
+   "km2": 5.965,
+   "blocks": [
+    3072,
+    3072,
+    96
+   ],
+   "quads": 4767801,
+   "packs": 36,
+   "site_mb": 24.84,
+   "seconds": {}
+  },
+  {
+   "id": "r10c15",
+   "row": 10,
+   "col": 15,
+   "bbox": [
+    33.599201,
+    -117.725556,
+    33.621154,
+    -117.699227
+   ],
+   "km2": 5.965,
+   "blocks": [
+    3072,
+    3072,
+    112
+   ],
+   "quads": 10696664,
+   "packs": 36,
+   "site_mb": 44.56,
+   "seconds": {}
+  },
+  {
+   "id": "r12c9",
+   "row": 12,
+   "col": 9,
+   "bbox": [
+    33.643047,
+    -117.883333,
+    33.665,
+    -117.857002
+   ],
+   "km2": 5.963,
+   "blocks": [
+    3072,
+    3072,
+    112
+   ],
+   "quads": 8584197,
+   "packs": 36,
+   "site_mb": 36.78,
+   "seconds": {}
+  },
+  {
+   "id": "r13c14",
+   "row": 13,
+   "col": 14,
+   "bbox": [
+    33.66497,
+    -117.751852,
+    33.686923,
+    -117.725524
+   ],
+   "km2": 5.96,
+   "blocks": [
+    3072,
+    3072,
+    128
+   ],
+   "quads": 4444161,
+   "packs": 36,
+   "site_mb": 23.06,
+   "seconds": {}
+  },
+  {
+   "id": "r13c15",
+   "row": 13,
+   "col": 15,
+   "bbox": [
+    33.66497,
+    -117.725556,
+    33.686923,
+    -117.699227
+   ],
+   "km2": 5.961,
+   "blocks": [
+    3072,
+    3072,
+    144
+   ],
+   "quads": 6222176,
+   "packs": 36,
+   "site_mb": 30.06,
+   "seconds": {}
+  },
+  {
+   "id": "r14c7",
+   "row": 14,
+   "col": 7,
+   "bbox": [
+    33.686893,
+    -117.935926,
+    33.708846,
+    -117.909594
+   ],
+   "km2": 5.96,
+   "blocks": [
+    3072,
+    3072,
+    96
+   ],
+   "quads": 5739289,
+   "packs": 36,
+   "site_mb": 26.85,
+   "seconds": {}
+  },
+  {
+   "id": "r15c7",
+   "row": 15,
+   "col": 7,
+   "bbox": [
+    33.708816,
+    -117.935926,
+    33.730769,
+    -117.909598
+   ],
+   "km2": 5.957,
+   "blocks": [
+    3072,
+    3072,
+    64
+   ],
+   "quads": 5847862,
+   "packs": 36,
+   "site_mb": 28.67,
+   "seconds": {}
+  },
+  {
+   "id": "r15c12",
+   "row": 15,
+   "col": 12,
+   "bbox": [
+    33.708816,
+    -117.804444,
+    33.730769,
+    -117.778116
+   ],
+   "km2": 5.957,
+   "blocks": [
+    3072,
+    3072,
+    96
+   ],
+   "quads": 8779356,
+   "packs": 36,
+   "site_mb": 37.62,
+   "seconds": {}
+  },
+  {
+   "id": "r16c7",
+   "row": 16,
+   "col": 7,
+   "bbox": [
+    33.730739,
+    -117.935926,
+    33.752692,
+    -117.909598
+   ],
+   "km2": 5.956,
+   "blocks": [
+    3072,
+    3072,
+    48
+   ],
+   "quads": 6574239,
+   "packs": 36,
+   "site_mb": 32.21,
+   "seconds": {}
+  },
+  {
+   "id": "r16c10",
+   "row": 16,
+   "col": 10,
+   "bbox": [
+    33.730739,
+    -117.857037,
+    33.752692,
+    -117.830709
+   ],
+   "km2": 5.956,
+   "blocks": [
+    3072,
+    3072,
+    144
+   ],
+   "quads": 7080984,
+   "packs": 36,
+   "site_mb": 32.46,
+   "seconds": {}
+  },
+  {
+   "id": "r20c9",
+   "row": 20,
+   "col": 9,
+   "bbox": [
+    33.818432,
+    -117.883333,
+    33.840385,
+    -117.857003
+   ],
+   "km2": 5.95,
+   "blocks": [
+    3072,
+    3072,
+    64
+   ],
+   "quads": 5595937,
+   "packs": 36,
+   "site_mb": 27.77,
+   "seconds": {}
+  },
+  {
+   "id": "r20c10",
+   "row": 20,
+   "col": 10,
+   "bbox": [
+    33.818432,
+    -117.857037,
+    33.840385,
+    -117.830707
+   ],
+   "km2": 5.95,
+   "blocks": [
+    3072,
+    3072,
+    112
+   ],
+   "quads": 7071714,
+   "packs": 36,
+   "site_mb": 34.09,
+   "seconds": {}
+  },
+  {
+   "id": "r21c10",
+   "row": 21,
+   "col": 10,
+   "bbox": [
+    33.840355,
+    -117.857037,
+    33.862308,
+    -117.830709
+   ],
+   "km2": 5.948,
+   "blocks": [
+    3072,
+    3072,
+    96
+   ],
+   "quads": 5627787,
+   "packs": 36,
+   "site_mb": 26.9,
+   "seconds": {}
+  }
+ ],
+ "join": {
+  "chunks": 13,
+  "blocks": [
+   22602,
+   29997,
+   172
+  ],
+  "packs": 468,
+  "quads": 86998596,
+  "nodes": 10285,
+  "places": 1321,
+  "edges": 11596,
+  "seam_nodes_merged": 612,
+  "projection_error_blocks": 0.73,
+  "site_mb": 348.25,
+  "seams": {
+   "seams": [
+    {
+     "a": "r13c14",
+     "b": "r13c15",
+     "lines": 2450,
+     "overlap": 4,
+     "lines_compared": 2341,
+     "lines_blended": 0,
+     "largest_blend": 0,
+     "step_unblended_nonzero": 2327,
+     "step_unblended_ge2": 142,
+     "step_blended_nonzero": 2238,
+     "step_blended_ge2": 142,
+     "step_at_cut_nonzero": 2198,
+     "step_at_cut_ge2": 80,
+     "cut_moved": 485,
+     "buildings_buildings": 32,
+     "buildings_matched": 9,
+     "buildings_held_parts": 35,
+     "buildings_one_part_held": 1,
+     "buildings_unmatched": 0,
+     "buildings_too_deep": 6,
+     "buildings_rim_columns": 74,
+     "buildings_step_before": 129,
+     "buildings_step_after": 60,
+     "buildings_cut_off_edge": 25
+    },
+    {
+     "a": "r15c7",
+     "b": "r14c7",
+     "lines": 2445,
+     "overlap": 4,
+     "lines_compared": 2421,
+     "lines_blended": 0,
+     "largest_blend": 0,
+     "step_unblended_nonzero": 359,
+     "step_unblended_ge2": 301,
+     "step_blended_nonzero": 385,
+     "step_blended_ge2": 327,
+     "step_at_cut_nonzero": 331,
+     "step_at_cut_ge2": 312,
+     "cut_moved": 685,
+     "buildings_buildings": 9,
+     "buildings_matched": 7,
+     "buildings_held_parts": 13,
+     "buildings_one_part_held": 3,
+     "buildings_unmatched": 0,
+     "buildings_too_deep": 3,
+     "buildings_rim_columns": 6,
+     "buildings_step_before": 92,
+     "buildings_step_after": 19,
+     "buildings_cut_off_edge": 9
+    },
+    {
+     "a": "r16c7",
+     "b": "r15c7",
+     "lines": 2444,
+     "overlap": 3,
+     "lines_compared": 2292,
+     "lines_blended": 0,
+     "largest_blend": 0,
+     "step_unblended_nonzero": 118,
+     "step_unblended_ge2": 61,
+     "step_blended_nonzero": 134,
+     "step_blended_ge2": 77,
+     "step_at_cut_nonzero": 121,
+     "step_at_cut_ge2": 107,
+     "cut_moved": 867,
+     "buildings_buildings": 38,
+     "buildings_matched": 34,
+     "buildings_held_parts": 58,
+     "buildings_one_part_held": 8,
+     "buildings_unmatched": 0,
+     "buildings_too_deep": 14,
+     "buildings_rim_columns": 71,
+     "buildings_step_before": 88,
+     "buildings_step_after": 95,
+     "buildings_cut_off_edge": 37
+    },
+    {
+     "a": "r20c9",
+     "b": "r20c10",
+     "lines": 2454,
+     "overlap": 3,
+     "lines_compared": 2366,
+     "lines_blended": 0,
+     "largest_blend": 0,
+     "step_unblended_nonzero": 51,
+     "step_unblended_ge2": 42,
+     "step_blended_nonzero": 142,
+     "step_blended_ge2": 133,
+     "step_at_cut_nonzero": 128,
+     "step_at_cut_ge2": 124,
+     "cut_moved": 1059,
+     "buildings_buildings": 35,
+     "buildings_matched": 29,
+     "buildings_held_parts": 54,
+     "buildings_one_part_held": 11,
+     "buildings_unmatched": 1,
+     "buildings_too_deep": 11,
+     "buildings_rim_columns": 118,
+     "buildings_step_before": 117,
+     "buildings_step_after": 32,
+     "buildings_cut_off_edge": 34
+    },
+    {
+     "a": "r21c10",
+     "b": "r20c10",
+     "lines": 2445,
+     "overlap": 4,
+     "lines_compared": 2281,
+     "lines_blended": 0,
+     "largest_blend": 0,
+     "step_unblended_nonzero": 112,
+     "step_unblended_ge2": 55,
+     "step_blended_nonzero": 113,
+     "step_blended_ge2": 55,
+     "step_at_cut_nonzero": 141,
+     "step_at_cut_ge2": 128,
+     "cut_moved": 973,
+     "buildings_buildings": 51,
+     "buildings_matched": 44,
+     "buildings_held_parts": 92,
+     "buildings_one_part_held": 1,
+     "buildings_unmatched": 0,
+     "buildings_too_deep": 3,
+     "buildings_rim_columns": 409,
+     "buildings_step_before": 125,
+     "buildings_step_after": 113,
+     "buildings_cut_off_edge": 49
+    }
+   ],
+   "packs": 69,
+   "quads_cut": 55401,
+   "boxes_dropped": 4653,
+   "heights_cleared": 42781,
+   "columns_shifted": 6299,
+   "columns_lifted": 0,
+   "risers": 7866,
+   "riser_blocks": 15069,
+   "raised_roads": {
+    "crossings": 0,
+    "raised": 0,
+    "lifted": 0,
+    "dropped": 0,
+    "lift_cols": 0,
+    "largest_lift": 0
+   }
+  },
+  "roadcheck": {
+   "road_km": 363.01,
+   "deck_km": 2.28,
+   "samples": 365348,
+   "defects": 399,
+   "by_severity": {
+    "HIGH": 3,
+    "MEDIUM": 46,
+    "LOW": 350
+   },
+   "by_kind": {
+    "step": 0,
+    "gap": 0,
+    "deck_joint": 0,
+    "deck_step": 0,
+    "undecked": 3,
+    "bump": 27,
+    "lone_step": 241,
+    "seam_step": 1,
+    "hole": 52,
+    "deck_bump": 3,
+    "spike": 36,
+    "surface": 3,
+    "floor_gap": 33
+   },
+   "per_km": {
+    "step": 0.0,
+    "gap": 0.0,
+    "deck_joint": 0.0,
+    "deck_step": 0.0,
+    "undecked": 0.008,
+    "bump": 0.074,
+    "lone_step": 0.664,
+    "seam_step": 0.003,
+    "hole": 0.143,
+    "deck_bump": 0.008,
+    "spike": 0.099,
+    "surface": 0.008,
+    "floor_gap": 0.091
+   },
+   "per_km_severity": {
+    "HIGH": 0.008,
+    "MEDIUM": 0.127,
+    "LOW": 0.964
+   },
+   "road_surface_share": 0.9975,
+   "near_seam": {
+    "HIGH": 0,
+    "MEDIUM": 2,
+    "LOW": 2
+   }
+  },
+  "seconds": 106.8
+ }
+}
