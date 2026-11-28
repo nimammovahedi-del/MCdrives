@@ -97,7 +97,7 @@ jobs:
             -map "[v]" -c:v libx264 -preset slow -crf 12 -pix_fmt yuv420p loop.mp4
           mkdir -p "web/home/assets/video"
           O="web/home/assets/video/$SHOT"
-          ffmpeg -loglevel error -y -i loop.mp4 -vf scale=1280:-2:flags=lanczos -c:v libx264 -preset veryslow -crf 30 -maxrate 1400k -bufsize 2800k \
+          ffmpeg -loglevel error -y -i loop.mp4 -vf scale=1280:-2:flags=lanczos -c:v libx264 -preset veryslow -crf 30 -maxrate 1100k -bufsize 2200k \
             -pix_fmt yuv420p -movflags +faststart -an "$O-720.mp4"
           ffmpeg -loglevel error -y -i loop.mp4 -vf scale=854:-2:flags=lanczos -c:v libx264 -preset veryslow -crf 31 -maxrate 700k -bufsize 1400k \
             -pix_fmt yuv420p -movflags +faststart -an "$O-480.mp4"

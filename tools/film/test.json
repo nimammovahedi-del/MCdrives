@@ -38,5 +38,6 @@
   "y": 520
  },
  "sky": "day",
- "renderFps": 10
+ "renderFps": 10,
+ "fogColor": "#bfdcff"
 }

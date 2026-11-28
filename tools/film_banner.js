@@ -10,7 +10,7 @@
 //   roads: road names the start and end may snap to; speed: m/s; startAt: metres into the route for frame 0
 //   seconds, fps, width, height; renderFps: frames actually drawn per second (the rest are interpolated when joining); offset: camera position relative to the point it looks at, [x, y, z] in metres
 //   carY: where the car sits on screen, 0 top to 1 bottom; smooth: metres of route averaged for the camera path
-//   fov, fog: [near, far], stream: metres of map kept loaded, sky: day or night
+//   fov, fog: [near, far], fogColor (CSS colour), stream: metres of map kept loaded, sky: day or night
 //   carScale: draws the car larger so it reads from high up; clouds: { scale, y } spreads the block clouds over
 //   the whole drive at a fixed height, so the sky above the horizon is not empty
 // With STILLS set to a JSON list of config overrides (each with a name), only the first frame is shot once per
@@ -94,6 +94,8 @@ function pickNodes() {
     if (!ok) return { error: 'no route' };
     window.__setMode('orbit'); F.routeLine.clear(); F.sky.setAnimate(false);
     F.setStream(C.stream); F.scene.fog.near = C.fog[0]; F.scene.fog.far = C.fog[1];
+    // haze the same colour as the sky's lowest band, so the far edge of the loaded map melts into the horizon
+    if (C.fogColor) F.scene.fog.color.set(C.fogColor);
     F.orbit.maxDistance = 1e5; F.orbit.minDistance = 1; F.orbit.maxPolarAngle = Math.PI;
     const T = A.trip();
     // the sky dome is 3000 m across and follows the camera: keep it inside the far plane
