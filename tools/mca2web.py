@@ -7,9 +7,10 @@ Tiles are grouped into one "pack" file per 512x512-block region so the viewer ca
 Memory stays flat however large the world is: regions are decoded one at a time into a temp
 cache, then each region is meshed with a margin borrowed from its eight neighbours.
 
-    mca2web.py WORLD_DIR OUT_DIR [--b64] [--osm OSM.json [--no-flat-roofs]]
+    mca2web.py WORLD_DIR OUT_DIR [--b64] [--osm OSM.json [--no-flat-roofs] [--no-regrade | --road-profile]]
         --b64 wraps packs as base64 JSON for hosts that refuse .bin; --osm (the OSM data of the bake) re-grades the roads
-        and lays the flat roofs flush with their walls (flat_roofs()), which --no-flat-roofs leaves as baked
+        and lays the flat roofs flush with their walls (flat_roofs()), which --no-flat-roofs leaves as baked;
+        --road-profile grades every car road to one profile along its centre line instead (road_profile.py)
 
 Beside each pack p_<i>_<j> goes its height tile h_<i>_<j> (named in meta.json as the pack's "h"):
 gzipped int16 [2, PACK, PACK] over the pack's columns, [0] the lowest drivable surface and [1] the
@@ -31,6 +32,9 @@ GRADE_ONLY = '--grade-only' in sys.argv   # debugging: stop after the re-grade, 
 BOUNDS = tuple(float(v) for v in sys.argv[sys.argv.index('--bounds') + 1].split(',')) if '--bounds' in sys.argv else None
 NO_GRADE = '--no-regrade' in sys.argv   # keep road surfaces as baked, while the OSM data still serves the roofs
 NO_ROOFS = '--no-flat-roofs' in sys.argv   # leave Arnis's flat roofs as baked (see flat_roofs())
+# --road-profile: grade every car road to one smooth profile along its OSM centre line (tools/road_profile.py), in place
+# of the re-grade; with --crop it works on the whole bake (its margin too) and the crop follows it
+PROFILE = '--road-profile' in sys.argv and OSM is not None
 # --crop X0,Z0,X1,Z1: keep only the world's blocks in columns X0 <= x < X1, Z0 <= z < Z1, and write everything with
 # (X0, Z0) as column (0, 0). build.py bakes a chunk with a margin ("bake_pad_m", pad_frame()) that this drops again:
 # the world is read as if it ended at the window, so roads, roofs and faces at its edge are treated as at any bake's.
@@ -268,7 +272,7 @@ for rp in regions:
     for cx, cz, sy, v, sh in secs:
         sl = (slice(sy * 16 - y0, sy * 16 - y0 + 16), slice(cz * 16, cz * 16 + 16), slice(cx * 16, cx * 16 + 16))
         g[sl] = np.where(sh == 0, v, 0); dm[sl] = np.where(sh != 0, v, 0); ds[sl] = sh
-    if CROP:
+    if CROP and not PROFILE:
         # columns outside the window are not in the world; "present" is then kept per column, not per chunk
         xs, zs = np.arange(PACK) + rx * PACK, np.arange(PACK) + rz * PACK
         keep = ((zs >= CROP[1]) & (zs < CROP[3]))[:, None] & ((xs >= CROP[0]) & (xs < CROP[2]))[None, :]
@@ -282,10 +286,13 @@ for rp in regions:
     np.savez_compressed(os.path.join(TMP, f"{rx}_{rz}.npz"), g=g, dm=dm, ds=ds, present=present)
     REG[(rx, rz)] = y0; gminy = min(gminy, y0); gmaxy = max(gmaxy, y1 - 1)
     del g, dm, ds, secs
-H = gmaxy - gminy + 1
-rx0 = min(k[0] for k in REG); rz0 = min(k[1] for k in REG)
-NX = max(k[0] for k in REG) - rx0 + 1; NZ = max(k[1] for k in REG) - rz0 + 1
-minx, minz, W, D = rx0 * PACK, rz0 * PACK, NX * PACK, NZ * PACK
+def extent():
+    global H, rx0, rz0, NX, NZ, minx, minz, W, D
+    H = gmaxy - gminy + 1
+    rx0 = min(k[0] for k in REG); rz0 = min(k[1] for k in REG)
+    NX = max(k[0] for k in REG) - rx0 + 1; NZ = max(k[1] for k in REG) - rz0 + 1
+    minx, minz, W, D = rx0 * PACK, rz0 * PACK, NX * PACK, NZ * PACK
+extent()
 print(f"read {nchunks} chunks from {len(REG)} regions in {time.time()-t0:.1f}s; x {minx}..{minx+W} z {minz}..{minz+D} y {gminy}..{gmaxy}")
 
 kinds = np.array([0 if k == "air" else 1 if k == "solid" else 2 if k == "water" else 3 if k == "glass" else 4 for _, _, k in MATS], dtype=np.uint8)
@@ -345,7 +352,71 @@ def regrade():
         shutil.rmtree(TMP, ignore_errors=True)
         sys.exit(0)
 
-if OSM and not NO_GRADE: regrade()
+def road_profile():
+    """Grades the car roads to one profile each along their OSM centre lines (see road_profile.py), in place in the
+    region caches, over the whole bake (before --crop)."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import road_profile as RP
+    tg = time.time()
+    k256 = np.zeros(256, dtype=np.uint8); k256[:len(kinds)] = kinds
+    solid_lut = (k256 == 1) | (k256 == 3)
+    carr_lut = np.isin(np.arange(256), [mat(*colour(n)) for n in ["gray_concrete_powder", "cyan_terracotta", "white_concrete", "yellow_concrete"]])
+    pr = RP.Profiler(W, D, H, log=print)
+    def padded(rx, rz):
+        z = np.load(os.path.join(TMP, f"{rx}_{rz}.npz"))
+        o = REG[(rx, rz)] - gminy; n = z["g"].shape[0]
+        out = []
+        for key in ("g", "dm", "ds"):
+            a = np.zeros((H,) + z[key].shape[1:], dtype=z[key].dtype); a[o:o + n] = z[key]; out.append(a)
+        return out, z["present"], o, n
+    for (rx, rz) in sorted(REG):
+        (g, dm, _), _, _, _ = padded(rx, rz)
+        pr.scan_region((rx - rx0) * PACK, (rz - rz0) * PACK, g, dm, solid_lut, carr_lut, solid_lut)
+    st = pr.run(OSM, WORLD, (minx, minz))
+    nu = nd = 0
+    for (rx, rz) in sorted(REG):
+        (g, dm, ds), present, o, n = padded(rx, rz)
+        a, b = pr.apply_region((rx - rx0) * PACK, (rz - rz0) * PACK, g, dm, ds, (k256 == 2) | (k256 == 4))
+        nu += a; nd += b
+        if a or b:
+            ys = np.flatnonzero((g != 0).any(axis=(1, 2)) | (dm != 0).any(axis=(1, 2)))
+            lo = min(o, int(ys[0]) // 16 * 16) if len(ys) else o
+            hi = max(o + n, -(-(int(ys[-1]) + 1) // 16) * 16) if len(ys) else o + n
+            np.savez_compressed(os.path.join(TMP, f"{rx}_{rz}.npz"), g=g[lo:hi], dm=dm[lo:hi], ds=ds[lo:hi], present=present)
+            REG[(rx, rz)] = gminy + lo
+    st.update(moved_up=nu, moved_down=nd, refused=getattr(pr, "refused", 0), seconds=round(time.time() - tg, 1))
+    print("road profile: " + ", ".join(f"{k} {v:,}" for k, v in st.items()), flush=True)
+
+def crop_regions():
+    """--crop after road_profile(): as at reading, columns outside the window leave the world."""
+    global gminy, gmaxy
+    for (rx, rz) in sorted(REG):
+        z = np.load(os.path.join(TMP, f"{rx}_{rz}.npz"))
+        g, dm, ds, present = z["g"], z["dm"], z["ds"], z["present"]
+        y0 = REG[(rx, rz)]
+        xs, zs = np.arange(PACK) + rx * PACK, np.arange(PACK) + rz * PACK
+        keep = ((zs >= CROP[1]) & (zs < CROP[3]))[:, None] & ((xs >= CROP[0]) & (xs < CROP[2]))[None, :]
+        if present.shape != (PACK, PACK): present = np.repeat(np.repeat(present, 16, axis=0), 16, axis=1)
+        present = present & keep
+        if not present.any():
+            del REG[(rx, rz)]; os.remove(os.path.join(TMP, f"{rx}_{rz}.npz")); continue
+        g[:, ~keep] = 0; dm[:, ~keep] = 0; ds[:, ~keep] = 0
+        ys = np.flatnonzero((g != 0).any(axis=(1, 2)) | (dm != 0).any(axis=(1, 2)))
+        if len(ys):
+            lo, hi = int(ys[0]) // 16 * 16, -(-(int(ys[-1]) + 1) // 16) * 16
+            g, dm, ds = g[lo:hi], dm[lo:hi], ds[lo:hi]; y0 += lo
+        np.savez_compressed(os.path.join(TMP, f"{rx}_{rz}.npz"), g=g, dm=dm, ds=ds, present=present)
+        REG[(rx, rz)] = y0
+    gminy = min(REG.values()); gmaxy = -10 ** 9
+    for (rx, rz) in REG:
+        n = np.load(os.path.join(TMP, f"{rx}_{rz}.npz"))["g"].shape[0]
+        gmaxy = max(gmaxy, REG[(rx, rz)] + n - 1)
+    extent()
+
+if PROFILE:
+    road_profile()
+    if CROP: crop_regions()
+elif OSM and not NO_GRADE: regrade()
 # A face is drawn when the neighbour is air, or a see-through block of a different material.
 see = np.zeros(256, dtype=bool); see[0] = True
 for i, (_, _, k) in enumerate(MATS):

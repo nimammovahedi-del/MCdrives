@@ -879,6 +879,9 @@ def build_chunk(area, chunk, args, work, overhang=0):
         if grade and own and chunk["id"] != "all": grade += ["--bounds", ",".join(f"{v:.6f}" for v in own)]
         # "roads_as_baked": road surfaces stay as Arnis laid them (no re-grade here, no lift at seams in join())
         if grade and area.get("roads_as_baked"): grade += ["--no-regrade"]
+        # "road_profile": every car road graded to one smooth profile along its centre line (tools/road_profile.py),
+        # over the whole padded bake before the crop; it takes the place of the re-grade
+        if grade and area.get("road_profile"): grade += ["--road-profile"]
         if crop: grade += ["--crop", ",".join(map(str, crop))]   # a padded bake: keep the chunk's own blocks
         run([sys.executable, ROOT / "tools" / "mca2web.py", world_dir(), data] + (["--b64"] if args.b64 else []) + grade, log)
         times["convert"] = time.time() - times["convert"]
