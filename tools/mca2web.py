@@ -374,18 +374,25 @@ def road_profile():
         pr.scan_region((rx - rx0) * PACK, (rz - rz0) * PACK, g, dm, solid_lut, carr_lut, solid_lut)
     st = pr.run(OSM, WORLD, (minx, minz))
     nu = nd = 0
+    top0 = pr.top_map(); top1 = top0.copy()
     for (rx, rz) in sorted(REG):
         (g, dm, ds), present, o, n = padded(rx, rz)
         a, b = pr.apply_region((rx - rx0) * PACK, (rz - rz0) * PACK, g, dm, ds, (k256 == 2) | (k256 == 4))
         nu += a; nd += b
         if a or b:
+            top1[(rz - rz0) * PACK:(rz - rz0 + 1) * PACK, (rx - rx0) * PACK:(rx - rx0 + 1) * PACK] = RP.top_of(g, dm, solid_lut)
             ys = np.flatnonzero((g != 0).any(axis=(1, 2)) | (dm != 0).any(axis=(1, 2)))
             lo = min(o, int(ys[0]) // 16 * 16) if len(ys) else o
             hi = max(o + n, -(-(int(ys[-1]) + 1) // 16) * 16) if len(ys) else o + n
             np.savez_compressed(os.path.join(TMP, f"{rx}_{rz}.npz"), g=g[lo:hi], dm=dm[lo:hi], ds=ds[lo:hi], present=present)
             REG[(rx, rz)] = gminy + lo
-    st.update(moved_up=nu, moved_down=nd, refused=getattr(pr, "refused", 0), seconds=round(time.time() - tg, 1))
+    st.update(moved_up=nu, moved_down=nd, refused=getattr(pr, "refused", 0), lone_created=RP.lone_created(top0, top1),
+              seconds=round(time.time() - tg, 1))
     print("road profile: " + ", ".join(f"{k} {v:,}" for k, v in st.items()), flush=True)
+    if os.environ.get("ROAD_PROFILE_DUMP"):   # debugging: the moves, their outcome and the column tops before and after
+        np.savez_compressed(os.environ["ROAD_PROFILE_DUMP"], top0=top0, top1=top1, ops=pr.ops, res=getattr(pr, "res", np.zeros(0)),
+                            dims=np.array([W, D, H, minx, minz, gminy]), **pr.dbg)
+        if os.environ.get("ROAD_PROFILE_ONLY"): shutil.rmtree(TMP, ignore_errors=True); sys.exit(0)
 
 def crop_regions():
     """--crop after road_profile(): as at reading, columns outside the window leave the world."""

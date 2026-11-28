@@ -15,10 +15,15 @@ cross-section is moved up or down by at most MAXD blocks to it:
   1. Chains: OSM car ways joined end to end through nodes no other way uses (road_grade.chains_of; tunnels and
      covered ways are not read, nor service roads). The road's own surface level per block of length is followed
      from the blocks along the centre line (road_grade.Grader.track), so a deck is followed on the deck and a road
-     under a bridge below it, and a running median over DESPIKE blocks drops one-block bumps and pits from it.
-  2. Columns: the columns of the road's cross-section (within its half width of the centre line, two more on a deck)
-     at the followed level, each with what may be done to it: how far it can rise under whatever is over it (HEAD
-     free blocks stay), how far it can sink into the ground under it, and whether too much stands on it to move.
+     under a bridge below it, and a running median over DESPIKE blocks drops one-block bumps and pits from it. Where
+     track() loses the road (a deck ending in a step of two or more onto its approach) the rest is followed again from
+     its own stretch at grade (Profiler._track), instead of carrying the deck's level on to the chain's end.
+  2. Columns: the columns of the road's cross-section (within its half width of the centre line, two more on a deck
+     but only at or over the deck's level: its edge and parapet, not the ground beside the abutment) at the followed
+     level, each with what may be done to it: how far it can rise under whatever is over it (HEAD free blocks stay),
+     how far it can sink into the ground under it, and whether too much stands on it to move. A column at the road's
+     edge (within EDGE of its half width) standing over the road (a kerb, a parapet's base) keeps its height over the
+     road: it moves with its station and is not levelled to it.
   3. Fit: for every block of length and every level within MAXD of the followed one, the mean misfit of the
      cross-section's columns at that level (blocks they would have to move; a column that cannot follow costs most).
      Side-by-side carriageways (parallel chains within PARALLEL_GAP blocks of each other, at about the same height)
@@ -31,7 +36,9 @@ cross-section is moved up or down by at most MAXD blocks to it:
      profile is monotone between its extrema), two-block steps only at a high price, and a hair of preference for the
      followed level where two fit equally well (coupled carriageways a block apart keep their own levels; the
      coupling only puts their steps in one place). On a slope the steps fall where half the
-     cross-section has stepped: evenly spaced, one per block of rise, straight across the road.
+     cross-section has stepped: evenly spaced, one per block of rise, straight across the road. The widest roads are
+     done first; a road whose centre line lies on a wider one (a ramp merging onto a freeway over one deck) takes
+     that road's level there, so the two never step a block apart on one surface.
   6. Bridges: a deck is never lowered (its clearance stays) and one whose followed level varies by at most one block
      takes no step anywhere on its span (it is laid at its higher level; the joints take the step).
   7. Moving: every road column is moved to the level of its station: the surface block (with its lane paint) and what
@@ -43,6 +50,10 @@ cross-section is moved up or down by at most MAXD blocks to it:
   8. Verges: columns within VERGE blocks of a moved road column follow it partly (the move scaled down with the
      distance, rounded), when they lie within 2 blocks of the road's old height and carry no more than STUFF_VERGE
      blocks (grass, fences; no buildings, trees or walls), so the step is eased into the terrain beside the road.
+  9. No posts (Profiler._no_posts): the moves are played on the world's occupancy (_predict, the same rules as _move)
+     and no column may end standing alone above its four neighbours (or above three where it stood over at most one
+     before): such a post is undone (or, for a column left standing where the road round it came down, it comes
+     down too), repeated until none is left. mca2web.py counts the posts in the finished world ("lone_created" in its log).
 Chunk boundaries: each chunk's bake reaches 128 m past its own edge (bake_pad_m) on a height grid it shares with its
 neighbours (elevation_base_m), and mca2web.py crops only after this pass, so both neighbours grade the same roads over
 the same blocks there; every rule here looks at most MINRUN (60) blocks along a road, inside that margin.
@@ -64,8 +75,11 @@ HEAD = 4           # free blocks to leave over a raised surface
 VERGE = 3          # blocks beside the road that are blended
 STUFF_ROAD = 8     # a road column may carry this many blocks standing on it (posts, lamps, railings) and still move
 STUFF_VERGE = 3    # ... a verge column
+EDGE = 1.0         # blocks inside the road's half width that count as its edge (kerb, parapet)
+ROUNDS = 400       # rounds of _no_posts at most (a raised strip a block wide is undone from its ends, a block a round)
 PARALLEL_COS = 0.94   # carriageways this close to parallel are one road for the profile
 PARALLEL_GAP = 12  # ... and at most this many blocks apart between their kerbs (the two carriageways of a freeway)
+OVERLAP_COS = 0.85    # a road whose centre line lies on a wider road this close to parallel takes its level there
 
 
 def _runs(q):
@@ -82,6 +96,54 @@ class Profiler:
 
     def scan_region(self, ox, oz, g, dm, solid_lut, carr_lut, block_lut):
         self.G.scan_region(ox, oz, g, dm, solid_lut, carr_lut, block_lut)
+
+    def _track(self, c, gb):
+        """road_grade.Grader.track, which follows the road's own carriageway surface from a stretch at grade, block by
+        block, a block of change at a time (two after a gap). Where it loses the road (a deck that ends in a step of
+        two or more onto its approach) it would carry the deck's level on to the chain's end, and the road there,
+        further off than MAXD, would be left out of the profile. Here each stretch it lost is followed again from its
+        own stretch at grade (or, failing that, from where the road is a single surface), outward to the known level."""
+        G = self.G
+        nb, b = c["nb"], c["b"]
+        near = np.abs(c["plat"]) <= 1.5
+        lev, car = G.levels_at(c["pix"])
+        cand = [dict() for _ in range(nb)]
+        for k in range(lev.shape[0]):
+            m = near & car[k] & (lev[k] >= 0)
+            for bi, y in zip(b[m].tolist(), lev[k][m].tolist()):
+                cand[bi][y] = cand[bi].get(y, 0) + 1
+        h = G.track(c, gb)
+        # the bins track() really followed (it fills the others by interpolation): a candidate at the level it gives
+        known = np.array([bool(cand[i]) and h[i] in cand[i] for i in range(nb)])
+        if not known.any() or known.all(): return h
+        h = np.where(known, h, np.nan)
+        for _ in range(8):
+            lost = np.flatnonzero(np.isnan(h) & np.array([bool(cd) for cd in cand]))
+            if not len(lost): break
+            single = [i for i in lost if len(cand[i]) == 1]
+            grade = [i for i in single if not np.isnan(gb[i]) and abs(next(iter(cand[i])) - gb[i]) <= 2]
+            pool = grade or single
+            if not pool: break
+            kn = np.flatnonzero(~np.isnan(h))
+            # from the bin of the pool nearest the known level, out both ways until the known level
+            start = min(pool, key=lambda i: np.abs(kn - i).min() if len(kn) else 0)
+            h[start] = max(cand[start], key=cand[start].get)
+            for rng in (range(start + 1, nb), range(start - 1, -1, -1)):
+                last, gap = h[start], 0
+                for i in rng:
+                    if not np.isnan(h[i]) and i != start: break
+                    tol = min(2, 1 + gap // 8)
+                    ok = [y for y in cand[i] if abs(y - last) <= tol]
+                    if ok:
+                        y = min(ok, key=lambda y: (abs(y - last), -cand[i][y]))
+                        h[i] = y; last = y; gap = 0
+                    else:
+                        gap += 1
+            self.retracked = getattr(self, "retracked", 0) + 1
+        ok = ~np.isnan(h)
+        idx = np.arange(nb)
+        h[~ok] = np.interp(idx[~ok], idx[ok], h[ok])
+        return h
 
     # ---- per column: what stands on a surface, what is over it, how thick the ground under it is
     def _columns(self, pix, y0):
@@ -105,11 +167,8 @@ class Profiler:
             alive &= G.occupied(pix, y0 - k, y0 - k); thick += alive
         return stuff, room, thick
 
-    def _sealed(self, ops, st):
-        """Drops the lowerings that would open the hollow under a neighbour's ground to the sky: every block of the
-        column that turns to air must have beside it a block, or a neighbour with nothing over that height (open
-        air). Read from the world as it was (so the answer does not depend on the order of the moves, and holds across
-        region edges); a lowered neighbour's new air is road air, open like this one's."""
+    def top_map(self):
+        """The highest block (not leaves or water) of every column of the world as baked, -1 where it is empty."""
         G, W, D = self.G, self.W, self.D
         if not hasattr(self, "topocc"):
             lut = np.zeros(256, np.int64)
@@ -119,6 +178,15 @@ class Profiler:
                 b = G.occ[L]; hit = (b != 0) & (top < 0)
                 top[hit] = L * 8 + lut[b[hit]]
             self.topocc = top
+        return self.topocc
+
+    def _sealed(self, ops, st):
+        """Drops the lowerings that would open the hollow under a neighbour's ground to the sky: every block of the
+        column that turns to air must have beside it a block, or a neighbour with nothing over that height (open
+        air). Read from the world as it was (so the answer does not depend on the order of the moves, and holds across
+        region edges); a lowered neighbour's new air is road air, open like this one's."""
+        G, W, D = self.G, self.W, self.D
+        self.top_map()
         low = np.flatnonzero(ops[:, 2] < 0)
         if not len(low): return ops
         p, y0, e = ops[low, 0], ops[low, 1], -ops[low, 2]
@@ -134,8 +202,70 @@ class Profiler:
                 npix = nz * W + nx
                 fine = G.occupied(npix, y, y) | (self.topocc[nz, nx] <= y)
                 ok &= ~need | fine
-        st["refused_hollow"] = int((~ok).sum())
+        st["refused_hollow"] = st.get("refused_hollow", 0) + int((~ok).sum())
         return np.delete(ops, low[~ok], axis=0)
+
+    def predict(self, ops):
+        """The top of every column after the moves ops (rows pix, y0, d, most blocks on it), as _move will leave them
+        (worked out on the occupancy of the world as baked), and whether each move is done."""
+        o = np.lexsort((-ops[:, 1], ops[:, 0])); a = ops[o]
+        z, x = np.divmod(a[:, 0], self.W)
+        done, tops = _predict(self.G.occ, np.stack([z, x, a[:, 1], a[:, 2], a[:, 3]], 1).astype(np.int64), HEAD, self.H)
+        T1 = self.top_map().copy()
+        T1[z, x] = tops
+        ok = np.zeros(len(ops), bool); ok[o] = done != 0
+        return T1, ok
+
+    def _no_posts(self, ops, st):
+        """No column may be left standing alone above its neighbours by the moves (above all four, or above three
+        where it stood over at most one before: the end of a parapet that rose with its deck may stand over three): a
+        post on a parapet, a block of verge raised without the blocks beside it, a road column that stayed when the
+        road round it came down. A post that rose keeps its place (its moves are dropped); one that stayed while its
+        neighbours came down comes down with them where it can (its top block, sealed as any lowering), and otherwise
+        those neighbours keep their place. A column whose moves were dropped is not moved again, so this ends;
+        repeated until nothing is left (or ROUNDS)."""
+        T0 = self.top_map()
+        l0 = _lower(T0)
+        W, D = self.W, self.D
+        frozen = np.zeros(D * W, bool)
+        for it in range(ROUNDS):
+            T1, ok = self.predict(ops)
+            l1 = _lower(T1)
+            bad = ((l1 == 4) & (l0 < 4)) | ((l1 >= 3) & (l0 <= 1))
+            if it == 0: st["posts_planned"] = int(bad.sum())
+            st["post_rounds"] = it + 1
+            if not bad.any(): break
+            drop = np.zeros(D * W, bool)
+            bz, bx = np.nonzero(bad); bp = bz * W + bx
+            rose = T1[bz, bx] > T0[bz, bx]
+            drop[bp[rose]] = True
+            st["posts_kept"] = st.get("posts_kept", 0) + int(rose.sum())
+            # stayed (or came down less) while a neighbour came down
+            sz, sx = bz[~rose], bx[~rose]
+            dd = T1 - T0
+            P = np.pad(dd, 1)
+            nbd = np.stack([P[sz, sx + 1], P[sz + 2, sx + 1], P[sz + 1, sx], P[sz + 1, sx + 2]])   # z-1, z+1, x-1, x+1
+            want = np.where(nbd < 0, nbd, -10 ** 6).max(0)        # the smallest lowering of a neighbour
+            has = np.isin(sz * W + sx, ops[:, 0])
+            new = np.stack([sz * W + sx, T1[sz, sx], np.maximum(want, -MAXD), np.full(len(sz), STUFF_ROAD)], 1)
+            new = new[(want > -10 ** 6) & ~has & (T1[sz, sx] == T0[sz, sx]) & ~frozen[sz * W + sx]]
+            if len(new):
+                new = self._sealed(new, st)
+                st["posts_lowered"] = st.get("posts_lowered", 0) + len(new)
+            got = np.zeros_like(drop); got[new[:, 0]] = True
+            # where it cannot come down: its lowered neighbours keep their place
+            rest = ~got[sz * W + sx]
+            for dz, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                nz, nx = np.clip(sz[rest] + dz, 0, D - 1), np.clip(sx[rest] + dx, 0, W - 1)
+                low = dd[nz, nx] < 0
+                drop[(nz * W + nx)[low]] = True
+            st["posts_reverted"] = st.get("posts_reverted", 0) + int(rest.sum())
+            frozen |= drop
+            keep = ~drop[ops[:, 0]]
+            ops = np.concatenate([ops[keep], new]) if len(new) else ops[keep]
+        st["posts_left"] = int(bad.sum())
+        if os.environ.get("ROAD_PROFILE_DUMP"): self.dbg["T1pred"] = self.predict(ops)[0]
+        return ops
 
     def run(self, osm_path, world, origin=(0, 0)):
         G, W = self.G, self.W
@@ -154,7 +284,7 @@ class Profiler:
         NO = 2 * MAXD + 1                        # candidate levels per bin: the baked level -MAXD .. +MAXD
         for c in C:
             gb = G.ground_of(c)
-            h = G.track(c, gb)
+            h = self._track(c, gb)
             c["ok"] = not np.isnan(h).all()
             if not c["ok"]: continue
             st["tracked"] += 1
@@ -168,17 +298,23 @@ class Profiler:
             dist = np.where(lv >= 0, np.abs(lv - h[b][None]), 99)
             k = dist.argmin(0); idx = np.arange(len(pix))
             y0 = lv[k, idx].astype(np.int64)
-            road = (dist[k, idx] <= MAXD) & ((np.abs(plat) <= phw + 0.5) | (brb[b] & (np.abs(plat) <= phw + 2.5)))
+            # (past the road's half width, only a deck's own columns: its edge and parapet, not the ground beside it)
+            road = ((dist[k, idx] <= MAXD) & ((np.abs(plat) <= phw + 0.5) | (brb[b] & (np.abs(plat) <= phw + 2.5)))
+                    & ~((np.abs(plat) > phw + 0.5) & (y0 < hr[b])))
             pix, y0, bb, plat, phw = pix[road], y0[road], b[road], plat[road], phw[road]
             stuff, room, thick = self._columns(pix, y0)
             ok = stuff <= STUFF_ROAD
+            # a column at the road's edge that stands over the road (a kerb, a parapet, a post on its base) keeps its
+            # height over the road: it moves as the road does, and is not levelled to it
+            edge = (np.abs(plat) > phw - EDGE) & (y0 > hr[bb])
+            off = np.where(edge, y0 - hr[bb], 0)
             # cost of each candidate level: the mean misfit of the bin's columns; a column further than MAXD off, or
             # one that cannot follow (no room over it to rise, too little ground under it to sink, too much on it)
             # costs most
             cost = np.zeros((nb, NO)); cnt = np.zeros(nb)
             np.add.at(cnt, bb, 1)
             for o in range(NO):
-                dl = hr[bb] + o - MAXD - y0
+                dl = hr[bb] + o - MAXD - (y0 - off)
                 can = ok & (dl <= room) & (-dl <= thick)
                 np.add.at(cost[:, o], bb, np.where(can | (dl == 0), np.minimum(np.abs(dl), MAXD + 1), MAXD + 1))
             cost /= np.maximum(cnt, 1)[:, None]
@@ -192,7 +328,7 @@ class Profiler:
                     nostep[s0 + 1:e0] = True; st["decks_levelled"] += 1
             Ls = hr[:, None] + np.arange(NO)[None] - MAXD
             bad = Ls < lo[:, None]
-            c.update(h=h, hr=hr, brb=brb, cols=(pix, y0, bb, plat, phw, ok), cost=cost, bad=bad, nostep=nostep)
+            c.update(h=h, hr=hr, brb=brb, cols=(pix, y0, bb, plat, phw, ok, off), cost=cost, bad=bad, nostep=nostep)
         C = [c for c in C if c["ok"]]
         self.C = C
         # ---- 2. side-by-side carriageways: each bin also weighs the columns of its partner's bin
@@ -218,6 +354,11 @@ class Profiler:
                 cosd = np.abs((dirs[a] * dirs[b]).sum(1))
                 lat = np.abs(dd[:, 0] * dirs[a][:, 1] - dd[:, 1] * dirs[a][:, 0])
                 along = np.abs(dd[:, 0] * dirs[a][:, 0] + dd[:, 1] * dirs[a][:, 1])
+                # one road laid over another (a ramp that merges onto a freeway, both over one deck): a's centre line
+                # inside b's road, b at least as wide; a then takes b's level there (see 4./5.)
+                ovm = ((cid[a] != cid[b]) & (cosd >= OVERLAP_COS) & (lat <= hws[b] - 0.5) & (along <= 1)
+                       & (np.abs(lev[a] - lev[b]) <= MAXD) & (hws[b] >= hws[a]))
+                self.overlap = (cid[a[ovm]], bix[a[ovm]], cid[b[ovm]], bix[b[ovm]], lat[ovm] + along[ovm])
                 ok = ((cid[a] != cid[b]) & (cosd >= PARALLEL_COS) & (lat <= hws[a] + hws[b] + PARALLEL_GAP) & (along <= 1)
                       & (np.abs(lev[a] - lev[b]) <= 1) & (br[a] == br[b]))
                 a, b, along = a[ok], b[ok], along[ok]
@@ -281,11 +422,27 @@ class Profiler:
                 c["J"][bins[inb]] = J
         # ---- 4./5. the profile of each chain: the levels that fit its columns best, with few steps
         claims = []   # (pix, y0, target, priority, bridge, movable)
-        for ci, c in enumerate(C):
+        # widest first, so a road laid over a wider one (a merging ramp) takes the wider one's levels where it lies on it
+        ov = getattr(self, "overlap", None)
+        for ci in sorted(range(len(C)), key=lambda i: -float(np.max(C[i]["hw"]))):
+            c = C[ci]
             nb, hr = c["nb"], c["hr"]
             # (a hair more for each block away from the followed level: where two levels fit as well, as for two
             # coupled carriageways a block apart, each keeps its own, so neither is moved to the other's)
             cost = np.where(c["bad"], np.inf, c["cost"] + 1e-3 * np.abs(np.arange(NO) - MAXD)[None])
+            if ov is not None:
+                m = np.flatnonzero(ov[0] == ci)
+                m = m[np.array([("q" in C[cj]) for cj in ov[2][m]], bool)] if len(m) else m
+                if len(m):   # per bin, the road it lies nearest the centre of
+                    m = m[np.lexsort((ov[4][m], ov[1][m]))]
+                    m = m[np.concatenate([[True], ov[1][m][1:] != ov[1][m][:-1]])]
+                    L = np.array([C[cj]["q"][bj] for cj, bj in zip(ov[2][m], ov[3][m])])
+                    bi = ov[1][m]; o = L - hr[bi] + MAXD
+                    can = (o >= 0) & (o < NO) & (c["J"][bi] <= -10 ** 6)
+                    bi, o = bi[can], o[can]   # (on a deck too: the wider road's level is that deck's)
+                    if len(bi):
+                        cost[bi] = np.inf; cost[bi, o] = 0.0
+                        st["bins_shared"] = st.get("bins_shared", 0) + len(np.unique(bi))
             fixed = c["J"] > -10 ** 6
             if fixed.any():
                 fo = c["J"][fixed] - hr[fixed] + MAXD
@@ -293,9 +450,9 @@ class Profiler:
                 cost[fixed] = cf
             q = hr + _profile(cost, hr, c["nostep"] | np.concatenate([[False], fixed[1:] & fixed[:-1]]), MINRUN, MINSTAIR, STEP_COST) - MAXD
             c["q"] = q
-            pix, y0, bb, plat, phw, ok = c["cols"]
+            pix, y0, bb, plat, phw, ok, off = c["cols"]
             pri = np.abs(plat) / np.maximum(phw, 0.5)
-            claims.append(np.stack([pix, y0, q[bb], np.round(pri * 1000).astype(np.int64), c["brb"][bb].astype(np.int64),
+            claims.append(np.stack([pix, y0, q[bb] + off, np.round(pri * 1000).astype(np.int64), c["brb"][bb].astype(np.int64),
                                     ok.astype(np.int64)], 1))
         if os.environ.get("ROAD_PROFILE_DEBUG"):   # the chains' profiles, for looking into a result
             import pickle
@@ -309,6 +466,7 @@ class Profiler:
         claims = claims[first]
         d = claims[:, 2] - claims[:, 1]
         d = np.clip(d, -MAXD, MAXD)
+        self.dbg = dict(claims=claims, d_want=d.copy())   # for mca2web's ROAD_PROFILE_DUMP
         blocked = claims[:, 5] == 0
         st["cols_blocked"] = int((blocked & (d != 0)).sum())
         d[blocked] = 0
@@ -342,11 +500,14 @@ class Profiler:
             st["verge_cols"] = int(len(vp))
             ops.append(np.stack([vp, vy, dv, np.full(len(vp), STUFF_VERGE)], 1))
         ops = np.concatenate(ops).astype(np.int64)
+        self.dbg["ops_pre"] = ops
         ops = self._sealed(ops, st)
+        ops = self._no_posts(ops, st)
         # per column, the highest surface first
         o = np.lexsort((-ops[:, 1], ops[:, 0])); ops = ops[o]
         z, x = np.divmod(ops[:, 0], W)
         self.ops = np.stack([z, x, ops[:, 1], ops[:, 2], ops[:, 3]], 1).astype(np.int32)
+        st["retracked"] = getattr(self, "retracked", 0)
         st["seconds"] = round(time.time() - t0, 1)
         self.st = st
         return st
@@ -359,11 +520,34 @@ class Profiler:
         r = a[m].copy(); r[:, 0] -= oz; r[:, 1] -= ox
         if not len(r): return 0, 0
         res = _move(g, dm, ds, r, HEAD, self.soft)
+        if not hasattr(self, "res"): self.res = np.zeros(len(a), np.int32)
+        self.res[m] = res
         self.refused = getattr(self, "refused", 0) + int((res == 0).sum())
         return int((res > 0).sum()), int((res < 0).sum())
 
 
 from numba import njit
+
+
+def top_of(g, dm, block_lut):
+    """Per column of a region grid [H, P, P], its highest block (not leaves or water), -1 where it has none."""
+    occ = block_lut[g] | (dm != 0)
+    H = occ.shape[0]
+    hit = occ.any(0)
+    return np.where(hit, H - 1 - occ[::-1].argmax(0), -1).astype(np.int64)
+
+
+def lone(T):
+    """Columns whose top stands above all four neighbours' (a post, a single raised block)."""
+    P = np.pad(T, 1, mode="edge")
+    nb = np.maximum(np.maximum(P[:-2, 1:-1], P[2:, 1:-1]), np.maximum(P[1:-1, :-2], P[1:-1, 2:]))
+    return (T > nb) & (T >= 0)
+
+
+def lone_created(T0, T1, mask=False):
+    """Columns that stand alone above their neighbours after the pass and did not before."""
+    m = lone(T1) & ~lone(T0)
+    return m if mask else int(m.sum())
 
 
 @njit(cache=True)
@@ -376,7 +560,7 @@ def _move(g, dm, ds, ops, head, soft):
     out = np.zeros(ops.shape[0], np.int32)
     for i in range(ops.shape[0]):
         z, x, y0, d, smax = ops[i, 0], ops[i, 1], ops[i, 2], ops[i, 3], ops[i, 4]
-        if y0 <= 1 or y0 >= H - 1 or g[y0, z, x] == 0: continue
+        if y0 <= 1 or y0 >= H - 1 or ((g[y0, z, x] == 0 or soft[g[y0, z, x]]) and dm[y0, z, x] == 0): continue
         t = y0
         while t + 1 < H and ((g[t + 1, z, x] != 0 and not soft[g[t + 1, z, x]]) or dm[t + 1, z, x] != 0) and t - y0 < smax + 1: t += 1
         if t - y0 > smax: continue
@@ -387,7 +571,8 @@ def _move(g, dm, ds, ops, head, soft):
             for y in range(t + 1, top + 1):
                 if (g[y, z, x] != 0 and not soft[g[y, z, x]]) or dm[y, z, x] != 0: free = False; break
             if not free: continue
-            f = g[y0 - 1, z, x] if g[y0 - 1, z, x] != 0 else g[y0, z, x]
+            if g[y0, z, x] == 0 or soft[g[y0, z, x]]: continue   # only a whole block is stretched
+            f = g[y0 - 1, z, x] if g[y0 - 1, z, x] != 0 and not soft[g[y0 - 1, z, x]] else g[y0, z, x]
             for y in range(t, y0, -1):
                 g[y + d, z, x] = g[y, z, x]; dm[y + d, z, x] = dm[y, z, x]; ds[y + d, z, x] = ds[y, z, x]
             g[y0 + d, z, x] = g[y0, z, x]; dm[y0 + d, z, x] = 0; ds[y0 + d, z, x] = 0
@@ -399,7 +584,7 @@ def _move(g, dm, ds, ops, head, soft):
             ok = y0 - e >= 1
             for k in range(1, e + 1):
                 if not ok: break
-                if g[y0 - k, z, x] == 0: ok = False
+                if (g[y0 - k, z, x] == 0 or soft[g[y0 - k, z, x]]) and dm[y0 - k, z, x] == 0: ok = False
             if not ok: continue
             for y in range(y0, t + 1):
                 g[y - e, z, x] = g[y, z, x]; dm[y - e, z, x] = dm[y, z, x]; ds[y - e, z, x] = ds[y, z, x]
@@ -407,6 +592,59 @@ def _move(g, dm, ds, ops, head, soft):
                 g[y, z, x] = 0; dm[y, z, x] = 0; ds[y, z, x] = 0
             out[i] = d
     return out
+
+
+def _lower(T):
+    """Per column, how many of its four neighbours have a lower top."""
+    P = np.pad(T, 1, mode="edge"); n = np.zeros(T.shape, np.int64)
+    for q in (P[:-2, 1:-1], P[2:, 1:-1], P[1:-1, :-2], P[1:-1, 2:]): n += q < T
+    return n
+
+
+@njit(cache=True)
+def _predict(occ, ops, head, H):
+    """_move on the packed occupancy (a block, not leaves or water, per y: occ[y >> 3] bit 7 - (y & 7)), for ops sorted
+    by column and from the highest surface down: per op whether it is done, and the top of its column after all."""
+    n = ops.shape[0]
+    done = np.zeros(n, np.int32); tops = np.full(n, -1, np.int64)
+    col = np.zeros(H + 1, np.bool_)
+    i = 0
+    while i < n:
+        z, x = ops[i, 0], ops[i, 1]
+        for y in range(H): col[y] = ((occ[y >> 3, z, x] >> (7 - (y & 7))) & 1) == 1
+        j = i
+        while j < n and ops[j, 0] == z and ops[j, 1] == x:
+            y0, d, smax = ops[j, 2], ops[j, 3], ops[j, 4]
+            j += 1
+            if y0 <= 1 or y0 >= H - 1 or not col[y0]: continue
+            t = y0
+            while t + 1 < H and col[t + 1] and t - y0 < smax + 1: t += 1
+            if t - y0 > smax: continue
+            if d > 0:
+                top = max(t + d, y0 + d + head)
+                if top >= H: continue
+                free = True
+                for y in range(t + 1, top + 1):
+                    if col[y]: free = False; break
+                if not free: continue
+                for y in range(t, y0 - 1, -1): col[y + d] = col[y]
+                for y in range(y0, y0 + d): col[y] = True
+                done[j - 1] = d
+            elif d < 0:
+                e = -d
+                ok = y0 - e >= 1
+                for k in range(1, e + 1):
+                    if not ok: break
+                    if not col[y0 - k]: ok = False
+                if not ok: continue
+                for y in range(y0, t + 1): col[y - e] = col[y]
+                for y in range(t - e + 1, t + 1): col[y] = False
+                done[j - 1] = d
+        t = H - 1
+        while t >= 0 and not col[t]: t -= 1
+        for k in range(i, j): tops[k] = t
+        i = j
+    return done, tops
 
 
 INF = 1e18
