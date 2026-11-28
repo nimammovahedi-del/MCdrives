@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How It's Built · Map Craft</title>
+<meta name="description" content="How Map Craft turns open map data into a drivable block county: the pipeline, data sources, streaming, live traffic and the photo audit.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Map Craft">
+<meta property="og:title" content="How It&#x27;s Built · Map Craft">
+<meta property="og:description" content="How Map Craft turns open map data into a drivable block county: the pipeline, data sources, streaming, live traffic and the photo audit.">
+<meta property="og:url" content="https://mcmaps.pages.dev/how-its-built">
+<meta property="og:image" content="https://mcmaps.pages.dev/assets/img/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Map Craft logo over a blocky 3D view of Orange County">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="How It&#x27;s Built · Map Craft">
+<meta name="twitter:description" content="How Map Craft turns open map data into a drivable block county: the pipeline, data sources, streaming, live traffic and the photo audit.">
+<meta name="twitter:image" content="https://mcmaps.pages.dev/assets/img/og.jpg">
+<meta name="theme-color" content="#f6f5f1">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<header class="nav"><div class="wrap">
+  <a href="./" aria-label="Map Craft home"><canvas class="logo" aria-hidden="true"></canvas></a><span class="sp"></span>
+  <a class="l" href="how-it-works">How it works</a><a class="l on" href="how-its-built" aria-current="page">How it's built</a><a class="l" href="map?mode=orbit">View map</a>
+  <a class="btn sm" href="map">Drive on Web <svg viewBox="0 0 3 6" aria-hidden="true"><rect width="1" height="6" fill="currentColor"/><rect x="1" y="1" width="1" height="4" fill="currentColor"/><rect x="2" y="2" width="1" height="2" fill="currentColor"/></svg></a>
+</div></header>
+<main>
+<div class="hero wrap">
+  <div class="crumb"><a href="./" style="text-decoration:none">Map Craft</a><i></i><b>How it's built</b></div>
+  <h1 class="h1">From open data to a county you can drive.</h1>
+  <p class="sub">One command builds it. Your browser streams it.</p>
+  <div class="stats">
+    <div class="card stat"><b>733 km²</b><span>across 11 cities<br>in blocks</span></div>
+    <div class="card stat"><b>1.07B</b><span>block faces<br>drawn</span></div>
+    <div class="card stat"><b>358,634</b><span>road<br>segments</span></div>
+    <div class="card stat"><b>123</b><span>chunks built<br>side by side</span></div>
+  </div>
+</div>
+
+<section id="pipeline"><div class="wrap">
+  <div class="sh"><div><span class="tag">The pipeline</span><h2 class="h2">Six steps. One command.</h2><p class="lead">One command runs every step, from raw map data to a map on the web. Tap a step to see what it makes.</p></div><span class=n>Tap a step</span></div>
+  <div class="card pipe" data-pipe>
+    <div class="steps" role="tablist"><button class="step" role="tab" data-i="0"><span class="ic"><canvas class="ico" data-i="data"></canvas></span><span class="n">01</span><b>Gather open data</b></button><button class="step" role="tab" data-i="1"><span class="ic"><canvas class="ico" data-i="bake"></canvas></span><span class="n">02</span><b>Bake the blocks</b></button><button class="step" role="tab" data-i="2"><span class="ic"><canvas class="ico" data-i="pack"></canvas></span><span class="n">03</span><b>Pack for streaming</b></button><button class="step" role="tab" data-i="3"><span class="ic"><canvas class="ico" data-i="graph"></canvas></span><span class="n">04</span><b>Build the road graph</b></button><button class="step" role="tab" data-i="4"><span class="ic"><canvas class="ico" data-i="view"></canvas></span><span class="n">05</span><b>Drive in the browser</b></button><button class="step" role="tab" data-i="5"><span class="ic"><canvas class="ico" data-i="live"></canvas></span><span class="n">06</span><b>Add live traffic</b></button></div>
+    <div class="road" aria-hidden="true"><i></i></div>
+    <div class="sv"><div class="m well"><img alt=""></div><div class="tx"><span class="tag g"></span><h3 class="h2"></h3><p class="d"></p><div class="chips"></div>
+      <div class="row"><button class="btn alt sm" data-prev>Back</button><button class="btn sm" data-nextstep>Next step <svg viewBox="0 0 3 6" aria-hidden="true"><rect width="1" height="6" fill="currentColor"/><rect x="1" y="1" width="1" height="4" fill="currentColor"/><rect x="2" y="2" width="1" height="2" fill="currentColor"/></svg></button></div></div></div>
+  </div>
+  <script type="application/json" id="stepdata">[{"t": "Gather open data", "d": "Roads, buildings, places and addresses come from open map projects. Ground height comes from USGS laser scans.", "img": "assets/img/map-top.jpg", "chips": ["OpenStreetMap", "Overture", "USGS LiDAR"], "n": "Step 01"}, {"t": "Bake the blocks", "d": "Arnis turns the map data into a block world at one block per meter. The county is split into 123 chunks of about 6 km\u00b2 that build side by side.", "img": "assets/img/blocks-top.jpg", "chips": ["Arnis", "123 chunks in parallel", "1 block \u2248 1 m"], "n": "Step 02"}, {"t": "Pack for streaming", "d": "Only the block faces you can see are kept. Then the county is cut into 3,075 squares of 512 by 512 blocks, stored on Cloudflare R2 and loaded one at a time.", "img": "assets/img/packs.jpg", "chips": ["Visible faces only", "512 \u00d7 512 squares", "3,075 squares", "Hosted on Cloudflare R2"], "n": "Step 03"}, {"t": "Build the road graph", "d": "Every road becomes a segment in a graph, with one-way streets and freeway ramps, so routes follow real traffic rules.", "img": "assets/img/graph.jpg", "chips": ["358,634 road segments", "One-ways and ramps", "A* routing"], "n": "Step 04"}, {"t": "Drive in the browser", "d": "three.js draws the blocks with WebGL, so the whole map runs in a normal web browser on a phone or a computer.", "img": "assets/img/d-drive.jpg", "chips": ["three.js", "WebGL", "Phone and desktop"], "n": "Step 05"}, {"t": "Add live traffic", "d": "Live speeds, crashes and closures are pulled in every minute and painted onto the roads.", "img": "assets/img/speeds.jpg", "chips": ["Caltrans", "CHP", "TomTom"], "n": "Step 06"}]</script>
+</div></section>
+
+<section id="sources"><div class="wrap">
+  <div class="sh"><div><span class="tag">Where the data comes from</span><h2 class="h2">Seven open sources.</h2><p class="lead">Everything on the map comes from public, open data. Pick a layer to see which sources build it. The colored squares show what each source adds.</p></div><span class=n>Pick a layer</span></div>
+  <div class="layers seg" role="group" aria-label="Show sources for a layer"><button data-l="" aria-pressed="true">All</button><button data-l="roads"><i class="d-roads"></i>Roads</button><button data-l="bldg"><i class="d-bldg"></i>Buildings</button><button data-l="places"><i class="d-places"></i>Places</button><button data-l="addr"><i class="d-addr"></i>Addresses</button><button data-l="height"><i class="d-height"></i>Ground height</button><button data-l="live"><i class="d-live"></i>Live traffic</button></div>
+  <div class="srcs"><div class="card src" data-ls="roads bldg places"><span class="tag">Map</span><b>OpenStreetMap</b><p class="d">The world map made by volunteers. It gives us the road network, building outlines and named places.</p><div class="dots"><i class="d-roads on" title="Roads"></i><i class="d-bldg on" title="Buildings"></i><i class="d-places on" title="Places"></i><i class="d-addr" title="Addresses"></i><i class="d-height" title="Ground height"></i><i class="d-live" title="Live traffic"></i></div></div><div class="card src" data-ls="bldg places addr"><span class="tag">Map</span><b>Overture Maps</b><p class="d">Open map data from the Overture Maps Foundation. It fills in buildings, places and addresses.</p><div class="dots"><i class="d-roads" title="Roads"></i><i class="d-bldg on" title="Buildings"></i><i class="d-places on" title="Places"></i><i class="d-addr on" title="Addresses"></i><i class="d-height" title="Ground height"></i><i class="d-live" title="Live traffic"></i></div></div><div class="card src" data-ls="addr"><span class="tag">Addresses</span><b>OpenAddresses</b><p class="d">Street addresses collected from county and city records.</p><div class="dots"><i class="d-roads" title="Roads"></i><i class="d-bldg" title="Buildings"></i><i class="d-places" title="Places"></i><i class="d-addr on" title="Addresses"></i><i class="d-height" title="Ground height"></i><i class="d-live" title="Live traffic"></i></div></div><div class="card src" data-ls="height"><span class="tag">LiDAR</span><b>USGS 3DEP</b><p class="d">Laser scans of the ground, so hills and slopes are where they really are.</p><div class="dots"><i class="d-roads" title="Roads"></i><i class="d-bldg" title="Buildings"></i><i class="d-places" title="Places"></i><i class="d-addr" title="Addresses"></i><i class="d-height on" title="Ground height"></i><i class="d-live" title="Live traffic"></i></div></div><div class="card src" data-ls="live"><span class="tag">Sensors</span><b>Caltrans PeMS</b><p class="d">Sensors in the freeway lanes that measure how fast traffic is moving.</p><div class="dots"><i class="d-roads" title="Roads"></i><i class="d-bldg" title="Buildings"></i><i class="d-places" title="Places"></i><i class="d-addr" title="Addresses"></i><i class="d-height" title="Ground height"></i><i class="d-live on" title="Live traffic"></i></div></div><div class="card src" data-ls="live"><span class="tag">Incidents</span><b>Highway Patrol</b><p class="d">Live crash and hazard reports from the California Highway Patrol.</p><div class="dots"><i class="d-roads" title="Roads"></i><i class="d-bldg" title="Buildings"></i><i class="d-places" title="Places"></i><i class="d-addr" title="Addresses"></i><i class="d-height" title="Ground height"></i><i class="d-live on" title="Live traffic"></i></div></div><div class="card src" data-ls="live"><span class="tag">Incidents</span><b>TomTom</b><p class="d">Incident reports on city streets, such as closures and roadwork.</p><div class="dots"><i class="d-roads" title="Roads"></i><i class="d-bldg" title="Buildings"></i><i class="d-places" title="Places"></i><i class="d-addr" title="Addresses"></i><i class="d-height" title="Ground height"></i><i class="d-live on" title="Live traffic"></i></div></div></div>
+</div></section>
+
+<section id="stream"><div class="wrap">
+  <div class="sh"><div><span class="tag">Why it runs on a phone</span><h2 class="h2">A 4.2 GB county, a few MB at a time.</h2><p class="lead">The whole map is 4.2 GB, far too much for a phone to hold at once. So only the squares around your car are loaded, and they swap as you drive.</p></div><span class=n>Drag the slider</span></div>
+  <div class="two">
+    <div class="card">
+      <div class="top"><span class="tag">Chunks</span><span class="hint" id="chunktip">Point at a chunk</span></div>
+      <div class="cm well"><div class="chunkmap" id="chunkmap" data-rows="26" data-cols="27" aria-label="Map of the built chunks"></div></div>
+      <div class="legend"><span>Less detail</span><i class="ramp"></i><span>More detail</span></div>
+      <p class="cp">The map is built as 123 chunks, about 6 km² each. Darker squares hold more detail, such as dense buildings and parking lots. Point at one to see its numbers.</p>
+      <script type="application/json" id="chunkdata">[["r5c14", 9952427, 43.3, 6.0], ["r6c13", 9288537, 40.43, 6.0], ["r6c14", 11262337, 47.02, 6.0], ["r7c11", 3461838, 18.38, 6.0], ["r7c12", 8001618, 35.96, 6.0], ["r7c13", 13433695, 56.2, 6.0], ["r7c14", 9929979, 42.01, 6.0], ["r8c10", 3757171, 19.23, 6.0], ["r8c11", 7902525, 34.55, 6.0], ["r8c13", 11015962, 46.06, 6.0], ["r8c14", 12750356, 52.31, 6.0], ["r8c15", 10389871, 43.55, 6.0], ["r8c16", 13481204, 54.55, 6.0], ["r9c8", 2701274, 15.58, 6.0], ["r9c9", 6120577, 28.42, 6.0], ["r9c10", 9825592, 41.24, 6.0], ["r9c11", 8723543, 37.93, 6.0], ["r9c13", 10827944, 44.56, 6.0], ["r9c14", 12474701, 51.46, 6.0], ["r9c15", 13812306, 55.01, 6.0], ["r9c16", 14613618, 58.3, 6.0], ["r10c7", 4773127, 24.2, 6.0], ["r10c8", 5643099, 27.36, 6.0], ["r10c9", 10505139, 43.61, 6.0], ["r10c10", 10297503, 43.75, 6.0], ["r10c11", 7544958, 33.92, 6.0], ["r10c12", 7827210, 34.6, 6.0], ["r10c13", 7809191, 34.4, 6.0], ["r10c14", 11289794, 46.6, 6.0], ["r10c15", 10735765, 43.99, 6.0], ["r10c16", 12274322, 50.53, 6.0], ["r11c6", 4826136, 23.95, 6.0], ["r11c7", 8111014, 36.59, 6.0], ["r11c8", 8280536, 36.51, 6.0], ["r11c9", 12901319, 52.1, 6.0], ["r11c10", 8629088, 37.73, 6.0], ["r11c11", 9011286, 39.36, 6.0], ["r11c12", 9175557, 39.16, 6.0], ["r11c13", 6119674, 28.81, 6.0], ["r11c14", 8432473, 35.64, 6.0], ["r11c15", 8502325, 36.94, 6.0], ["r11c16", 14849084, 58.76, 6.0], ["r12c6", 7739459, 35.04, 6.0], ["r12c7", 7411694, 34.4, 6.0], ["r12c8", 8899446, 39.03, 6.0], ["r12c9", 8613336, 36.22, 6.0], ["r12c10", 10379229, 41.48, 6.0], ["r12c11", 11975680, 48.93, 6.0], ["r12c12", 6861039, 30.7, 6.0], ["r12c13", 7731666, 33.2, 6.0], ["r12c14", 5656775, 25.87, 6.0], ["r12c15", 8460737, 35.97, 6.0], ["r12c16", 12311812, 51.03, 6.0], ["r12c17", 12891468, 52.56, 6.0], ["r13c6", 6508034, 31.55, 6.0], ["r13c7", 8054524, 36.12, 6.0], ["r13c8", 6695428, 31.27, 6.0], ["r13c9", 6356164, 27.81, 6.0], ["r13c10", 9765602, 38.61, 6.0], ["r13c11", 12289168, 50.24, 6.0], ["r13c12", 11276527, 46.7, 6.0], ["r13c13", 7975038, 33.72, 6.0], ["r13c14", 4454340, 22.49, 6.0], ["r13c15", 6249743, 29.51, 6.0], ["r13c16", 5374510, 26.35, 6.0], ["r13c17", 7628334, 34.22, 6.0], ["r13c18", 10136774, 43.54, 6.0], ["r14c7", 5599603, 25.78, 6.0], ["r14c8", 8351322, 36.83, 6.0], ["r14c9", 6720924, 30.81, 6.0], ["r14c10", 6519809, 28.17, 6.0], ["r14c11", 6670969, 29.97, 6.0], ["r14c12", 10638523, 44.81, 6.0], ["r14c13", 11030029, 45.87, 6.0], ["r14c14", 8451776, 37.29, 6.0], ["r14c15", 8717248, 37.27, 6.0], ["r14c16", 9093681, 38.39, 6.0], ["r14c17", 10404951, 44.46, 6.0], ["r14c18", 12162855, 49.27, 6.0], ["r15c7", 5884477, 28.09, 6.0], ["r15c8", 7136006, 33.31, 6.0], ["r15c9", 5960057, 29.28, 6.0], ["r15c10", 5523630, 24.96, 6.0], ["r15c11", 8843358, 37.5, 6.0], ["r15c12", 8860031, 37.16, 6.0], ["r15c13", 12328859, 51.97, 6.0], ["r15c14", 8686954, 38.37, 6.0], ["r15c15", 6587206, 29.63, 6.0], ["r16c6", 6040441, 29.99, 6.0], ["r16c7", 6502905, 31.32, 6.0], ["r16c8", 6460573, 31.01, 6.0], ["r16c9", 6853546, 32.57, 6.0], ["r16c10", 7095113, 31.78, 6.0], ["r16c11", 9128479, 38.96, 6.0], ["r16c12", 11987104, 49.46, 6.0], ["r16c13", 11021669, 46.67, 6.0], ["r16c14", 9908365, 40.97, 6.0], ["r16c15", 8065462, 34.91, 6.0], ["r17c7", 5591996, 27.32, 6.0], ["r17c8", 7885861, 35.38, 6.0], ["r17c9", 9715332, 42.04, 6.0], ["r17c10", 7660274, 34.45, 6.0], ["r17c11", 7057596, 32.86, 6.0], ["r17c13", 10798774, 44.99, 6.0], ["r17c14", 4449985, 22.44, 6.0], ["r18c8", 6731869, 30.67, 6.0], ["r18c9", 7405306, 33.37, 6.0], ["r18c10", 8681088, 38.82, 6.0], ["r18c11", 6180251, 29.94, 6.0], ["r18c12", 9874489, 43.02, 6.0], ["r18c13", 11554787, 46.79, 6.0], ["r18c14", 8153145, 34.27, 6.0], ["r19c9", 4393438, 21.66, 6.0], ["r19c10", 6551938, 30.95, 6.0], ["r19c11", 8380195, 37.63, 6.0], ["r19c12", 11573761, 47.76, 6.0], ["r19c13", 10603909, 42.94, 6.0], ["r20c9", 5507048, 26.88, 5.9], ["r20c10", 7018066, 33.23, 5.9], ["r20c11", 11895988, 50.13, 5.9], ["r20c12", 12576242, 51.36, 5.9], ["r20c13", 13551802, 54.41, 5.9], ["r21c10", 5761018, 26.61, 5.9]]</script>
+    </div>
+    <div class="card" data-stream data-per="1.351" data-city="4155">
+      <div class="top"><span class="tag">Streaming</span><span class="hint"><b class="r">750</b> blocks around the car</span></div>
+      <div class="sg well"><canvas class="px" width="360" height="360" aria-label="Squares loaded around the car"></canvas></div>
+      <div class="ctl"><input type="range" min="250" max="2000" step="50" value="750" aria-label="Streaming radius in blocks">
+        <div class="meter"><div><b class="nsq">13</b><span>squares</span></div><div><b class="mb">15 MB</b><span>loaded</span></div><div><b>4.15 GB</b><span>whole map</span></div></div>
+        <div class="bar"><i class="fill"></i></div></div>
+        <p class="cp">A bigger radius shows more of the map at once, but uses more memory and data.</p>
+    </div>
+  </div>
+</div></section>
+
+<section id="traffic"><div class="wrap">
+  <div class="sh"><div><span class="tag">Live traffic</span><h2 class="h2">Fresh every minute.</h2><p class="lead">Four live feeds are checked on their own timers, trimmed to Orange County and handed to every driver at once.</p></div><span class=n>Live loop</span></div>
+  <div class="loop">
+    <div class="card node"><div class="top"><span class="tag">Feeds</span></div><p class="d">Each source is checked on its own timer.</p><ul class="feeds"><li><span>CHP incidents<small>Crashes and hazards</small></span><em>every 1 min</em><i style="--t:3s"></i></li><li><span>Caltrans closures<small>Lane and ramp closures</small></span><em>every 5 min</em><i style="--t:15s"></i></li><li><span>Freeway speeds<small>From lane sensors</small></span><em>every 5 min</em><i style="--t:15s"></i></li><li><span>TomTom incidents<small>City street incidents</small></span><em>every 20 min</em><i style="--t:60s"></i></li></ul></div>
+    <div class="wire" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="card node"><div class="top"><span class="tag">Traffic server</span></div><p class="d">A small server gathers the feeds, so each phone downloads one small file.</p><div class="chips"><span>Trims to Orange County</span><span>One fetch for everyone</span><span>Keys stay secret</span></div></div>
+    <div class="wire" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="card node"><div class="top"><span class="tag g">Map Craft</span></div><p class="d">The app colors the roads and finds faster routes.</p><div class="chips"><span>Roads colored by speed</span><span>Routes avoid slow roads</span><span>Offers a faster way</span></div></div>
+  </div>
+</div></section>
+
+<section id="audit"><div class="wrap">
+  <div class="sh"><div><span class="tag">Quality check</span><h2 class="h2">Checked before it ships.</h2><p class="lead">Before the county goes live, hundreds of photos of the new map go through a multi-step review, and every real problem is fixed and photographed again.</p></div><span class=n>Drag to compare</span></div>
+  <div class="audit">
+    <ol class="funnel">
+      <li class="card"><b>743</b><div><h3 class="h3">Photos taken</h3><p>A browser on a build server photographs junctions, bridges, freeways, streets, places and chunk seams.</p></div></li>
+      <li class="card"><b>148</b><div><h3 class="h3">Flagged</h3><p>A first review pass looks at every photo and flags anything that looks wrong.</p></div></li>
+      <li class="card"><b>39</b><div><h3 class="h3">Confirmed</h3><p>A second, stricter review checks each flag and keeps only the real defects.</p></div></li>
+      <li class="card ok"><b>Fixed</b><div><h3 class="h3">Rebuilt and rechecked</h3><p>The cause is fixed in the build tools, the chunks are rebuilt and the same spots are photographed again.</p></div></li>
+    </ol>
+    <div class="card fixes" data-fixes>
+      <div class="top"><span class="tag">Before and after</span><div class="seg" role="group" aria-label="Choose a fix"><button data-k="toll">Toll road</button><button data-k="pch">Bridge</button><button data-k="i405">Freeway</button><button data-k="stairs">Ramp</button></div></div>
+      <div class="cmp fx" tabindex="0" role="slider" aria-label="Compare before and after the fix" aria-valuemin="0" aria-valuemax="100">
+        <img alt="Before the fix"><img class="b" alt="After the fix">
+        <div class="k"><i><svg viewBox="0 0 22 22" aria-hidden="true"><path d="M8 6l-5 5 5 5M14 6l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square"/></svg></i></div><span class="tag w tl">Before</span><span class="tag tr">After</span>
+      </div>
+      <p class="cp"></p>
+      <script type="application/json" id="fixdata">{"toll": {"c": "A see-through gap across the Foothill toll road, where two chunks met. Now the road runs straight across the seam."}, "pch": {"c": "The Pacific Coast Highway bridge climbed in big stair steps. Now the deck rises smoothly."}, "i405": {"c": "The two halves of the I-405 sat at different heights. Now they line up."}, "stairs": {"c": "The Costa Mesa Freeway ramp was built as a staircase. Now it is one even slope."}}</script>
+    </div>
+  </div>
+</div></section>
+<div class="band"><div class="pat" aria-hidden="true"></div><div class="wrap">
+  <h2 class="h2">See it for yourself.</h2><p>All of this runs in your browser.</p>
+  <div class="row"><a class="btn" href="map">Drive on Web <svg viewBox="0 0 3 6" aria-hidden="true"><rect width="1" height="6" fill="currentColor"/><rect x="1" y="1" width="1" height="4" fill="currentColor"/><rect x="2" y="2" width="1" height="2" fill="currentColor"/></svg></a><a class="btn dark" href="map?mode=orbit">View the 3D map</a></div>
+</div></div>
+</main>
+<footer><div class="wrap">
+  <span>Map Craft · Orange County beta · Map data © OpenStreetMap contributors · Not affiliated with any game</span>
+  <nav><a href="./">Home</a><a href="how-it-works">How it works</a><a href="how-its-built">How it's built</a><a href="legal">Legal &amp; Privacy</a></nav>
+</div></footer>
+<script src="assets/site.js"></script>
+</body>
+</html>
