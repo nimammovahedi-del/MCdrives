@@ -1,0 +1,117 @@
+name: Film banner
+
+# Films the homepage background video from a built area: tools/film_banner.js renders the frames, split across
+# parallel jobs, and the last job joins them, makes the loop seamless (the end crossfades into the start), encodes
+# a desktop and a phone version plus a still, and commits them to the branch it ran on under web/home/assets/video/.
+# tools/film/run.json picks the shot (a config in tools/film/), the area and the number of jobs; pushing a change
+# to it, to a shot or to the filming script starts a run.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/**"]
+    paths: ["tools/film/**", "tools/film_banner.js", ".github/workflows/film.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: film-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.s.outputs.shards }}
+      area: ${{ steps.s.outputs.area }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: s
+        run: |
+          python3 - >> "$GITHUB_OUTPUT" <<'EOF'
+          import json, math
+          run = json.load(open('tools/film/run.json')); shot = json.load(open('tools/film/' + run['shot'] + '.json'))
+          total = round(shot['seconds'] * shot.get('renderFps', shot['fps'])); n = run['jobs']; per = math.ceil(total / n)
+          print('shards=' + json.dumps([[i * per, min(total, (i + 1) * per) - 1] for i in range(n) if i * per < total]))
+          print('area=' + run['area'])
+          EOF
+          cat "$GITHUB_OUTPUT"
+  shoot:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        range: ${{ fromJson(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: built/${{ needs.plan.outputs.area }}
+          path: site
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save playwright@1 && npx playwright install --with-deps chromium && sudo apt-get install -y -qq ffmpeg >/dev/null
+      - name: Film
+        run: |
+          SHOT=$(python3 -c "import json; print(json.load(open('tools/film/run.json'))['shot'])")
+          node tools/film_banner.js site "tools/film/$SHOT.json" frames ${{ matrix.range[0] }} ${{ matrix.range[1] }}
+          FPS=$(python3 -c "import json; c = json.load(open('tools/film/$SHOT.json')); print(c.get('renderFps', c['fps']))")
+          ffmpeg -loglevel error -framerate $FPS -start_number ${{ matrix.range[0] }} -i frames/f%05d.jpg \
+            -c:v libx264 -preset slow -crf 12 -pix_fmt yuv420p seg.mp4
+          mkdir out && mv seg.mp4 "out/seg-$(printf %05d ${{ matrix.range[0] }}).mp4"
+          cp frames/f$(printf %05d ${{ matrix.range[0] }}).jpg out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: seg-${{ matrix.range[0] }}
+          path: out
+          retention-days: 7
+          compression-level: 0
+  join:
+    needs: shoot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
+      - uses: actions/download-artifact@v4
+        with:
+          path: segs
+          pattern: seg-*
+          merge-multiple: true
+      - name: Join, loop and encode
+        run: |
+          SHOT=$(python3 -c "import json; print(json.load(open('tools/film/run.json'))['shot'])")
+          XF=$(python3 -c "import json; print(json.load(open('tools/film/$SHOT.json')).get('crossfade', 2))")
+          ls segs/seg-*.mp4 | sort | sed "s|^|file '$PWD/|; s|$|'|" > list.txt
+          ffmpeg -loglevel error -f concat -safe 0 -i list.txt -c copy drawn.mp4
+          # frames drawn at renderFps are filled in to fps by motion interpolation (the camera only glides)
+          FPS=$(python3 -c "import json; print(json.load(open('tools/film/$SHOT.json'))['fps'])")
+          ffmpeg -loglevel error -i drawn.mp4 -vf "minterpolate=fps=$FPS:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1" \
+            -c:v libx264 -preset slow -crf 12 -pix_fmt yuv420p master.mp4
+          T=$(ffprobe -v error -show_entries format=duration -of csv=p=0 master.mp4)
+          # seamless loop: drop the first XF seconds, and crossfade the last XF seconds into them
+          ffmpeg -loglevel error -i master.mp4 -filter_complex \
+            "[0]split[a][b];[a]trim=start=$XF,setpts=PTS-STARTPTS[main];[b]trim=0:$XF,setpts=PTS-STARTPTS[head];[main][head]xfade=transition=fade:duration=$XF:offset=$(python3 -c "print($T-2*$XF)")[v]" \
+            -map "[v]" -c:v libx264 -preset slow -crf 12 -pix_fmt yuv420p loop.mp4
+          mkdir -p "web/home/assets/video"
+          O="web/home/assets/video/$SHOT"
+          ffmpeg -loglevel error -y -i loop.mp4 -vf scale=1280:-2:flags=lanczos -c:v libx264 -preset veryslow -crf 30 -maxrate 1100k -bufsize 2200k \
+            -pix_fmt yuv420p -movflags +faststart -an "$O-720.mp4"
+          ffmpeg -loglevel error -y -i loop.mp4 -vf scale=854:-2:flags=lanczos -c:v libx264 -preset veryslow -crf 31 -maxrate 700k -bufsize 1400k \
+            -pix_fmt yuv420p -movflags +faststart -an "$O-480.mp4"
+          ffmpeg -loglevel error -y -i loop.mp4 -frames:v 1 -vf scale=1600:-2:flags=lanczos -q:v 3 "$O-poster.jpg"
+          ls -la web/home/assets/video
+      - uses: actions/upload-artifact@v4
+        with:
+          name: master
+          path: loop.mp4
+          retention-days: 7
+          compression-level: 0
+      - name: Commit to this branch
+        run: |
+          git add web/home/assets/video
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Banner video filmed from built/$(python3 -c "import json; print(json.load(open('tools/film/run.json'))['area'])")"
+          for i in 1 2 3 4; do git pull -q --rebase origin "${GITHUB_REF_NAME}" && git push -q origin "HEAD:${GITHUB_REF_NAME}" && break; sleep 5; done
