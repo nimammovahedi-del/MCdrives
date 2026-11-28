@@ -1,0 +1,421 @@
+{
+ "area": "oc-grade5",
+ "commit": "2d17d80",
+ "seed": "1",
+ "shots": [
+  {
+   "file": "s0182_freeway_low.jpg",
+   "id": "s0182",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 17611,
+   "z": 28659,
+   "yaw": 0,
+   "chunk": "r14c7",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 3100
+  },
+  {
+   "file": "s0175_bridge_high.jpg",
+   "id": "s0175",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Warner Avenue",
+   "x": 18412,
+   "z": 26327,
+   "yaw": 0,
+   "chunk": "r15c7",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 3319
+  },
+  {
+   "file": "s0055_bridge_high.jpg",
+   "id": "s0055",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, Birch Street",
+   "x": 22906,
+   "z": 32269,
+   "yaw": 0,
+   "chunk": "r12c9",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2800
+  },
+  {
+   "file": "s0349_bridge_low.jpg",
+   "id": "s0349",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, 38th Street",
+   "x": 17253,
+   "z": 37044,
+   "yaw": 0,
+   "chunk": "r10c7",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2195
+  },
+  {
+   "file": "s0091_bridge_high.jpg",
+   "id": "s0091",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 25728,
+   "z": 22598,
+   "yaw": 0,
+   "chunk": "r16c10",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2740
+  },
+  {
+   "file": "s0312_junction_high.jpg",
+   "id": "s0312",
+   "cat": "junction",
+   "view": "high",
+   "what": "junction on Jamboree Road",
+   "x": 30652,
+   "z": 25139,
+   "yaw": 0,
+   "chunk": "r15c12",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2835
+  },
+  {
+   "file": "s0051_residential_high.jpg",
+   "id": "s0051",
+   "cat": "residential",
+   "view": "high",
+   "what": "residential street, Scale",
+   "x": 36538,
+   "z": 29877,
+   "yaw": 0,
+   "chunk": "r13c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2940
+  },
+  {
+   "file": "s0331_bridge_high.jpg",
+   "id": "s0331",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, ramp",
+   "x": 38295,
+   "z": 37433,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2162
+  },
+  {
+   "file": "s0320_freeway_high.jpg",
+   "id": "s0320",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Costa Mesa Freeway",
+   "x": 26728,
+   "z": 13877,
+   "yaw": 0,
+   "chunk": "r20c10",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2723
+  },
+  {
+   "file": "s0026_freeway_high.jpg",
+   "id": "s0026",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, Riverside Freeway",
+   "x": 26779,
+   "z": 11527,
+   "yaw": 0,
+   "chunk": "r21c10",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2171
+  },
+  {
+   "file": "s0002_freeway_high.jpg",
+   "id": "s0002",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, ramp",
+   "x": 24472,
+   "z": 11467,
+   "yaw": 0,
+   "chunk": "r21c10",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1480
+  },
+  {
+   "file": "s0151_bridge_high.jpg",
+   "id": "s0151",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, East South Street",
+   "x": 22642,
+   "z": 13123,
+   "yaw": 0,
+   "chunk": "r20c9",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2700
+  },
+  {
+   "file": "s0182_freeway_high.jpg",
+   "id": "s0182",
+   "cat": "freeway",
+   "view": "high",
+   "what": "freeway or ramp, San Diego Freeway",
+   "x": 17611,
+   "z": 28659,
+   "yaw": 0,
+   "chunk": "r14c7",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1622
+  },
+  {
+   "file": "s0175_bridge_low.jpg",
+   "id": "s0175",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Warner Avenue",
+   "x": 18412,
+   "z": 26327,
+   "yaw": 0,
+   "chunk": "r15c7",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2370
+  },
+  {
+   "file": "s0055_bridge_low.jpg",
+   "id": "s0055",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, Birch Street",
+   "x": 22906,
+   "z": 32269,
+   "yaw": 0,
+   "chunk": "r12c9",
+   "cam": {
+    "h": 22,
+    "pitch": 21.7
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1682
+  },
+  {
+   "file": "s0349_bridge_high.jpg",
+   "id": "s0349",
+   "cat": "bridge",
+   "view": "high",
+   "what": "bridge or raised road, 38th Street",
+   "x": 17253,
+   "z": 37044,
+   "yaw": 0,
+   "chunk": "r10c7",
+   "cam": {
+    "h": 55,
+    "pitch": 38
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 991
+  },
+  {
+   "file": "s0091_bridge_low.jpg",
+   "id": "s0091",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 25728,
+   "z": 22598,
+   "yaw": 0,
+   "chunk": "r16c10",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1827
+  },
+  {
+   "file": "s0312_junction_low.jpg",
+   "id": "s0312",
+   "cat": "junction",
+   "view": "low",
+   "what": "junction on Jamboree Road",
+   "x": 30652,
+   "z": 25139,
+   "yaw": 0,
+   "chunk": "r15c12",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2240
+  },
+  {
+   "file": "s0051_residential_low.jpg",
+   "id": "s0051",
+   "cat": "residential",
+   "view": "low",
+   "what": "residential street, Scale",
+   "x": 36538,
+   "z": 29877,
+   "yaw": 0,
+   "chunk": "r13c15",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2140
+  },
+  {
+   "file": "s0331_bridge_low.jpg",
+   "id": "s0331",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, ramp",
+   "x": 38295,
+   "z": 37433,
+   "yaw": 0,
+   "chunk": "r10c15",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2489
+  },
+  {
+   "file": "s0026_freeway_low.jpg",
+   "id": "s0026",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, Riverside Freeway",
+   "x": 26779,
+   "z": 11527,
+   "yaw": 0,
+   "chunk": "r21c10",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1564
+  },
+  {
+   "file": "s0002_freeway_low.jpg",
+   "id": "s0002",
+   "cat": "freeway",
+   "view": "low",
+   "what": "freeway or ramp, ramp",
+   "x": 24472,
+   "z": 11467,
+   "yaw": 0,
+   "chunk": "r21c10",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 1094
+  },
+  {
+   "file": "s0151_bridge_low.jpg",
+   "id": "s0151",
+   "cat": "bridge",
+   "view": "low",
+   "what": "bridge or raised road, East South Street",
+   "x": 22642,
+   "z": 13123,
+   "yaw": 0,
+   "chunk": "r20c9",
+   "cam": {
+    "h": 18,
+    "pitch": 18
+   },
+   "ground": true,
+   "loaded": true,
+   "ms": 2158
+  }
+ ]
+}
