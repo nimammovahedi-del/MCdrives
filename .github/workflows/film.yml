@@ -31,7 +31,7 @@ jobs:
           python3 - >> "$GITHUB_OUTPUT" <<'EOF'
           import json, math
           run = json.load(open('tools/film/run.json')); shot = json.load(open('tools/film/' + run['shot'] + '.json'))
-          total = round(shot['seconds'] * shot['fps']); n = run['jobs']; per = math.ceil(total / n)
+          total = round(shot['seconds'] * shot.get('renderFps', shot['fps'])); n = run['jobs']; per = math.ceil(total / n)
           print('shards=' + json.dumps([[i * per, min(total, (i + 1) * per) - 1] for i in range(n) if i * per < total]))
           print('area=' + run['area'])
           EOF
@@ -53,12 +53,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-save playwright@1 && npx playwright install --with-deps chromium
+      - run: npm install --no-save playwright@1 && npx playwright install --with-deps chromium && sudo apt-get install -y -qq ffmpeg >/dev/null
       - name: Film
         run: |
           SHOT=$(python3 -c "import json; print(json.load(open('tools/film/run.json'))['shot'])")
           node tools/film_banner.js site "tools/film/$SHOT.json" frames ${{ matrix.range[0] }} ${{ matrix.range[1] }}
-          FPS=$(python3 -c "import json; print(json.load(open('tools/film/$SHOT.json'))['fps'])")
+          FPS=$(python3 -c "import json; c = json.load(open('tools/film/$SHOT.json')); print(c.get('renderFps', c['fps']))")
           ffmpeg -loglevel error -framerate $FPS -start_number ${{ matrix.range[0] }} -i frames/f%05d.jpg \
             -c:v libx264 -preset slow -crf 12 -pix_fmt yuv420p seg.mp4
           mkdir out && mv seg.mp4 "out/seg-$(printf %05d ${{ matrix.range[0] }}).mp4"
@@ -74,6 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
       - uses: actions/download-artifact@v4
         with:
           path: segs
@@ -84,7 +85,11 @@ jobs:
           SHOT=$(python3 -c "import json; print(json.load(open('tools/film/run.json'))['shot'])")
           XF=$(python3 -c "import json; print(json.load(open('tools/film/$SHOT.json')).get('crossfade', 2))")
           ls segs/seg-*.mp4 | sort | sed "s|^|file '$PWD/|; s|$|'|" > list.txt
-          ffmpeg -loglevel error -f concat -safe 0 -i list.txt -c copy master.mp4
+          ffmpeg -loglevel error -f concat -safe 0 -i list.txt -c copy drawn.mp4
+          # frames drawn at renderFps are filled in to fps by motion interpolation (the camera only glides)
+          FPS=$(python3 -c "import json; print(json.load(open('tools/film/$SHOT.json'))['fps'])")
+          ffmpeg -loglevel error -i drawn.mp4 -vf "minterpolate=fps=$FPS:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1" \
+            -c:v libx264 -preset slow -crf 12 -pix_fmt yuv420p master.mp4
           T=$(ffprobe -v error -show_entries format=duration -of csv=p=0 master.mp4)
           # seamless loop: drop the first XF seconds, and crossfade the last XF seconds into them
           ffmpeg -loglevel error -i master.mp4 -filter_complex \

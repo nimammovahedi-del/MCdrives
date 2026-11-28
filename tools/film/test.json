@@ -14,7 +14,7 @@
  ],
  "speed": 29,
  "startAt": 600,
- "seconds": 2,
+ "seconds": 6,
  "fps": 30,
  "width": 1280,
  "height": 720,
@@ -28,14 +28,15 @@
  "smooth": 200,
  "fov": 45,
  "fog": [
-  1000,
-  2200
+  900,
+  1800
  ],
- "stream": 1800,
+ "stream": 1300,
  "carScale": 4,
  "clouds": {
   "scale": 4,
   "y": 520
  },
- "sky": "day"
+ "sky": "day",
+ "renderFps": 10
 }

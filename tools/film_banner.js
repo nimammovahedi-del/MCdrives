@@ -8,7 +8,7 @@
 // film.html with a few test hooks added. The config (tools/film/*.json) names the drive and the camera:
 //   from, to: [x, z] points near the freeway where the drive starts and ends; via: optional [x, z] points between
 //   roads: road names the start and end may snap to; speed: m/s; startAt: metres into the route for frame 0
-//   seconds, fps, width, height; offset: camera position relative to the point it looks at, [x, y, z] in metres
+//   seconds, fps, width, height; renderFps: frames actually drawn per second (the rest are interpolated when joining); offset: camera position relative to the point it looks at, [x, y, z] in metres
 //   carY: where the car sits on screen, 0 top to 1 bottom; smooth: metres of route averaged for the camera path
 //   fov, fog: [near, far], stream: metres of map kept loaded, sky: day or night
 //   carScale: draws the car larger so it reads from high up; clouds: { scale, y } spreads the block clouds over
@@ -20,7 +20,7 @@ const fs = require('fs'), path = require('path'), http = require('http');
 
 const [siteDir, cfgPath, outDir, first = '0', last = ''] = process.argv.slice(2);
 const C = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-const total = Math.round(C.seconds * C.fps), f0 = +first, f1 = Math.min(total - 1, last === '' ? total - 1 : +last);
+const RF = C.renderFps || C.fps, total = Math.round(C.seconds * RF), f0 = +first, f1 = Math.min(total - 1, last === '' ? total - 1 : +last);
 fs.mkdirSync(outDir, { recursive: true });
 
 // film.html: map.html plus hooks to reach the scene, hide labels and widen the loaded area
@@ -147,7 +147,7 @@ function pickNodes() {
   const findLead = async () => {
   let lead = 0;
   for (let it = 0; it < 6; it++) {
-    await p.evaluate(([d, v, l]) => { window.__freeze(d, v); window.__place(d, l); }, [C.startAt + C.speed * f0 / C.fps, C.speed, lead]);
+    await p.evaluate(([d, v, l]) => { window.__freeze(d, v); window.__place(d, l); }, [C.startAt + C.speed * f0 / RF, C.speed, lead]);
     await raf(); await raf();
     const y = await p.evaluate(() => window.__carY());
     lead += (C.carY - y) * Math.hypot(C.offset[0], C.offset[2]) * 0.9;
@@ -159,7 +159,7 @@ function pickNodes() {
       Object.assign(C, v);
       await p.evaluate(c => { window.__offset = c.offset; window.__setLook(c); }, C);
       const lead = await findLead();
-      await p.evaluate(([d, v, l]) => { window.__freeze(d, v); window.__place(d, l); }, [C.startAt + C.speed * f0 / C.fps, C.speed, lead]);
+      await p.evaluate(([d, v, l]) => { window.__freeze(d, v); window.__place(d, l); }, [C.startAt + C.speed * f0 / RF, C.speed, lead]);
       await settle();
       await p.screenshot({ path: path.join(outDir, v.name + '.jpg'), type: 'jpeg', quality: 94, timeout: 300000 });
       console.log('still', v.name);
@@ -170,10 +170,13 @@ function pickNodes() {
   console.log('lead', Math.round(lead));
   const t0 = Date.now();
   for (let f = f0; f <= f1; f++) {
-    const d = C.startAt + C.speed * f / C.fps;
+    const d = C.startAt + C.speed * f / RF;
     await p.evaluate(([d, v, l]) => { window.__freeze(d, v); window.__place(d, l); }, [d, C.speed, lead]);
+    const ta = Date.now(), fr0 = await p.evaluate(() => window.__frames || 0);
     await settle();
+    const tb = Date.now(), fr1 = await p.evaluate(() => window.__frames || 0);
     await p.screenshot({ path: path.join(outDir, `f${String(f).padStart(5, '0')}.jpg`), type: 'jpeg', quality: 94, timeout: 300000 });
+    if (process.env.FILM_DEBUG) console.log(`f${f}: settle ${tb - ta} ms (${fr1 - fr0} draws), shot ${Date.now() - tb} ms`, await p.evaluate(() => JSON.stringify(window.__stats())));
     if ((f - f0) % 10 === 0) console.log(`frame ${f} of ${f1} (${((Date.now() - t0) / 1000 / (f - f0 + 1)).toFixed(2)} s each)`);
   }
   await b.close(); server.close();
