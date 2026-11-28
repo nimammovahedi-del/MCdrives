@@ -133,9 +133,15 @@ function pickNodes() {
 
   // one animation frame draws the new pose; more only while map near the camera is still loading
   const raf = () => p.evaluate(() => new Promise(r => requestAnimationFrame(() => r(window.__idle()))));
+  // the first frame may take minutes (the whole view streams in); later ones only top up. A pack that never
+  // loads must not hold the film: after C.wait seconds (default 90) the frame is taken as it is
+  let first = true;
   const settle = async () => {
-    const t = Date.now();
-    while (!(await raf())) if (Date.now() - t > 900000) { console.log('still loading after 15 min'); break; }
+    const t = Date.now(), cap = (first ? 1800 : (C.wait || 90)) * 1000; first = false;
+    while (!(await raf())) if (Date.now() - t > cap) {
+      console.log('not idle after', Math.round((Date.now() - t) / 1000), 's:', await p.evaluate(() => JSON.stringify(window.__stats())));
+      break;
+    }
   };
   // find the lead (metres) that puts the car at height carY, once, at the first frame
   const findLead = async () => {
@@ -168,7 +174,7 @@ function pickNodes() {
     await p.evaluate(([d, v, l]) => { window.__freeze(d, v); window.__place(d, l); }, [d, C.speed, lead]);
     await settle();
     await p.screenshot({ path: path.join(outDir, `f${String(f).padStart(5, '0')}.jpg`), type: 'jpeg', quality: 94, timeout: 300000 });
-    if ((f - f0) % 50 === 0) console.log(`frame ${f} of ${f1} (${((Date.now() - t0) / 1000 / (f - f0 + 1)).toFixed(2)} s each)`);
+    if ((f - f0) % 10 === 0) console.log(`frame ${f} of ${f1} (${((Date.now() - t0) / 1000 / (f - f0 + 1)).toFixed(2)} s each)`);
   }
   await b.close(); server.close();
 })().catch(e => { console.error(e); process.exit(1); });
