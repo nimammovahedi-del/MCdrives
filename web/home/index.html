@@ -24,8 +24,8 @@
 <body data-page="title">
 <section class="title">
   <div class="bg" aria-hidden="true"></div>
-  <!-- Flyover loop goes here once filmed: set data-src="assets/flyover.mp4" (the still above stays as the fallback). -->
-  <video muted loop playsinline preload="none" aria-hidden="true" style="opacity:0;transition:opacity 1s"></video>
+  <!-- Background loop, filmed from the live map by tools/film_banner.js (.github/workflows/film.yml); the still above stays as the fallback -->
+  <video muted loop playsinline preload="none" aria-hidden="true" data-src="assets/video/banner-720.mp4" data-src-small="assets/video/banner-480.mp4" style="opacity:0;transition:opacity 1.5s"></video>
   <div class="shade"></div>
   <div class="wrap">
     <h1><canvas class="logo" data-text="MAP CRAFT" data-stack="auto" aria-hidden="true"></canvas><span class="sr">Map Craft</span></h1>

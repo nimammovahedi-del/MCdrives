@@ -1,0 +1,41 @@
+{
+ "about": "Short test of the banner shot",
+ "from": [
+  33653,
+  33315
+ ],
+ "to": [
+  37615,
+  36836
+ ],
+ "roads": [
+  "San Diego Freeway",
+  "Santa Ana Freeway"
+ ],
+ "speed": 29,
+ "startAt": 600,
+ "seconds": 6,
+ "fps": 30,
+ "width": 1280,
+ "height": 720,
+ "crossfade": 2,
+ "offset": [
+  -634,
+  290,
+  683
+ ],
+ "carY": 0.8,
+ "smooth": 200,
+ "fov": 45,
+ "fog": [
+  1000,
+  2200
+ ],
+ "stream": 1800,
+ "carScale": 1,
+ "clouds": {
+  "scale": 4,
+  "y": 520
+ },
+ "sky": "day"
+}

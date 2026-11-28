@@ -1,0 +1,7 @@
+{
+  "about": "Homepage background: the banner's view over I-405 by Irvine Spectrum, following the Wedge EV south on the 405 through the El Toro Y onto I-5. Points are in the Orange County frame (roads.json).",
+  "from": [33653, 33315], "to": [37615, 36836], "roads": ["San Diego Freeway", "Santa Ana Freeway"],
+  "speed": 29, "startAt": 600, "seconds": 120, "fps": 30, "width": 1280, "height": 720, "crossfade": 2,
+  "offset": [-634, 290, 683], "carY": 0.8, "smooth": 200, "fov": 45, "fog": [1000, 2200], "stream": 1800,
+  "carScale": 1, "clouds": { "scale": 4, "y": 520 }, "sky": "day"
+}

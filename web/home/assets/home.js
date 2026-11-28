@@ -62,6 +62,6 @@
   const v = document.querySelector('video[data-src]');
   if (v && !matchMedia('(prefers-reduced-motion: reduce)').matches && !(navigator.connection && navigator.connection.saveData)) {
     v.addEventListener('canplay', () => { v.style.opacity = 1; v.play().catch(() => {}); }, { once: true });
-    v.src = v.dataset.src;
+    v.src = (Math.max(screen.width, screen.height) <= 900 && v.dataset.srcSmall) || v.dataset.src;
   }
 })();
