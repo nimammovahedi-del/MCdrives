@@ -42,26 +42,39 @@ const server = http.createServer((req, res) => {
   });
 }).listen(0);
 
-// start and end nodes: on a one-way carriageway of the named roads, heading the way of the drive
+// start and end nodes: on a one-way carriageway of the named roads, heading the way of the drive; the end (and
+// each via) is the nearest such node that can be reached from the one before (some carriageway pieces are cut off)
 function pickNodes() {
   const R = JSON.parse(fs.readFileSync(path.join(siteDir, 'roads.json'), 'utf8')), N = R.nodes;
   const ok = new Set(R.names.map((n, i) => (C.roads.includes(n) ? i : -1)).filter(i => i >= 0));
-  const pick = (pt, toward, end) => {
-    let best = null, bd = Infinity;
+  const adj = N.map(() => []);
+  for (const [a, b, , , ow] of R.edges) { adj[a].push(b); if (!ow) adj[b].push(a); }
+  const reach = from => { const seen = new Uint8Array(N.length), st = [from]; seen[from] = 1;
+    while (st.length) for (const v of adj[st.pop()]) if (!seen[v]) { seen[v] = 1; st.push(v); }
+    return seen; };
+  const cands = (pt, toward, end) => {
+    const out = [];
     for (const [a, b, nm, , ow] of R.edges) {
       if (!ok.has(nm) || !ow) continue;
       const ex = N[b][0] - N[a][0], ez = N[b][1] - N[a][1], l = Math.hypot(ex, ez) || 1;
       if ((ex * toward[0] + ez * toward[1]) / l < 0.5) continue;
-      const n = end ? a : b, d = Math.hypot(N[n][0] - pt[0], N[n][1] - pt[1]);
-      if (d < bd) { bd = d; best = n; }
+      const n = end ? a : b; out.push([Math.hypot(N[n][0] - pt[0], N[n][1] - pt[1]), n]);
     }
-    if (best == null) throw new Error('no node near ' + pt);
-    return best;
+    return out.sort((x, y) => x[0] - y[0]).map(x => x[1]);
   };
   const pts = [C.from, ...(C.via || []), C.to];
   const dir = (a, b) => { const x = b[0] - a[0], z = b[1] - a[1], l = Math.hypot(x, z); return [x / l, z / l]; };
-  return { from: pick(C.from, dir(pts[0], pts[1]), false), to: pick(C.to, dir(pts[pts.length - 2], pts[pts.length - 1]), true),
-    via: (C.via || []).map((v, i) => pick(v, dir(pts[i], pts[i + 2]), false)) };
+  const chain = [];
+  for (const [i, pt] of pts.entries()) {
+    const list = cands(pt, dir(pts[Math.max(0, i - 1)], pts[Math.min(pts.length - 1, i + 1)]), i === pts.length - 1);
+    if (!list.length) throw new Error('no node near ' + pt);
+    if (i === 0) { chain.push(list[0]); continue; }
+    const seen = reach(chain[i - 1]), n = list.find(n => seen[n]);
+    if (n == null) throw new Error('nothing reachable near ' + pt);
+    chain.push(n);
+  }
+  console.log('nodes', chain.map(n => N[n].map(Math.round).join(',')).join(' -> '));
+  return { from: chain[0], to: chain[chain.length - 1], via: chain.slice(1, -1) };
 }
 
 (async () => {
